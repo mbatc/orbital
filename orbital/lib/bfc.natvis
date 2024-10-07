@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?> 
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+  <Type Name="bfc::Vector&lt;*&gt;">
+    <DisplayString Condition="m_size == 0">Empty</DisplayString>
+    <DisplayString Condition="m_size != 0">{{ size={m_size} }}</DisplayString>
+    <Expand>
+      <Item Name="[size]">m_size</Item>
+      <Item Name="[capacity]">m_capacity</Item>
+      <ArrayItems>
+        <Size>m_size</Size>
+        <ValuePointer>m_pData</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+  
+  <Type Name="bfc::String">
+    <Intrinsic Name="length" Expression="m_data.m_size - 1" />
+    <Intrinsic Name="data" Expression="m_data.m_pData" />
+    <DisplayString>{m_data.m_pData,[m_data.m_size - 1]}</DisplayString>
+    <StringView>m_data.m_pData,[m_data.m_size- 1]</StringView>
+    <Expand>
+      <Item Name="[size]" ExcludeView="simple">length()</Item>
+      <ArrayItems>
+        <Size>length()</Size>
+        <ValuePointer>m_data.m_pData</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+  
+  <Type Name="bfc::StringView">
+    <Intrinsic Name="length" Expression="m_size" />
+    <Intrinsic Name="data" Expression="m_pData" />
+    <DisplayString Condition="m_size &lt; 0">[Invalid]</DisplayString>
+    <DisplayString Condition="m_size &gt;= 0">{m_pData,[m_size]}</DisplayString>
+    <StringView>m_pData,[m_size]</StringView>
+    <Expand>
+      <Item Name="[size]" ExcludeView="simple">length()</Item>
+      <ArrayItems>
+        <Size>length()</Size>
+        <ValuePointer>m_pData</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+  
+  <Type Name="bfc::Span&lt;*&gt;">
+    <DisplayString Condition="m_size &lt; 0">Invalid</DisplayString>
+    <DisplayString Condition="m_size == 0">Empty</DisplayString>
+    <DisplayString Condition="m_size &gt; 0">{{ size = {m_size} }}</DisplayString>
+    <Expand>
+      <Item Name="[size]">m_size</Item>
+      <ArrayItems>
+        <Size>m_size</Size>
+        <ValuePointer>m_pData</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <Type Name="bfc::Pair&lt;*&gt;">
+    <DisplayString>({first}, {second})</DisplayString>
+    <Expand>
+      <Item Name="[first]">first</Item>
+      <Item Name="[second]">second</Item>
+    </Expand>
+  </Type>
+  
+  <Type Name="bfc::Map&lt;*&gt;">
+    <DisplayString>{{size = {m_size}}}</DisplayString>
+    <Expand>
+      <CustomListItems MaxItemsPerView="5000" ExcludeView="Test">
+        <Variable Name="iBucket" InitialValue="0" />
+        <Variable Name="iItem" InitialValue="0" />
+        <Variable Name="pBucket" InitialValue="m_buckets.m_pData" />
+        <Size>m_size</Size>
+        <Loop>
+          <Loop>
+            <Break Condition="iItem &lt; m_buckets.m_pData[iBucket].m_size"/>
+            <Exec>iItem    = 0</Exec>
+            <Exec>iBucket += 1</Exec>
+          </Loop>
+ 
+          <Item>m_buckets.m_pData[iBucket].m_pData[iItem],na</Item>
+          <Exec>iItem += 1</Exec>
+        </Loop>
+      </CustomListItems>
+    </Expand>
+  </Type>
+
+  <Type Name="bfc::SerializedObject">
+    <DisplayString Condition="m_type == bfc::SerializedObject::Type_Map">Map={m_field.map}</DisplayString>
+    <DisplayString Condition="m_type == bfc::SerializedObject::Type_Array">Array={m_field.arr}</DisplayString>
+    <DisplayString Condition="m_type == bfc::SerializedObject::Type_Int">Value={m_field.i64}</DisplayString>
+    <DisplayString Condition="m_type == bfc::SerializedObject::Type_Float">Value={m_field.f64}</DisplayString>
+    <DisplayString Condition="m_type == bfc::SerializedObject::Type_Text">Value={m_field.text}</DisplayString>
+    <DisplayString Condition="m_type == bfc::SerializedObject::Type_Empty">Empty</DisplayString>
+    <Expand>
+      <Item Name="[Map]" Condition="m_type == bfc::SerializedObject::Type_Map">m_field.map</Item>
+      <Item Name="[Array]" Condition="m_type == bfc::SerializedObject::Type_Array">m_field.arr</Item>
+      <Item Name="[Value]" Condition="m_type == bfc::SerializedObject::Type_Int">m_field.i64</Item>
+      <Item Name="[Value]" Condition="m_type == bfc::SerializedObject::Type_Float">m_field.f64</Item>
+      <Item Name="[Value]" Condition="m_type == bfc::SerializedObject::Type_Text">m_field.text</Item>
+    </Expand>
+  </Type>
+</AutoVisualizer>
