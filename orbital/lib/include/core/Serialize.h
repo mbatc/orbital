@@ -29,8 +29,17 @@ namespace bfc {
     if (!serialized.read(buf.get())) {
       return false;
     }
-    o = std::move(buf.get());
+    o = buf.take();
     return true;
+  }
+
+  template<typename T>
+  std::optional<T> deserialize(SerializedObject const & serialized) {
+    Uninitialized<T> buf;
+    if (!serialized.read(buf.get())) {
+      return std::nullopt;
+    }
+    return buf.take();
   }
 
   enum DataFormat {
@@ -294,7 +303,7 @@ namespace bfc {
   template<typename T>
   struct Serializer<Vector2<T>> {
     inline static SerializedObject write(Vector2<T> const & o) {
-      return SerializedObject::MakeArray({o.x, o.y});
+      return SerializedObject::MakeArray({serialize(o.x), serialize(o.y)});
     }
 
     inline static bool read(SerializedObject const & s, Vector2<T> & o) {
@@ -309,7 +318,7 @@ namespace bfc {
   template<typename T>
   struct Serializer<Vector3<T>> {
     inline static SerializedObject write(Vector3<T> const & o) {
-      return SerializedObject::MakeArray({o.x, o.y, o.z});
+      return SerializedObject::MakeArray({serialize(o.x), serialize(o.y), serialize(o.z)});
     }
 
     inline static bool read(SerializedObject const & s, Vector3<T> & o) {
@@ -324,7 +333,7 @@ namespace bfc {
   template<typename T>
   struct Serializer<Vector4<T>> {
     inline static SerializedObject write(Vector4<T> const & o) {
-      return SerializedObject::MakeArray({o.x, o.y, o.z, o.w});
+      return SerializedObject::MakeArray({serialize(o.x), serialize(o.y), serialize(o.z), serialize(o.w)});
     }
 
     inline static bool read(SerializedObject const & s, Vector4<T> & o) {
@@ -339,7 +348,7 @@ namespace bfc {
   template<typename T>
   struct Serializer<Quaternion<T>> {
     inline static SerializedObject write(Quaternion<T> const & o) {
-      return SerializedObject::MakeArray({o.x, o.y, o.z, o.w});
+      return SerializedObject::MakeArray({serialize(o.x), serialize(o.y), serialize(o.z), serialize(o.w)});
     }
 
     inline static bool read(SerializedObject const & s, Quaternion<T> & o) {

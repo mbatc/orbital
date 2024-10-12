@@ -32,7 +32,7 @@ namespace bfc {
     return condition;
   }
 
-  bool fail(char const * file, char const * function, int64_t line, char const * message, ...) {
+  void fail(char const * file, char const * function, int64_t line, char const * message, ...) {
     constexpr int64_t MaxMessageLength = 1024;
     constexpr int64_t MaxAssertLength  = 2 * MaxMessageLength;
 
@@ -53,7 +53,7 @@ namespace bfc {
     switch (platform::errorMessageBox("Assertion Failed", messageBuffer)) {
     case platform::MessageBoxButton_Abort: exit(1); break;
     case platform::MessageBoxButton_Retry: __debugbreak(); break;
-    case platform::MessageBoxButton_Ignore: return true;
+    case platform::MessageBoxButton_Ignore: return;
     }
   }
 } // namespace bfc

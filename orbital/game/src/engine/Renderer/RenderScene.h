@@ -3,34 +3,39 @@
 #include "core/Span.h"
 #include "core/Vector.h"
 
+#include "RenderData.h"
+#include "Renderer.h"
+
 namespace bfc {
   class EventListener;
 }
 
 namespace engine {
-  class Scene;
+  class Level;
   class RenderData;
   class RenderView;
   class RenderScene;
 
   class RenderDataCollector {
   public:
-    virtual void getRenderData(RenderView * pReviewView, Scene * pScene) = 0; 
+    virtual void getRenderData(RenderView * pReviewView, Level const * pLevel) = 0; 
   };
+
   class RenderScene {
   public:
-    RenderScene(bfc::Ref<Scene> pScene);
+    RenderScene(bfc::Ref<Level> const & pLevel);
 
-    Scene * getScene() const;
+    Level * getLevel() const;
 
     void setViews(bfc::Span<RenderView> const & views);
+
+    void collect();
 
     bfc::Span<RenderView const> views() const;
 
   private:
-    bfc::Vector<RenderData>   m_renderData;
-    bfc::Vector<RenderView>   m_views;
-    bfc::Ref<Scene>      m_pScene;
-    bfc::Ref<RenderData> m_pRenderData;
+    bfc::Ref<Level>         m_pLevel;
+    bfc::Vector<RenderData> m_renderData;
+    bfc::Vector<RenderView> m_views;
   };
 } // namespace engine

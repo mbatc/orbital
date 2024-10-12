@@ -324,6 +324,18 @@ namespace bfc {
     }
 
     template<typename T>
+    Quaternion<T> yprToQuat(bfc::Vector3<T> const & ypr) {
+      bfc::Vec3d pyr = {ypr.y, ypr.x, ypr.z};
+      return bfc::Quatd(pyr);
+    }
+
+    template<typename T>
+    bfc::Vector3<T> quatToYpr(Quaternion<T> const & orientation) {
+      bfc::Vec3d pyr = glm::eulerAngles(orientation);
+      return { pyr.y, pyr.x, pyr.z };
+    }
+
+    template<typename T>
     Matrix<T> scale(Vector3<T> const & amount) {
       return glm::scale(amount);
     }

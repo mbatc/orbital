@@ -17,7 +17,7 @@ namespace engine {
   public:
     ShaderLoader(bfc::GraphicsDevice * pGraphicsDevice);
 
-    virtual bfc::Ref<bfc::Shader> load(bfc::URI const & uri, AssetLoadContext * pManager) const override;
+    virtual bfc::Ref<bfc::Shader> load(bfc::URI const & uri, AssetLoadContext * pContext) const override;
     virtual bool                  handles(bfc::URI const & uri, AssetManager const * pManager) const override;
 
   private:
@@ -35,7 +35,7 @@ namespace bfc {
     }
 
     inline static bool read(SerializedObject const & s, engine::ShaderDefinition & o) {
-      return deserialize(s.get("src"), o.sources);
+      return s.get("src").read(o.sources);
     }
   };
 }

@@ -19,12 +19,18 @@ namespace bfc {
       int64_t     pitch   = 0;
 
       void free();
+
+      Surface slice(int64_t z) const;
     };
 
+    /// Allocate a buffer for `surface`.
+    /// The buffer is large enough to contain the image format and size described by `surface`.
     BFC_API void * allocateSurface(Surface const & surface);
 
+    /// Calculate the size of a surface in bytes.
     BFC_API int64_t calculateSurfaceSize(Surface const & surface);
 
+    /// Test if a surface can be loaded from a file with the specified extension.
     BFC_API bool canLoadSurface(StringView const & extension);
 
     BFC_API bool loadSurface(URI const & path, Surface * pSurface);
@@ -111,7 +117,7 @@ namespace bfc {
           }
         } else {
           // Different format, different size. Re-sample surface.
-            // Same format, different size. Re-sample surface.
+          // Same format, different size. Re-sample surface.
           DstT *       pDstPtr = (DstT *)*ppDst;
           SrcT const * pSrcPtr = (SrcT const *)pSrc;
           Vec3d        step    = Vec3d(1.0) / Vec3d(dstSize);

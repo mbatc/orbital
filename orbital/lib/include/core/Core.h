@@ -291,6 +291,16 @@ namespace bfc {
     inline static constexpr int64_t size = sizeof...(Args);
   };
 
+  template<bool IsConst, typename T>
+  struct conditional_const {};
+  template<typename T>
+  struct conditional_const<true, T> : std::add_const<T> {};
+  template<typename T>
+  struct conditional_const<false, T> : std::remove_const<T> {};
+
+  template<bool IsConst, typename T>
+  using conditional_const_t = typename conditional_const<IsConst, T>::type;
+
   // Test if a type is a function.
   template<typename T>
   struct is_function : std::false_type {};
@@ -359,7 +369,7 @@ namespace bfc {
   };
 
   BFC_API bool assertion(char const * file, char const * function, int64_t line, bool condition, char const * expression, char const * message, ...);
-  BFC_API bool fail(char const * file, char const * function, int64_t line, char const * message, ...);
+  BFC_API void fail(char const * file, char const * function, int64_t line, char const * message, ...);
 }
 
 #define BFC_DEFINE_MEMBER_CHECK(member)                                                                                         \

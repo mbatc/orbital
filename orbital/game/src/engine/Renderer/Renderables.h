@@ -1,31 +1,19 @@
 #pragma once
 
-// #include "../Scene/Components.h"
-#include "render/GraphicsDevice.h"
+#include "../Levels/CoreComponents.h"
 #include "geometry/Geometry.h"
 #include "mesh/Mesh.h"
+#include "render/GraphicsDevice.h"
 
 namespace engine {
-  enum SkyboxType {
-    SkyboxType_CubeMap,
-    SkyboxType_Equirect,
-    SkyboxType_Count,
-  };
-
-  enum LightType {
-    LightType_Sun,
-    LightType_Point,
-    LightType_Spot,
-    LightType_Count,
-  };
-
   /// Mesh render data.
   /// Stores geometry and material information.
   struct MeshRenderable {
-    int64_t          elementOffset;
-    int64_t          elementCount;
-    bfc::Mat4d       modelMatrix;
-    bfc::Mat4d       normalMatrix;
+    int64_t    elementOffset;
+    int64_t    elementCount;
+    bfc::Mat4d modelMatrix;
+    bfc::Mat4d normalMatrix;
+
     bfc::GraphicsResource vertexArray;
     bfc::GraphicsResource materialBuffer;
     bfc::GraphicsResource materialTextures[bfc::Material::TextureSlot_Count];
@@ -35,43 +23,42 @@ namespace engine {
 
   /// Exposure fore tone-mapping post process
   struct MeshShadowCasterRenderable {
-    int64_t          elementOffset;
-    int64_t          elementCount;
-    bfc::Mat4d            modelMatrix;
-    bfc::Mat4d            normalMatrix;
+    int64_t    elementOffset;
+    int64_t    elementCount;
+    bfc::Mat4d modelMatrix;
+    bfc::Mat4d normalMatrix;
+
     bfc::GraphicsResource vertexArray;
 
     bfc::geometry::Box<float> bounds;
   };
 
   /// Skybox render data.
-  struct SkyboxRenderable {
-    SkyboxType       format;
+  struct CubeMapRenderable {
     bfc::GraphicsResource texture;
-    float            alpha;
+    float                 alpha;
   };
 
   /// Image-based lighting data.
-  struct IBLRenderable {
-    SkyboxType       format;
+  struct CubeMapIBLRenderable {
     bfc::GraphicsResource irradiance;
     bfc::GraphicsResource prefilter;
     bfc::GraphicsResource brdfLUT;
-    float            intensity;
+    float                 intensity;
   };
 
   /// Light render data.
   struct LightRenderable {
-    LightType type;
+    components::LightType type;
 
-    bfc::Vec3  position;
-    bfc::Vec3  direction;
-    bfc::Vec3  colour;
-    bfc::Vec3  ambient;
-    bfc::Vec3  attenuation;
-    float strength;
-    float innerConeAngle;
-    float outerConeAngle;
+    bfc::Vec3 position;
+    bfc::Vec3 direction;
+    bfc::Vec3 colour;
+    bfc::Vec3 ambient;
+    bfc::Vec3 attenuation;
+    float     strength;
+    float     innerConeAngle;
+    float     outerConeAngle;
 
     bool castShadows;
 
@@ -90,7 +77,7 @@ namespace engine {
     float threshold;
 
     bfc::GraphicsResource dirtTex;
-    float            dirtIntensity;
+    float                 dirtIntensity;
   };
 
   /// Settings for screen space ambient occlusion post process

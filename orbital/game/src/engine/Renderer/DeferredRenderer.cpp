@@ -73,22 +73,6 @@ namespace engine {
     StructuredHardwareBuffer<renderer::ModelBuffer> * m_pModelData = nullptr;
   };
 
-  class Feature_Skybox : public FeatureRenderer {
-  public:
-    Feature_Skybox(AssetManager *pAssets)
-      : m_shader(pAssets->load<bfc::Shader>(URI::File("engine:shaders/general/cubmap.shader"))) {}
-
-    virtual void beginFrame(Renderer * pRenderer, Vector<RenderView> const & views) {
-      // m_shader = pRenderer->getShaders()->load("~/general/cubemap");
-    }
-
-    virtual void beginView(Renderer * pRenderer, RenderView const & view) override {}
-
-    virtual void renderView(Renderer * pRenderer, RenderView const & view) override {}
-
-    Ref<Shader> m_shader;
-  };
-
   class Feature_LightingPass : public FeatureRenderer {
   public:
     // Data needed to render a shadow map
@@ -159,7 +143,7 @@ namespace engine {
           shadowMapData.lightIndex = m_lightData.data.size();
           shadowMapData.maxDistance =
             math::maxComponent(math::solveQuadratic(limit * item.attenuation.z, limit * item.attenuation.y, limit * item.attenuation.x - item.strength));
-          if (light.type == LightType_Point) {
+          if (light.type == components::LightType_Point) {
             // add 6 entries for cube-map shadow texture
             for (int64_t i = 0; i < 6; ++i) {
               shadowMapData.cubeFace = (CubeMapFace)i;
@@ -175,7 +159,7 @@ namespace engine {
       // Add a default light if none are in the render data.
       if (m_lightData.data.size() == 0) {
         renderer::LightBuffer l;
-        l.type      = LightType_Sun;
+        l.type      = components::LightType_Sun;
         l.direction = Vec3(1, 0, 0);
         l.ambient   = Vec3(1);
         l.colour    = Vec3(0);
@@ -306,9 +290,9 @@ namespace engine {
 
     static void calcShadowMapData(RenderData * pRenderData, geometry::Boxf const & receiverBounds, ShadowMapData * pData) {
       switch (pData->light.type) {
-      case LightType_Sun: calcShadowMapDataForSun(pRenderData, receiverBounds, pData); break;
-      case LightType_Point: calcShadowMapDataForPointLight(pRenderData, pData); break;
-      case LightType_Spot: calcShadowMapDataForSpotLight(pRenderData, pData); break;
+      case components::LightType_Sun: calcShadowMapDataForSun(pRenderData, receiverBounds, pData); break;
+      case components::LightType_Point: calcShadowMapDataForPointLight(pRenderData, pData); break;
+      case components::LightType_Spot: calcShadowMapDataForSpotLight(pRenderData, pData); break;
       default: break;
       }
     }
@@ -414,6 +398,44 @@ namespace engine {
     GraphicsResource * m_pColourTarget = nullptr;
 
     StructuredHardwareArrayBuffer<renderer::LightBuffer> m_lightData;
+  };
+
+  class Feature_Skybox : public FeatureRenderer {
+  public:
+    Feature_Skybox(AssetManager * pAssets, GraphicsResource * pColourTarget)
+      : m_shader(pAssets->load<bfc::Shader>(URI::File("engine:shaders/general/cubemap.shader")))
+      , m_pColourTarget(pColourTarget) {}
+
+    virtual void renderView(Renderer * pRenderer, RenderView const & view) override {
+      auto pDevice = pRenderer->getGraphicsDevice();
+      auto                            pState  = pDevice->getStateManager();
+      graphics::RenderTargetManager * pRT     = pDevice->getRenderTargetManager();
+
+      /// Bind final scene colour texture.
+      /// This target accumulates post-processing effects
+      pDevice->bindRenderTarget(*m_pColourTarget);
+      pState->setViewport({0, 0}, pRT->getSize(*m_pColourTarget));
+      pState->setFeatureEnabled(GraphicsState_DepthTest, true);
+      pState->setFeatureEnabled(GraphicsState_DepthWrite, false);
+      pState->setDepthFunction(ComparisonFunction_Equal);
+      pState->setFeatureEnabled(GraphicsState_StencilTest, false);
+      pState->setFeatureEnabled(GraphicsState_Blend, false);
+      pState->setDepthRange(1, 1);
+
+      pDevice->bindProgram(*m_shader);
+      pDevice->bindVertexArray(InvalidGraphicsResource);
+      for (auto const& cm : view.pRenderData->renderables<CubeMapRenderable>()) {
+        pDevice->bindTexture(cm.texture, 0);
+      }
+      pDevice->draw(3);
+      pDevice->bindRenderTarget(view.renderTarget);
+
+      pState->setDepthRange(0, 1);
+      pState->setDepthFunction(ComparisonFunction_Less);
+    }
+
+    Ref<Shader> m_shader;
+    GraphicsResource * m_pColourTarget = nullptr;
   };
 
   class Feature_SSAO : public FeatureRenderer {
@@ -813,15 +835,19 @@ namespace engine {
 
     m_finalTarget = pRenderTargets->createRenderTarget(RenderTargetType_Texture);
     pRenderTargets->attachColour(m_finalTarget, m_finalColourTarget);
+    pRenderTargets->attachDepth(m_finalTarget, m_gbuffer.getDepthTarget(), 0, 0);
 
     Colour<RGBAu8> white[4] = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF};
     Colour<RGBAu8> black[4] = {0, 0, 0, 0};
     Colour<RGBAu8> blue[4]  = {{127, 127, 255, 1}, {127, 127, 255, 1}, {127, 127, 255, 1}, {127, 127, 255, 1}};
-    Texture        whiteTex, blackTex, blueTex;
+
+    // Load some default textures
+    Texture whiteTex, blackTex, blueTex;
     whiteTex.load2D(m_pDevice, {2, 2}, white);
     blackTex.load2D(m_pDevice, {2, 2}, black);
     blueTex.load2D(m_pDevice, {2, 2}, blue);
 
+    // Assign default textures for each material slot
     m_defaultMaterialTextures[Material::TextureSlot_Alpha]      = whiteTex;
     m_defaultMaterialTextures[Material::TextureSlot_BaseColour] = whiteTex;
     m_defaultMaterialTextures[Material::TextureSlot_Ambient]    = blackTex;
@@ -835,8 +861,8 @@ namespace engine {
     // Add renderer features
     addFeature<Feature_MeshBasePass>(pAssets, & m_gbuffer, &m_modelData);
     addFeature<Feature_LightingPass>(pDevice, pAssets, &m_gbuffer, &m_finalTarget, &m_modelData);
-    addFeature<Feature_Skybox>(pAssets);
-    addFeature<Feature_SSAO>(pAssets , & m_postProc);
+    addFeature<Feature_Skybox>(pAssets, &m_finalTarget);
+    addFeature<Feature_SSAO>(pAssets, &m_postProc);
     addFeature<Feature_SSR>(pAssets, &m_postProc);
     addFeature<Feature_Bloom>(pAssets, &m_postProc);
     addFeature<Feature_Exposure>(pAssets, &m_postProc);

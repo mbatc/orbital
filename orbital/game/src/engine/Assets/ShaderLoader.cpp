@@ -8,8 +8,8 @@ namespace engine {
   ShaderLoader::ShaderLoader(GraphicsDevice * pGraphicsDevice)
     : m_pGraphicsDevice(pGraphicsDevice) {}
 
-  Ref<Shader> ShaderLoader::load(URI const & uri, AssetLoadContext * pManager) const {
-    auto definition = pManager->getFileSystem()->deserialize<ShaderDefinition>(uri);
+  Ref<Shader> ShaderLoader::load(URI const & uri, AssetLoadContext * pContext) const {
+    auto definition = pContext->getFileSystem()->deserialize<ShaderDefinition>(uri);
     if (!definition.has_value()) {
       return nullptr;
     }
@@ -17,7 +17,7 @@ namespace engine {
     URI sourceBasePath = uri.withPath(uri.path().parent());
     Map<ShaderType, Filename> sources;
     for (auto & [type, shaderFile] : definition->sources) {
-      URI resolvedUri = pManager->getFileSystem()->resolveUri(sourceBasePath.resolveRelativeReference(shaderFile));
+      URI resolvedUri = pContext->getFileSystem()->resolveUri(sourceBasePath.resolveRelativeReference(shaderFile));
       sources.add(type, resolvedUri.path());
     }
 

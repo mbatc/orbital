@@ -29,7 +29,7 @@ namespace bfc {
   }
 
   void Texture::load2D(GraphicsDevice * pDevice, Vec2i const & size, PixelFormat const & format, void const * pPixels, int64_t rowPitch) {
-    upload(pDevice, TextureType_2D, { size, 1 }, format, pPixels, rowPitch);
+    upload(pDevice, TextureType_2D, {size, 1}, format, pPixels, rowPitch);
   }
 
   void Texture::load2D(GraphicsDevice * pDevice, Vec2i const & size, DepthStencilFormat const & depthFormat) {
@@ -45,7 +45,7 @@ namespace bfc {
     return true;
   }
 
-  void Texture::load2DArray(GraphicsDevice* pDevice, media::Surface const& surface) {
+  void Texture::load2DArray(GraphicsDevice * pDevice, media::Surface const & surface) {
     upload(pDevice, TextureType_2DArray, surface);
   }
 
@@ -67,6 +67,20 @@ namespace bfc {
 
   void Texture::load3D(GraphicsDevice * pDevice, Vec3i const & size, DepthStencilFormat const & depthFormat) {
     upload(pDevice, TextureType_3D, size, depthFormat);
+  }
+
+  void Texture::loadCubeMap(GraphicsDevice * pDevice, media::Surface const & surface) {
+    BFC_ASSERT(surface.size.z == CubeMapFace_Count, "Surface must have a depth of 6");
+
+    upload(pDevice, TextureType_CubeMap, surface);
+  }
+
+  void Texture::loadCubeMap(GraphicsDevice * pDevice, Vec2i const & size, PixelFormat const & format, void const * pPixels, int64_t rowPitch) {
+    upload(pDevice, TextureType_CubeMap, {size, CubeMapFace_Count}, format, pPixels, rowPitch);
+  }
+
+  void Texture::loadCubeMap(GraphicsDevice * pDevice, Vec2i const & size, DepthStencilFormat const & depthFormat) {
+    upload(pDevice, TextureType_CubeMap, {size, CubeMapFace_Count}, depthFormat);
   }
 
   void Texture::upload(GraphicsDevice * pDevice, TextureType const & type, media::Surface const & surface) {

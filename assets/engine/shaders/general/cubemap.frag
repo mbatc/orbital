@@ -6,9 +6,9 @@
 // common.h.glsl
 // -----------------------------
 
-#define LightType_Sun   0
-#define LightType_Point 1
-#define LightType_Spot  2
+#define LightType_Directional 0
+#define LightType_Point 0
+#define LightType_Spot 0
 
 struct LightBuffer {
   vec3 position;
@@ -24,8 +24,8 @@ struct LightBuffer {
   float innerCutoff;
 
   vec3  direction;
-  float outerCutoff;
-  
+  float coneCutoff;
+
   ivec2 shadowMapRange;
   float padding1;
 };
@@ -45,7 +45,7 @@ layout(std140, binding=1) uniform Model {
   mat4 mvpMatrix;
 };
 
-layout(std140, binding=2) buffer lights {
+layout(std140, binding = 3) buffer lights {
   LightBuffer lightData[];
 };
 

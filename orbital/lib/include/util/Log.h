@@ -46,6 +46,6 @@ namespace bfc {
   extern Log log;
 } // namespace bfc
 
-#define BFC_LOG_ERROR(src, message, ...)   ::bfc::log.write(BFC_FUNCTION, BFC_FUNCTION, BFC_LINE, bfc::Log::Level_Error, src, message, __VA_ARGS__)
-#define BFC_LOG_WARNING(src, message, ...) ::bfc::log.write(BFC_FUNCTION, BFC_FUNCTION, BFC_LINE, bfc::Log::Level_Warning, src, message, __VA_ARGS__)
-#define BFC_LOG_INFO(src, message, ...)    ::bfc::log.write(BFC_FUNCTION, BFC_FUNCTION, BFC_LINE, bfc::Log::Level_Info, src, message, __VA_ARGS__)
+#define BFC_LOG_ERROR(src, message, ...)   ::bfc::log.write(BFC_FILE, BFC_FUNCTION, BFC_LINE, bfc::Log::Level_Error, src, message, __VA_ARGS__)
+#define BFC_LOG_WARNING(src, message, ...) ::bfc::log.write(BFC_FILE, BFC_FUNCTION, BFC_LINE, bfc::Log::Level_Warning, src, message, __VA_ARGS__)
+#define BFC_LOG_INFO(src, message, ...)    ::bfc::log.write(BFC_FILE, BFC_FUNCTION, BFC_LINE, bfc::Log::Level_Info, src, message, __VA_ARGS__)

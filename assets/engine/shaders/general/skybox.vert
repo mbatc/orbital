@@ -6,9 +6,9 @@
 // common.h.glsl
 // -----------------------------
 
-#define LightType_Sun   0
-#define LightType_Point 1
-#define LightType_Spot  2
+#define LightType_Directional 0
+#define LightType_Point 0
+#define LightType_Spot 0
 
 struct LightBuffer {
   vec3 position;
@@ -24,7 +24,10 @@ struct LightBuffer {
   float innerCutoff;
 
   vec3  direction;
-  float outerCutoff;
+  float coneCutoff;
+
+  ivec2 shadowMapRange;
+  float padding1;
 };
 
 layout(std140, binding=0) uniform Camera {
@@ -42,7 +45,7 @@ layout(std140, binding=1) uniform Model {
   mat4 mvpMatrix;
 };
 
-layout(std140, binding=2) buffer lights {
+layout(std140, binding = 3) buffer lights {
   LightBuffer lightData[];
 };
 
@@ -60,27 +63,21 @@ const vec2 uvs[3] = vec2[] (
     vec2(0.0, 2.0)
 );
 
+out vec2 vsout_uv0;
+out vec3 vsout_position0;
 out vec3 vsout_direction0;
-
-layout(binding = 0, std140) uniform Camera
-{
-  mat4 viewMat;
-  mat4 projMat;
-  mat4 camMat;
-  mat4 invProjMat;
-};
 
 void main()
 {
-  gl_Position = vec4(position0, 1);
+  gl_Position = vec4(positions[gl_VertexID], 0, 1);
 
   vsout_uv0 = uvs[gl_VertexID];
   vsout_position0 = vec3(positions[gl_VertexID], 0);
   gl_Position = vec4(positions[gl_VertexID], 0.0, 1.0);
 
   // Calculate world space direction
-  mat3 rotation = mat3(camMat);
-  vec4 direction = invProjMat * vec4(position0, 1);
+  mat3 rotation = mat3(invViewMatrix);
+  vec4 direction = invProjMatrix * vec4(positions[gl_VertexID], 0, 1);
   direction /= direction.w;
   vsout_direction0 = normalize(rotation * vec3(direction));
 }

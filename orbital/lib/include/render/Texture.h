@@ -75,6 +75,15 @@ namespace bfc {
       load3D(pDevice, size, Format::FormatID, pPixels);
     }
 
+    void loadCubeMap(GraphicsDevice * pDevice, media::Surface const & surface);
+    void loadCubeMap(GraphicsDevice * pDevice, Vec2i const & size, PixelFormat const & format, void const * pPixels = nullptr, int64_t rowPitch = 0);
+    void loadCubeMap(GraphicsDevice * pDevice, Vec2i const & size, DepthStencilFormat const & depthFormat);
+
+    template<typename Format>
+    void loadCubeMap(GraphicsDevice * pDevice, Vec2i const & size, Colour<Format> * pPixels = nullptr) {
+      loadCubeMap(pDevice, size, Format::FormatID, pPixels);
+    }
+
     void upload(GraphicsDevice * pDevice, TextureType const & type, media::Surface const & surface);
     void upload(GraphicsDevice * pDevice, TextureType const & type, Vec3i const & size, PixelFormat const & format, void const * pPixels = nullptr,
                 int64_t rowPitch = 0);

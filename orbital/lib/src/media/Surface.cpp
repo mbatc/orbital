@@ -115,6 +115,17 @@ namespace bfc {
       mem::free(pBuffer);
       pBuffer = 0;
     }
+    Surface Surface::slice(int64_t z) const {
+      Surface ret;
+      ret.size    = {size.x, size.y, 1 };
+      ret.pitch   = pitch;
+      ret.format  = format;
+      ret.pBuffer = pBuffer;
+      if (ret.pBuffer != nullptr) {
+        ret.pBuffer = (uint8_t *)ret.pBuffer + getSurfacePitch(*this) * size.y * z;
+      }
+      return ret;
+    }
   } // namespace media
 
   int64_t write(Stream * pStream, media::Surface const * pValue, int64_t count) {

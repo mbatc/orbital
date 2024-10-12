@@ -5,6 +5,8 @@
 #include "engine/Assets/MeshLoader.h"
 #include "engine/Assets/ShaderLoader.h"
 #include "engine/Assets/TextureLoader.h"
+#include "engine/Assets/SkyboxLoader.h"
+
 #include "../Application.h"
 #include "../Rendering.h"
 
@@ -24,6 +26,7 @@ namespace engine {
     registerLoader("core.surface", NewRef<engine::SurfaceLoader>());
     registerLoader("core.texture", NewRef<engine::Texture2DLoader>(pRendering->getDevice()));
     registerLoader("core.shader", NewRef<engine::ShaderLoader>(pRendering->getDevice()));
+    registerLoader("core.skybox", NewRef<engine::SkyboxLoader>(pRendering->getDevice()));
 
     return true;
   }

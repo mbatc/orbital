@@ -4,114 +4,51 @@
 #include "core/Pool.h"
 #include "core/Serialize.h"
 #include "core/typeindex.h"
+#include "util/UUID.h"
+
+#include "LevelView.h"
 
 namespace engine {
-  using EntityID = uint64_t;
-
-  constexpr EntityID InvalidEntity = 0;
-
-  class ILevelComponents {
-  public:
-    virtual ~ILevelComponents() = default;
-  };
-
-  template<typename T>
-  class LevelComponents : public ILevelComponents {
-  public:
-    template<typename... Args>
-    T & add(EntityID entityID, Args &&... args) {
-      const int64_t index = toIndex(entityID);
-      if (index != bfc::npos) {
-        BFC_FAIL("Entity %llu already has a %s component", entityID, bfc::TypeID<T>().name());
-        return m_components[index];
-      }
-
-      m_components.pushBack(T(std::forward<Args>(args)...));
-
-      return m_components.back();
-    }
-
-    T & get(EntityID entityID) {
-      return m_components[toIndex(entityID)];
-    }
-
-    T const & get(EntityID entityID) const {
-      return m_components[toIndex(entityID)];
-    }
-
-    bool exists(EntityID entityID) const {
-      return toIndex(entityID) != bfc::npos;
-    }
-
-    bool erase(EntityID entityID) {
-      const int64_t index = toIndex(entityID);
-      if (index == bfc::npos) {
-        return false;
-      }
-
-      const int64_t  backComponent = m_components.size() - 1;
-      const EntityID backEntity    = m_componentToEntity[backComponent];
-
-      std::swap(m_components[index], m_components.back());
-
-      m_componentToEntity[index]      = backEntity;
-      m_entityToComponent[backEntity] = index;
-
-      m_componentToEntity.erase(backComponent);
-      m_entityToComponent.erase(entityID);
-      m_components.popBack();
-    }
-
-    EntityID toEntity(T const * pComponent) const {
-      int64_t index = pComponent - m_components.begin();
-      if (index < 0 || index >= m_components.size())
-        return InvalidEntity;
-
-      return;
-    }
-
-    int64_t toIndex(EntityID entityID) const {
-      int64_t ret = bfc::npos;
-      m_entityToComponent.tryGet(entityID, &ret);
-      return ret;
-    }
-
-    int64_t size() const {
-      return m_components.size();
-    }
-
-    int64_t capacity() const {
-      return m_components.capacity();
-    }
-
-    T * begin() {
-      return m_components.begin();
-    }
-
-    T * end() {
-      return m_components.end();
-    }
-
-    T const * begin() const {
-      return m_components.begin();
-    }
-
-    T const * end() const {
-      return m_components.end();
-    }
-
-  private:
-    bfc::Vector<T>              m_components;
-    bfc::Map<EntityID, int64_t> m_entityToComponent;
-    bfc::Map<int64_t, EntityID> m_componentToEntity;
-  };
-
   class Level {
   public:
+    class EntityView {
+    public:
+      class Iterator {
+      public:
+        Iterator(bfc::Span<const EntityID> ids, int64_t index);
+        bool operator==(Iterator const & rhs) const;
+        bool operator!=(Iterator const & rhs) const;
+        Iterator& operator++();
+        Iterator operator++(int);
+        EntityID operator*() const;
+
+      private:
+        void nextValidIndex();
+
+        bfc::Span<const EntityID> m_ids;
+        int64_t                   m_index = 0;
+      };
+
+      EntityView(Level const * pLevel)
+        : m_pLevel(pLevel) {}
+
+      Iterator begin() const;
+      Iterator end() const;
+
+    private:
+      Level const * m_pLevel = nullptr;
+    };
+
     Level();
 
     /// Create a new empty entity.
-    EntityID create();
+    EntityID create(std::optional<bfc::UUID> const & id = std::nullopt);
+
+    /// Find an entity by using its UUID.
+    EntityID find(bfc::UUID const & id) const;
+
+    /// Get the UUID of an entity.
+    bfc::UUID uuidOf(EntityID const & o) const;
 
     /// Remove an entity from the level.
     bool remove(EntityID const & o);
@@ -131,6 +68,34 @@ namespace engine {
       return components<T>().add(entityID, std::forward<Args>(args)...);
     }
 
+    template<typename T, typename... Args>
+    T & replace(EntityID const & entityID, Args &&... args) {
+      return components<T>().replace(entityID, std::forward<Args>(args)...);
+    }
+
+    template<typename T>
+    T & get(EntityID const & entityID) {
+      return components<T>().get(entityID);
+    }
+
+    template<typename T>
+    T const & get(EntityID const & entityID) const {
+      return components<T>().get(entityID);
+    }
+
+    /// Try get a component attached to an entity.
+    /// @returns A pointer to the component attached 
+    /// @retval nullptr If the entity does not have a component of type `T` attached.
+    template<typename T>
+    T * tryGet(EntityID const & entityID) {
+      return components<T>().tryGet(entityID);
+    }
+
+    template<typename T>
+    T const * tryGet(EntityID const & entityID) const {
+      return components<T>().tryGet(entityID);
+    }
+
     /// Remove a component from an entity.
     template<typename T>
     bool erase(EntityID const & entityID) {
@@ -139,30 +104,49 @@ namespace engine {
 
     /// Test if an entity has a component.
     template<typename T>
-    T & has(EntityID const & entityID) const {
+    bool has(EntityID const & entityID) const {
       return components<T>().has(entityID);
     }
 
     template<typename T>
-    LevelComponents<T> & components() {
-      bfc::Ref<ILevelComponents> pStorage;
+    EntityID toEntity(T const * pComponent) const {
+      return components<T>().toEntity(pComponent);
+    }
+
+    EntityView entities() const;
+
+    bfc::Map<bfc::type_index, bfc::Ref<ILevelComponentStorage>> const & components() const;
+
+    template<typename T>
+    LevelComponentStorage<T> & components() {
+      bfc::Ref<ILevelComponentStorage> pStorage;
       if (!m_components.tryGet(bfc::TypeID<T>(), &pStorage)) {
-        pStorage = bfc::NewRef<LevelComponents<T>>();
+        pStorage = bfc::NewRef<LevelComponentStorage<T>>();
         m_components.add(bfc::TypeID<T>(), pStorage);
       }
 
-      return *(LevelComponents<T> const *)pStorage.get();
+      return *(LevelComponentStorage<T> *)pStorage.get();
     }
 
     template<typename T>
-    LevelComponents<T> const & components() const {
-      bfc::Ref<ILevelComponents> pStorage;
+    LevelComponentStorage<T> const & components() const {
+      bfc::Ref<ILevelComponentStorage> pStorage;
       if (!m_components.tryGet(bfc::TypeID<T>(), &pStorage)) {
-        static const LevelComponents<T> empty;
+        static const LevelComponentStorage<T> empty;
         return empty;
       }
 
-      return *(LevelComponents<T> const *)pStorage.get();
+      return *(LevelComponentStorage<T> const *)pStorage.get();
+    }
+
+    template<typename... Components>
+    LevelView<Components...> getView() const {
+      return { &components<Components>()... };
+    }
+
+    template<typename... Components>
+    LevelViewMutable<Components...> getView() {
+      return { &components<Components>()... };
     }
 
     /// Unpack the index from an entity ID.
@@ -187,6 +171,9 @@ namespace engine {
     bfc::Vector<EntityID> m_entities;
     bfc::Vector<EntityID> m_freed;
 
-    bfc::Map<bfc::type_index, bfc::Ref<ILevelComponents>> m_components;
+    bfc::Vector<bfc::UUID>        m_ids;
+    bfc::Map<bfc::UUID, EntityID> m_idToEntity;
+
+    bfc::Map<bfc::type_index, bfc::Ref<ILevelComponentStorage>> m_components;
   };
 } // namespace engine

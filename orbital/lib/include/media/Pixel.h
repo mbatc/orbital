@@ -1,10 +1,11 @@
 #pragma once
 
 #include "../core/Core.h"
+#include "../core/Serialize.h"
 #include "../math/MathTypes.h"
 
-#include <type_traits>
 #include <limits>
+#include <type_traits>
 
 BFC_DEFINE_MEMBER_CHECK(r);
 BFC_DEFINE_MEMBER_CHECK(g);
@@ -39,7 +40,7 @@ namespace bfc {
     PixelFormat_Count,
   };
 
-  BFC_API int64_t getPixelFormatStride(PixelFormat const& format);
+  BFC_API int64_t getPixelFormatStride(PixelFormat const & format);
 
   struct RGBAu8 {
     static constexpr PixelFormat FormatID = PixelFormat_RGBAu8;
@@ -50,12 +51,15 @@ namespace bfc {
       : r(0)
       , g(0)
       , b(0)
-      , a(0)
-    {
+      , a(0) {
       *(uint32_t *)this = packed;
     }
 
-    constexpr RGBAu8(uint8_t r, uint8_t g, uint8_t b, uint8_t a) : r(r), g(g), b(b), a(a) {}
+    constexpr RGBAu8(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+      : r(r)
+      , g(g)
+      , b(b)
+      , a(a) {}
 
     uint8_t r, g, b, a;
   };
@@ -82,9 +86,10 @@ namespace bfc {
 
   struct Lu8 {
     static constexpr PixelFormat FormatID = PixelFormat_Lu8;
-    Lu8() = default;
+    Lu8()                                 = default;
 
-    constexpr Lu8(uint8_t luminance) : grayscale(luminance) {}
+    constexpr Lu8(uint8_t luminance)
+      : grayscale(luminance) {}
 
     union {
       uint8_t r;
@@ -99,7 +104,9 @@ namespace bfc {
 
     LAu8() = default;
 
-    constexpr LAu8(uint8_t luminance, uint8_t alpha) : grayscale(luminance) , alpha(alpha) {}
+    constexpr LAu8(uint8_t luminance, uint8_t alpha)
+      : grayscale(luminance)
+      , alpha(alpha) {}
 
     union {
       uint8_t r;
@@ -116,8 +123,10 @@ namespace bfc {
     RGBAf32() = default;
 
     constexpr RGBAf32(Vec4 vec)
-        : r(vec.x), g(vec.y), b(vec.z), a(vec.w) {
-    }
+      : r(vec.x)
+      , g(vec.y)
+      , b(vec.z)
+      , a(vec.w) {}
 
     float r, g, b, a;
   };
@@ -155,7 +164,7 @@ namespace bfc {
     double r, g, b, a;
   };
 
-  template <typename T>
+  template<typename T>
   struct pixel_default {
     static constexpr T R = 0;
     static constexpr T G = 0;
@@ -163,7 +172,7 @@ namespace bfc {
     static constexpr T A = std::numeric_limits<T>::max();
   };
 
-  template <>
+  template<>
   struct pixel_default<float> {
     static constexpr float R = 0;
     static constexpr float G = 0;
@@ -179,13 +188,13 @@ namespace bfc {
     static constexpr double A = 1.0f;
   };
 
-  template <typename T>
+  template<typename T>
   struct pixel_range {
     static constexpr T Min = 0;
     static constexpr T Max = std::numeric_limits<T>::max();
   };
 
-  template <>
+  template<>
   struct pixel_range<float> {
     static constexpr float Min = 0;
     static constexpr float Max = 1.0f;
@@ -197,15 +206,16 @@ namespace bfc {
     static constexpr float Max = 1.0f;
   };
 
-  template <typename U, typename T>
-  constexpr U convertPixelChannel(T const& src) {
+  template<typename U, typename T>
+  constexpr U convertPixelChannel(T const & src) {
     if constexpr (std::is_same_v<T, U>)
       return src;
     else
-      return pixel_range<U>::Min + (U)((src - pixel_range<T>::Min) * double((pixel_range<U>::Max - pixel_range<U>::Min) / (pixel_range<T>::Max - pixel_range<T>::Min)));
+      return pixel_range<U>::Min +
+             (U)((src - pixel_range<T>::Min) * double((pixel_range<U>::Max - pixel_range<U>::Min) / (pixel_range<T>::Max - pixel_range<T>::Min)));
   }
 
-  template <typename Format>
+  template<typename Format>
   struct Colour : public Format {
     using Format::Format;
 
@@ -214,64 +224,64 @@ namespace bfc {
     static constexpr bool hasB = BFC_HAS_MEMBER(Format, b);
     static constexpr bool hasA = BFC_HAS_MEMBER(Format, a);
 
-    template <typename T>
-    void getR(T& dst) const {
+    template<typename T>
+    void getR(T & dst) const {
       if constexpr (hasR)
         dst = convertPixelChannel<T>(r);
       else
         dst = pixel_default<T>::R;
     }
 
-    template <typename T>
-    void getG(T& dst) const {
+    template<typename T>
+    void getG(T & dst) const {
       if constexpr (hasG)
         dst = convertPixelChannel<T>(g);
       else
         dst = pixel_default<T>::G;
     }
 
-    template <typename T>
-    void getB(T& dst) const {
+    template<typename T>
+    void getB(T & dst) const {
       if constexpr (hasB)
         dst = convertPixelChannel<T>(b);
       else
         dst = pixel_default<T>::B;
     }
 
-    template <typename T>
-    void getA(T& dst) const {
+    template<typename T>
+    void getA(T & dst) const {
       if constexpr (hasA)
         dst = convertPixelChannel<T>(a);
       else
         dst = pixel_default<T>::A;
     }
 
-    template <typename T>
-    void setR(T const& src) {
+    template<typename T>
+    void setR(T const & src) {
       if constexpr (hasR)
         r = convertPixelChannel<decltype(r)>(src);
       else
         BFC_UNUSED(src);
     }
 
-    template <typename T>
-    void setG(T const& src) {
+    template<typename T>
+    void setG(T const & src) {
       if constexpr (hasG)
         g = convertPixelChannel<decltype(g)>(src);
       else
         BFC_UNUSED(src);
     }
 
-    template <typename T>
-    void setB(T const& src) {
+    template<typename T>
+    void setB(T const & src) {
       if constexpr (hasB)
         b = convertPixelChannel<decltype(b)>(src);
       else
         BFC_UNUSED(src);
     }
 
-    template <typename T>
-    void setA(T const& src) {
+    template<typename T>
+    void setA(T const & src) {
       if constexpr (hasA)
         a = convertPixelChannel<decltype(a)>(src);
       else
@@ -281,11 +291,25 @@ namespace bfc {
     template<typename DstFormat>
     operator Colour<DstFormat>() const {
       Colour<DstFormat> pix;
-      if constexpr (pix.hasR) getR(pix.r);
-      if constexpr (pix.hasG) getG(pix.g);
-      if constexpr (pix.hasB) getB(pix.b);
-      if constexpr (pix.hasA) getA(pix.a);
+      if constexpr (pix.hasR)
+        getR(pix.r);
+      if constexpr (pix.hasG)
+        getG(pix.g);
+      if constexpr (pix.hasB)
+        getB(pix.b);
+      if constexpr (pix.hasA)
+        getA(pix.a);
       return pix;
     }
   };
-}
+
+  template<>
+  struct EnumValueMap<PixelFormat> {
+    // inline static Vector<any> const mapping;
+    inline static Map<PixelFormat, String> const mapping = {
+      {PixelFormat_Unknown, "unknown"},  {PixelFormat_RGBAu8, "rgba-u8"}, {PixelFormat_RGBu8, "rgb-u8"},     {PixelFormat_Ru8, "r-u8"},
+      {PixelFormat_Lu8, "l-u8"},         {PixelFormat_LAu8, "la-u8"},     {PixelFormat_RGBAu16, "rgba-u16"}, {PixelFormat_RGBAf16, "rgba-f16"},
+      {PixelFormat_RGBAf32, "rgba-f32"}, {PixelFormat_RGBf32, "fgb-f32"}, {PixelFormat_Rf32, "r-f32"},       {PixelFormat_RGBAf64, "rgba-f64"},
+    };
+  };
+} // namespace bfc

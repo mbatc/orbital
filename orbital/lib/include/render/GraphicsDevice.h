@@ -78,8 +78,8 @@ namespace bfc {
   };
 
   constexpr GraphicsResource InvalidGraphicsResource = GraphicsResource(); ///< Invalid GraphicsResource value.
-  constexpr int64_t          MaxVertexBuffers        = 8; ///< Max buffers allowed in a Vertex Array
-  constexpr int64_t          MaxColourAttachments    = 8; ///< Max colour attachments allowed in a Render Target
+  constexpr int64_t          MaxVertexBuffers        = 8;                  ///< Max buffers allowed in a Vertex Array
+  constexpr int64_t          MaxColourAttachments    = 8;                  ///< Max colour attachments allowed in a Render Target
 
   enum TextureType {
     TextureType_Unknown = -1,
@@ -101,15 +101,8 @@ namespace bfc {
     CubeMapFace_Count,
   };
 
-  inline Vec3d getCubeMapDirection(CubeMapFace const& face) {
-    static constexpr Vec3d directions[] = {
-      Vec3d(1, 0, 0),
-      Vec3d(-1, 0, 0),
-      Vec3d(0, 1, 0),
-      Vec3d(0, -1, 0),
-      Vec3d(0, 0, 1),
-      Vec3d(0, 0, -1)
-    };
+  inline Vec3d getCubeMapDirection(CubeMapFace const & face) {
+    static constexpr Vec3d directions[] = {Vec3d(1, 0, 0), Vec3d(-1, 0, 0), Vec3d(0, 1, 0), Vec3d(0, -1, 0), Vec3d(0, 0, 1), Vec3d(0, 0, -1)};
     return directions[face];
   }
 
@@ -178,9 +171,9 @@ namespace bfc {
   };
 
   enum BufferUsageHint {
-    BufferUsageHint_Unknown = 0, ///< Buffer usage is unknown. A reasonable default should be used.
+    BufferUsageHint_Unknown  = 0,      ///< Buffer usage is unknown. A reasonable default should be used.
     BufferUsageHint_Uniform  = 1 << 0, ///< The buffer will be used for shader uniforms.
-    BufferUsageHint_Storage = 1 << 1,  ///< The buffer will be used as a shader storage buffer.
+    BufferUsageHint_Storage  = 1 << 1, ///< The buffer will be used as a shader storage buffer.
     BufferUsageHint_Vertices = 1 << 2, ///< The buffer will be used for vertex data.
     BufferUsageHint_Indices  = 1 << 3, ///< The buffer will be used for index data.
     BufferUsageHint_Dynamic  = 1 << 5, ///< The buffer contents will be updated frequently. If this is not specified, buffer data is assumed to be static.
@@ -471,16 +464,15 @@ namespace bfc {
 
       virtual void setSamplerMinFilter(GraphicsResource samplerID, FilterMode filter, FilterMode mipFilter) = 0;
       virtual void setSamplerMagFilter(GraphicsResource samplerID, FilterMode filter, FilterMode mipFilter) = 0;
-      
+
       virtual void setSamplerMinLOD(GraphicsResource samplerID, float level) = 0;
       virtual void setSamplerMaxLOD(GraphicsResource samplerID, float level) = 0;
-
 
       virtual void setSamplerWrapU(GraphicsResource samplerID, WrapMode mode) = 0;
       virtual void setSamplerWrapV(GraphicsResource samplerID, WrapMode mode) = 0;
       virtual void setSamplerWrapW(GraphicsResource samplerID, WrapMode mode) = 0;
 
-      inline void  setSamplerWrap(GraphicsResource samplerID, WrapMode mode) {
+      inline void setSamplerWrap(GraphicsResource samplerID, WrapMode mode) {
         setSamplerWrapU(samplerID, mode);
         setSamplerWrapV(samplerID, mode);
         setSamplerWrapW(samplerID, mode);
@@ -703,5 +695,24 @@ namespace bfc {
                                                            {ShaderType_Compute, "compute"},
                                                            {ShaderType_TessControl, "tess-control"},
                                                            {ShaderType_TessEval, "tess-eval"}};
+  };
+
+  template<>
+  struct EnumValueMap<CubeMapFace> {
+    // inline static Vector<any> const mapping;
+    inline static Map<CubeMapFace, String> const mapping = {{CubeMapFace_Left, "left"},     {CubeMapFace_Right, "right"}, {CubeMapFace_Top, "top"},
+                                                            {CubeMapFace_Bottom, "bottom"}, {CubeMapFace_Front, "front"}, {CubeMapFace_Back, "back"}};
+  };
+
+  template<>
+  struct EnumValueMap<GraphicsResourceType> {
+    // inline static Vector<any> const mapping;
+    inline static Map<GraphicsResourceType, String> const mapping = {{GraphicsResourceType_Buffer, "buffer"},
+                                                                     {GraphicsResourceType_VertexArray, "vertex-array"},
+                                                                     {GraphicsResourceType_Texture, "texture"},
+                                                                     {GraphicsResourceType_Sampler, "sampler"},
+                                                                     {GraphicsResourceType_Shader, "shader"},
+                                                                     {GraphicsResourceType_Program, "program"},
+                                                                     {GraphicsResourceType_RenderTarget, "render-target"}};
   };
 } // namespace bfc
