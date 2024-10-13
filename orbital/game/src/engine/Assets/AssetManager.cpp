@@ -10,6 +10,8 @@
 #include "../Application.h"
 #include "../Rendering.h"
 
+#include "util/Log.h"
+
 using namespace bfc;
 
 namespace engine {
@@ -17,7 +19,8 @@ namespace engine {
     : Subsystem(TypeID<AssetManager>(), "AssetManager") {}
 
   bool AssetManager::init(Application * pApp) {
-    Ref<Rendering>         pRendering  = pApp->findSubsystem<Rendering>();
+    Ref<Rendering> pRendering = pApp->findSubsystem<Rendering>();
+
     m_pFileSystem = pApp->findSubsystem<VirtualFileSystem>();
 
     registerLoader("core.meshdata", NewRef<engine::MeshDataFileLoader>());
@@ -61,6 +64,15 @@ namespace engine {
     return ret;
   }
 
+  AssetHandle AssetManager::find(bfc::Ref<void> const & pAsset) const {
+    std::scoped_lock guard{m_assetLock};
+    AssetHandle ret;
+    if (!m_ptrToHandle.tryGet(pAsset.get(), &ret)) {
+      return {};
+    }
+    return ret;
+  }
+
   AssetHandle AssetManager::add(URI const & uri, type_index const & type) {
     // Find a loader that can handle this asset.
     std::optional<String> loaderID = findLoaderID(uri, type);
@@ -97,14 +109,32 @@ namespace engine {
     return {(uint64_t)index};
   }
 
+  bfc::UUID AssetManager::uuidOf(AssetHandle const & handle) const {
+    std::unique_lock assetGuard{m_assetLock};
+    if (!m_assetPool.isUsed(handle)) {
+      return {};
+    }
+
+    return m_assetPool[handle].uuid;
+  }
+
+  bfc::URI AssetManager::uriOf(AssetHandle const & handle) const {
+    std::unique_lock assetGuard{m_assetLock};
+    if (!m_assetPool.isUsed(handle)) {
+      return {};
+    }
+    return m_assetPool[handle].uri;
+  }
+
   Ref<void> AssetManager::load(AssetHandle const & handle, std::optional<type_index> const & type) {
     Asset asset;
 
-    bool                   load    = false;
-    bool                   wait    = false;
-    uint64_t               version = 0;
+    bool     load    = false;
+    bool     wait    = false;
+    uint64_t version = 0;
+
     Ref<IAssetLoader> pLoader = nullptr;
-    std::unique_lock assetGuard{m_assetLock};
+    std::unique_lock  assetGuard{m_assetLock};
     {
       if (!m_assetPool.isUsed(handle)) {
         return nullptr;
@@ -163,6 +193,16 @@ namespace engine {
       stored.status            = pInstance == nullptr ? AssetStatus_Failed : AssetStatus_Loaded;
       for (AssetHandle const & dependency : context.getDependencies()) {
         m_assetPool[dependency].dependent.add(handle);
+      }
+
+      if (pInstance != nullptr) {
+        BFC_LOG_INFO("AssetManager", "Loaded asset (handle: %lld, uri: %s, type: %s, loader: %s)", handle.index, stored.uri, pLoader->assetType().name(),
+                     stored.loader);
+        m_ptrToHandle.add(pInstance.get(), handle);
+      } else {
+        BFC_LOG_WARNING("AssetManager", "Failed to load asset (handle: %lld, uri: %s, type: %s, loader: %s)", handle.index, stored.uri,
+                        pLoader->assetType().name(),
+                        stored.loader);
       }
       assetGuard.unlock();
 

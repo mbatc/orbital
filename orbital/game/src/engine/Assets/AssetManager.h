@@ -53,6 +53,9 @@ namespace engine {
     template<typename T>
     AssetHandle find(bfc::URI const & uri) const {}
 
+    /// Find the handle of an asset by its pointer.
+    AssetHandle find(bfc::Ref<void> const & pAsset) const;
+
     /// Add an asset to the asset manager.
     template<typename T>
     AssetHandle add(bfc::URI const & uri) {
@@ -64,6 +67,10 @@ namespace engine {
 
     /// Add an asset to the asset manager, specifying a loader type.
     AssetHandle add(bfc::URI const & uri, bfc::StringView const & loaderID);
+
+    bfc::UUID uuidOf(AssetHandle const & handle) const;
+
+    bfc::URI uriOf(AssetHandle const & handle) const;
 
     /// Load the asset associated with `uri`.
     /// @returns The loaded asset.
@@ -138,6 +145,7 @@ namespace engine {
 
     bfc::Pool<Asset>                 m_assetPool;
     bfc::Map<bfc::UUID, AssetHandle> m_idToHandle;
+    bfc::Map<void*, AssetHandle>     m_ptrToHandle;
 
     bfc::Ref<VirtualFileSystem> m_pFileSystem;
   };

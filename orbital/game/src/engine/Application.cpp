@@ -47,8 +47,8 @@ namespace engine {
   }
 
   void Application::shutdown() {
-    for (auto & pSystem : m_subsystems) {
-      pSystem->shutdown();
+    for (int64_t i = m_subsystems.size() - 1; i >= 0; --i) {
+      m_subsystems[i]->shutdown();
     }
   }
 

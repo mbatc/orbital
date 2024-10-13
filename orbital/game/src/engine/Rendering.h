@@ -30,7 +30,7 @@ namespace engine {
   private:
     bfc::Ref<bfc::GraphicsDevice> m_pDevice = nullptr;
     bfc::Ref<bfc::platform::Window> m_pWindow = nullptr;
-
+    bfc::Ref<bfc::EventListener>    m_pListener = nullptr;
     bfc::Setting<bfc::String> m_api;
   };
 }

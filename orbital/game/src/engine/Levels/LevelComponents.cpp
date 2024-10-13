@@ -5,7 +5,7 @@ namespace engine {
   static bfc::Map<bfc::String, int64_t>           g_nameLookup;
   static bfc::Map<bfc::type_index, int64_t>       g_typeLookup;
 
-  bool ILevelComponentType::add(bfc::StringView const& name, bfc::Ref<ILevelComponentType> const& pType) {
+  bool ILevelComponentType::add(bfc::StringView const & name, bfc::Ref<ILevelComponentType> const & pType) {
     if (g_nameLookup.contains(name)) {
       return false;
     }

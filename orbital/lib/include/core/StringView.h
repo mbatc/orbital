@@ -83,8 +83,12 @@ namespace bfc {
 
     constexpr int64_t StringView::find(Span<StringView> const & needles, int64_t start = 0, int64_t * pFoundIndex = nullptr) const {
       for (int64_t offset = start; offset < length(); ++offset) {
+        int64_t remaining = length() - offset;
         for (auto & [i, needle] : enumerate(needles)) {
-          if (substr(offset, needle.length()) != needle)
+          if (needle.length() > remaining)
+            continue;
+
+          if (strncmp(begin() + offset, needle.begin(), needle.length()) != 0)
             continue;
 
           if (pFoundIndex != nullptr) {

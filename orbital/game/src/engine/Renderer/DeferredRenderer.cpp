@@ -407,6 +407,11 @@ namespace engine {
       , m_pColourTarget(pColourTarget) {}
 
     virtual void renderView(Renderer * pRenderer, RenderView const & view) override {
+      const auto &                    skyboxes = view.pRenderData->renderables<CubeMapRenderable>();
+      if (skyboxes.size() == 0) {
+        return;
+      }
+
       auto pDevice = pRenderer->getGraphicsDevice();
       auto                            pState  = pDevice->getStateManager();
       graphics::RenderTargetManager * pRT     = pDevice->getRenderTargetManager();
@@ -424,7 +429,7 @@ namespace engine {
 
       pDevice->bindProgram(*m_shader);
       pDevice->bindVertexArray(InvalidGraphicsResource);
-      for (auto const& cm : view.pRenderData->renderables<CubeMapRenderable>()) {
+      for (auto const & cm : skyboxes) {
         pDevice->bindTexture(cm.texture, 0);
       }
       pDevice->draw(3);

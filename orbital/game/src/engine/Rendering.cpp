@@ -30,6 +30,12 @@ namespace engine {
     m_pWindow->setTitle(pApp->getName());
     m_pWindow->show();
 
+    m_pListener = m_pWindow->getEvents()->addListener();
+    m_pListener->on<bfc::events::CloseWindow>([=](bfc::events::CloseWindow const & e) {
+      pApp->exit();
+      return true;
+    });
+
     m_api = pApp->addSetting<String>("Rendering/api", "OpenGL");
 
     m_pDevice = createGraphicsDevice(m_api.get());

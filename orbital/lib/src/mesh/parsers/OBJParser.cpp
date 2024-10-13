@@ -46,8 +46,78 @@ namespace bfc {
     return OBJKeyword_None;
   }
 
+  class BufferedReader : public Stream {
+  public:
+    BufferedReader(Stream * pStream, int64_t chunkSize = 32 * 1024 * 1024ll)
+      : m_pStream(pStream)
+      , m_bufferedSize(chunkSize)
+      , m_chunkStart(pStream->tell())
+      , m_chunkPos(0)
+    {}
+
+    virtual bool readable() const {
+      return true;
+    }
+
+    virtual bool writeable() const {
+      return false;
+    }
+
+    virtual bool seekable() const {
+      return false;
+    }
+
+    virtual bool eof() const {
+      return m_pStream->eof() && (m_chunkStart + m_chunkPos == m_pStream->tell());
+    }
+
+    virtual int64_t write(void const* data, int64_t length) {
+      BFC_UNUSED(data, length);
+      return 0;
+    }
+
+    virtual int64_t read(void* data, int64_t length) {
+      int64_t remaining = length;
+
+      while (remaining > 0) {
+        const int64_t available = m_chunk.size() - m_chunkPos;
+        const int64_t readSize  = math::min(length, available);
+        memcpy(data, m_chunk.begin() + m_chunkPos, readSize);
+
+        remaining  -= readSize;
+        m_chunkPos += readSize;
+
+        if (m_chunkPos == m_chunk.size()) {
+          m_chunkStart = m_pStream->tell();
+          m_chunkPos   = 0;
+          m_chunk.resize(m_bufferedSize, 0);
+          m_chunk.resize(m_pStream->read(m_chunk.begin(), m_bufferedSize));
+
+          if (m_chunk.size() == 0) {
+            break;
+          }
+        }
+      }
+
+      return length - remaining;
+    }
+
+    virtual int64_t tell() const {
+      return m_chunkStart + m_chunkPos;
+    }
+
+  private:
+    int64_t m_bufferedSize = 0;
+    int64_t m_chunkStart   = 0;
+    int64_t m_chunkPos     = 0;
+
+    Stream *        m_pStream = nullptr;
+    Vector<uint8_t> m_chunk;
+  };
+
   bool OBJParser::read(Stream * pStream, MeshData * pMesh, StringView const & resourceDir) {
-    TextReader reader(pStream);
+    BufferedReader bufferedReader(pStream); // Buffered because we are often reading a large amount of data
+    TextReader     reader(&bufferedReader);
 
     // Reserve memory based on file size to reduce allocations
     // pMesh->normals.reserve(data.size() / 60);
@@ -63,7 +133,7 @@ namespace bfc {
     Vector<StringView> delims = {" ", "\t", "\n"};
     StringSplitter     splitter;
     StringSplitter     vertDefSplitter;
-    while (!pStream->eof()) {
+    while (!bufferedReader.eof()) {
       StringView line = reader.readLine();
       splitter(line, delims, true);
       if (splitter.tokens.size() == 0)

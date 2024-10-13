@@ -4,12 +4,17 @@
 
 #include "../Application.h"
 #include "../Renderer/RenderData.h"
+#include "../Renderer/RenderScene.h"
 #include "../Renderer/Renderables.h"
 #include "../Rendering.h"
 #include "../assets/AssetManager.h"
 
 #include "mesh/Mesh.h"
 #include "platform/Window.h"
+#include "platform/OS.h"
+#include "core/File.h"
+#include "platform/Events.h"
+#include "util/Log.h"
 
 using namespace bfc;
 
@@ -21,116 +26,90 @@ namespace engine {
     registerComponentTypes();
 
     auto pAssets = pApp->findSubsystem<AssetManager>();
-    m_pRendering = pApp->findSubsystem<Rendering>().get();
 
-    Level lvl;
-    EntityID testEntity = lvl.create();
-    lvl.add<components::Name>(testEntity).name = "Test Entity 1";
-
-    EntityID testEntity2                        = lvl.create();
-    lvl.add<components::Name>(testEntity2).name = "Test Entity 2";
-    lvl.add<components::Light>(testEntity2);
-    lvl.add<components::Transform>(testEntity2).setTranslation({ 1, 2, 3 });
-
-    LevelSerializer serializer(pAssets.get());
-    serializer.serialize(URI::File("D:/test.level"), lvl);
-
-    Level lvlRead;
-    serializer.deserialize(URI::File("D:/test.level"), lvlRead);
-    serializer.deserialize(URI::File("D:/test.level"), lvlRead);
-
-    Filename path       = "game:models/donut/dohey.obj";
-    Filename skyboxPath = "game:skybox/nebula.skybox";
-
-    m_pMesh = pAssets->load<Mesh>(URI::File(path));
-    for (int64_t i = 0; i < m_pMesh->getSubmeshCount(); ++i) {
-      URI matUri = URI::File(String::format("%s#material.%lld", path.c_str(), i));
-      m_materials.pushBack(pAssets->load<Material>(matUri));
-    }
-
-    m_pSkybox = pAssets->load<bfc::Texture>(URI::File(skyboxPath));
-
+    m_pRendering   = pApp->findSubsystem<Rendering>().get();
     m_pActiveLevel = NewRef<Level>();
     m_pRenderer    = NewRef<DeferredRenderer>(m_pRendering->getDevice(), pAssets.get());
 
+    m_pInputs      = pApp->addListener();
+    m_pInputs->on<events::KeyDown>([=](events::KeyDown const & kd) {
+      if (kd.code == KeyCode_L) {
+        BFC_LOG_INFO("LevelManager", "Reloading level");
+
+        *m_pActiveLevel = {};
+        LevelSerializer(pAssets.get()).deserialize(URI::File("D:/test.level"), *m_pActiveLevel);
+      }
+      return true;
+    });
+
+    URI levelPath = URI::File("D:/test.level");
+
+    if (bfc::uriExists(levelPath)) {
+      LevelSerializer(pAssets.get()).deserialize(URI::File("D:/test.level"), *m_pActiveLevel);
+    } else {
+      Filename skyboxPath = "game:skybox/nebula.skybox";
+      EntityID testEntity = m_pActiveLevel->create();
+
+      m_pActiveLevel->add<components::Name>(testEntity).name       = "Environment";
+      m_pActiveLevel->add<components::Skybox>(testEntity).pTexture = pAssets->load<bfc::Texture>(URI::File(skyboxPath));
+
+      components::Transform & sunTransform = m_pActiveLevel->add<components::Transform>(testEntity);
+      sunTransform.lookAt(bfc::Vec3d(1, 1, -1));
+
+      components::Light & sun = m_pActiveLevel->add<components::Light>(testEntity);
+      sun.ambient             = {0.7f, 0.7f, 0.7f};
+      sun.colour              = {0.7f, 0.7f, 0.7f};
+      sun.castShadows         = true;
+
+      Filename path       = "game:models/donut/dohey.obj";
+      EntityID meshEntity = m_pActiveLevel->create();
+
+      m_pActiveLevel->add<components::Name>(meshEntity).name = "The Dohey";
+
+      components::Transform &  transform = m_pActiveLevel->add<components::Transform>(meshEntity);
+      components::StaticMesh & mesh      = m_pActiveLevel->add<components::StaticMesh>(meshEntity);
+
+      mesh.pMesh = pAssets->load<Mesh>(URI::File(path));
+      for (int64_t i = 0; i < mesh.pMesh->getSubmeshCount(); ++i) {
+        URI matUri = URI::File(String::format("%s#material.%lld", path.c_str(), i));
+        mesh.materials.pushBack(pAssets->load<Material>(matUri));
+      }
+      mesh.castShadows = true;
+
+      LevelSerializer(pAssets.get()).serialize(levelPath, *m_pActiveLevel);
+    }
+
     return true;
+  }
+
+  void LevelManager::shutdown() {
+    m_pActiveLevel = nullptr;
+    m_pRenderer    = nullptr;
   }
 
   void LevelManager::loop() {
     Vec2i windowSize = m_pRendering->getMainWindow()->getSize();
     m_pRenderer->onResize(windowSize);
 
-    RenderData                                      data;
-    RenderableStorage<MeshRenderable> &             meshes   = data.renderables<MeshRenderable>();
-    RenderableStorage<MeshShadowCasterRenderable> & shadows  = data.renderables<MeshShadowCasterRenderable>();
-    RenderableStorage<LightRenderable> &            lights   = data.renderables<LightRenderable>();
-    RenderableStorage<CubeMapRenderable> &          cubemaps = data.renderables<CubeMapRenderable>();
-
-    for (int64_t i = 0; i < m_pMesh->getSubmeshCount(); ++i) {
-      auto const & sm = m_pMesh->getSubMesh(i);
-
-      geometry::Boxf bounds    = sm.bounds;
-      Material *     pMaterial = i < m_materials.size() ? m_materials[i].get() : nullptr;
-      if (pMaterial == nullptr)
-        continue;
-
-      MeshRenderable renderable;
-      renderable.elementOffset  = sm.elmOffset;
-      renderable.elementCount   = sm.elmCount;
-      renderable.modelMatrix    = glm::identity<Mat4d>();
-      renderable.normalMatrix   = glm::identity<Mat4d>();
-      renderable.materialBuffer = pMaterial == nullptr ? InvalidGraphicsResource : pMaterial->getResource();
-      renderable.vertexArray    = m_pMesh->getVertexArray();
-      renderable.bounds         = bounds;
-
-      for (auto & [i, texture] : enumerate(pMaterial->textures)) {
-        if (texture != nullptr) {
-          renderable.materialTextures[i] = texture->getResource();
-        }
-      }
-      meshes.pushBack(renderable);
-
-      MeshShadowCasterRenderable caster;
-      caster.bounds        = sm.bounds;
-      caster.elementCount  = sm.elmCount;
-      caster.elementOffset = sm.elmOffset;
-      caster.modelMatrix   = glm::identity<Mat4d>();
-      caster.normalMatrix  = glm::identity<Mat4d>();
-      caster.vertexArray   = m_pMesh->getVertexArray();
-      shadows.pushBack(caster);
-    }
-
-    LightRenderable l;
-    l.type      = components::LightType_Sun;
-    l.direction = glm::normalize(Vec3d(1, -1, -1));
-    l.colour    = Vec3d(1, 1, 1);
-    l.ambient   = Vec3d(0.3, 0.3, 0.3);
-    l.strength  = 1;
-    l.position  = {0, 0, 0};
-    lights.pushBack(l);
-
-    CubeMapRenderable cm;
-    cm.texture = *m_pSkybox;
-    cm.alpha   = 1.0f;
-    cubemaps.pushBack(cm);
-
-    RenderView view;
+    RenderView  view;
+    RenderScene scene(m_pActiveLevel);
     view.viewMatrix       = glm::inverse(glm::translate<double>(bfc::Vec3d{0, 0.2, 0.5}));
     view.projectionMatrix = glm::perspective<double>(glm::radians(60.0f), (float)windowSize.x / windowSize.y, 0.01f, 1000.0f);
-    view.updateCachedProperties();
     view.viewport     = {0, 0, 1, 1};
-    view.pRenderData  = &data;
     view.renderTarget = InvalidGraphicsResource;
 
-    m_pRenderer->render({view});
+    scene.setViews({&view, 1});
+    scene.collect();
+
+    m_pRenderer->render(scene.views());
   }
 
   void LevelManager::registerComponentTypes() {
     registerComponentType<components::Name>("name");
     registerComponentType<components::Transform>("transform");
     registerComponentType<components::Light>("light");
-    // registerComponentType<components::Skybox>("skybox");
-    // registerComponentType<components::StaticMesh>("static-mesh");
+    registerComponentType<components::Skybox>("skybox");
+    registerComponentType<components::StaticMesh>("static-mesh");
     registerComponentType<components::PostProcessVolume>("post-process-volume");
     registerComponentType<components::PostProcess_Tonemap>("post-process-tonemap");
     registerComponentType<components::PostProcess_Bloom>("post-process-bloom");

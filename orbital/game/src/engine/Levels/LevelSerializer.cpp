@@ -1,5 +1,6 @@
 #include "LevelSerializer.h"
 #include "Level.h"
+#include "../assets/AssetManager.h"
 #include "util/Log.h"
 
 using namespace bfc;
@@ -33,7 +34,7 @@ namespace engine {
           continue;
         }
 
-        bfc::StringView componentName = ILevelComponentType::findName(type);
+        StringView componentName = ILevelComponentType::findName(type);
         auto            pInterface    = ILevelComponentType::find(componentName);
         if (pInterface == nullptr) {
           BFC_LOG_WARNING("LevelSerializer", "Unabled to serialized component. Failed to find interface (type=%s). Have you called registerComponentType?",
@@ -52,13 +53,13 @@ namespace engine {
     });
   }
 
-  bool LevelSerializer::deserialize(bfc::SerializedObject const & serialized, Level & level) {
+  bool LevelSerializer::deserialize(SerializedObject const & serialized, Level & level) {
     SerializedObject const & entities = serialized.get("entities");
     if (entities.isArray()) {
       for (int64_t i = 0; i < entities.size(); ++i) {
         SerializedObject const & entity = entities.at(i);
 
-        bfc::UUID uuid;
+        UUID uuid;
         if (!bfc::deserialize(entity.get("uuid"), uuid)) {
           BFC_LOG_WARNING("LevelSerializer", "Failed to deserialized uuid for entity (idx=%lld)", i);
           continue;
@@ -93,10 +94,51 @@ namespace engine {
         }
       }
     }
+
+    // Run deferred reads
+    for (auto & cb : m_deferred) {
+      cb(level);
+    }
+
+    m_deferred.clear();
+
     return true;
+  }
+
+  void LevelSerializer::deferRead(std::function<void(Level & level)> const & callback) {
+    m_deferred.pushBack(callback);
   }
 
   AssetManager * LevelSerializer::getAssets() const {
     return m_pManager;
+  }
+
+  SerializedObject LevelSerializer::writeAsset(Ref<void> const & pAsset) {
+    AssetHandle handle = getAssets()->find(pAsset);
+    if (handle == InvalidAssetHandle) {
+      return SerializedObject::Empty();
+    }
+
+    return SerializedObject::MakeMap({
+      { "uri", getAssets()->uriOf(handle).str() }
+    });
+  }
+
+  Ref<void> LevelSerializer::readAsset(SerializedObject const & serialized, type_index const & typeInfo) {
+    SerializedObject const & uriItem = serialized.get("uri");
+    if (uriItem.isText()) {
+      AssetManager * pAssets = getAssets();
+      bfc::URI       uri     = uriItem.asText();
+      return pAssets->load(pAssets->add(uri, typeInfo), typeInfo);
+    }
+
+    SerializedObject const & idItem = serialized.get("uuid");
+    if (idItem.isText()) {
+      AssetManager * pAssets = getAssets();
+      bfc::UUID      uuid    = uriItem.asText();
+      return pAssets->load(pAssets->find(uuid), typeInfo);
+    }
+
+    return nullptr;
   }
 } // namespace engine

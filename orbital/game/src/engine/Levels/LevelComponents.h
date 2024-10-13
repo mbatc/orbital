@@ -43,6 +43,7 @@ namespace engine {
     virtual bool copy(Level * pDstLevel, EntityID dstEntity, Level const * pSrcLevel, EntityID srcEntity) const = 0;
   };
 
+  /// Interface used by Levels for a component of type `T`.
   template<typename T>
   class LevelComponentType : public ILevelComponentType {
     virtual bfc::type_index type() const override {
@@ -50,18 +51,16 @@ namespace engine {
     }
 
     virtual bfc::SerializedObject write(LevelSerializer * pSerializer, Level const & level, EntityID entity) const override {
-      BFC_UNUSED(pSerializer);
-
       T const & component = level.get<T>(entity);
 
-      return bfc::serialize(component);
+      return LevelComponentSerializer<T>::write(pSerializer, level, component);
     }
 
     virtual bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & serialized, Level & level, EntityID entity) const override {
       BFC_UNUSED(pSerializer);
 
       bfc::Uninitialized<T> component;
-      if (!serialized.read(component.get())) {
+      if (!LevelComponentSerializer<T>::read(pSerializer, serialized, level, component.get())) {
         return false;
       }
 
@@ -70,7 +69,7 @@ namespace engine {
     }
 
     virtual bool copy(Level * pDstLevel, EntityID dstEntity, Level const * pSrcLevel, EntityID srcEntity) const override {
-      if (T const* pSrcComponent = pSrcLevel->tryGet<T>(srcEntity)) {
+      if (T const * pSrcComponent = pSrcLevel->tryGet<T>(srcEntity)) {
         pDstLevel->replace<T>(dstEntity, *pSrcComponent);
         return true;
       }

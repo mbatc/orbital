@@ -6,11 +6,13 @@
 #include "math/MathTypes.h"
 #include "util/UUID.h"
 
+#include "LevelSerializer.h"
+
 namespace bfc {
   class Mesh;
   class Texture;
   class Material;
-}
+} // namespace bfc
 
 namespace components {
   struct Name {
@@ -19,17 +21,30 @@ namespace components {
 
   class Transform {
   public:
+    static bfc::Vec3d applyToPoint(bfc::Mat4d const & transform, bfc::Vec3d const & point);
+    static bfc::Vec3d applyToDirection(bfc::Mat4d const & transform, bfc::Vec3d const & direction);
+
     bfc::Vec3d translation() const;
     bfc::Quatd orientation() const;
     bfc::Vec3d ypr() const;
     bfc::Vec3d scale() const;
     bfc::Mat4d transform() const;
+    bfc::Mat4d transformInverse() const;
+
+    bfc::Vec3d forward() const;
+    bfc::Vec3d right() const;
+    bfc::Vec3d up() const;
 
     bfc::Vec3d globalTranslation(engine::Level const * pLevel) const;
     bfc::Quatd globalOrientation(engine::Level const * pLevel) const;
     bfc::Vec3d globalYpr(engine::Level const * pLevel) const;
     bfc::Vec3d globalScale(engine::Level const * pLevel) const;
     bfc::Mat4d globalTransform(engine::Level const * pLevel) const;
+    bfc::Mat4d globalTransformInverse(engine::Level const * pLevel) const;
+
+    bfc::Vec3d globalForward(engine::Level const * pLevel) const;
+    bfc::Vec3d globalRight(engine::Level const * pLevel) const;
+    bfc::Vec3d globalUp(engine::Level const * pLevel) const;
 
     bfc::Vec3d parentTranslation(engine::Level const * pLevel) const;
     bfc::Quatd parentOrientation(engine::Level const * pLevel) const;
@@ -44,14 +59,16 @@ namespace components {
     void setYpr(bfc::Vec3d const & ypr);
     void setScale(bfc::Vec3d const & scale);
     void setTransform(bfc::Mat4d const & transform);
+    void lookAt(bfc::Vec3d const & direction, bfc::Vec3d const & up = bfc::math::up<double>);
 
     void setGlobalTranslation(engine::Level const * pLevel, bfc::Vec3d const & translation);
     void setGlobalOrientation(engine::Level const * pLevel, bfc::Quatd const & orientation);
     void setGlobalYpr(engine::Level const * pLevel, bfc::Vec3d const & ypr);
     void setGlobalScale(engine::Level const * pLevel, bfc::Vec3d const & scale);
+    void setGlobalLookAt(engine::Level const * pLevel, bfc::Vec3d const & direction, bfc::Vec3d const & up = bfc::math::up<double>);
     void setGlobalTransform(engine::Level const * pLevel, bfc::Mat4d const & transform);
 
-    void setParent(engine::Level const * pLevel, engine::EntityID const & entityID) const;
+    void setParent(engine::Level * pLevel, engine::EntityID const & entityID);
 
   private:
     engine::EntityID              m_parent;
@@ -88,9 +105,9 @@ namespace components {
   };
 
   struct StaticMesh {
-    bfc::Ref<bfc::Mesh> pMesh;
+    bfc::Ref<bfc::Mesh>                  pMesh;
     bfc::Vector<bfc::Ref<bfc::Material>> materials;
-    bool castShadows = true;
+    bool                                 castShadows = true;
   };
 
   /// Defines a area in the scene which post processing effects are applied to.
@@ -130,6 +147,115 @@ namespace components {
   };
 } // namespace components
 
+namespace engine {
+  template<>
+  struct engine::LevelComponentSerializer<components::Transform> {
+    inline static bfc::SerializedObject write(LevelSerializer * pSerializer, Level const & level, components::Transform const & o) {
+      auto ret = bfc::SerializedObject::MakeMap({
+        {"translation", bfc::serialize(o.translation())},
+        {"ypr", bfc::serialize(glm::degrees(o.ypr()))},
+        {"scale", bfc::serialize(o.scale())},
+      });
+
+      if (level.contains(o.parent())) {
+        ret.add("parent", bfc::serialize(level.uuidOf(o.parent())));
+      }
+
+      return ret;
+    }
+
+    inline static bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & s, Level & level, components::Transform & o) {
+      bfc::Vec3d translation, ypr, scale;
+      deserialize(s.get("translation"), translation);
+      deserialize(s.get("ypr"), ypr);
+      deserialize(s.get("scale"), scale);
+
+      bfc::mem::construct(&o);
+      o.setTranslation(translation);
+      o.setYpr(glm::radians(ypr));
+      o.setScale(scale);
+
+      bfc::SerializedObject const & parentGuid = s.get("parent");
+      if (parentGuid.isText()) {
+        bfc::UUID id       = parentGuid.asText();
+        EntityID  parentID = level.find(id);
+
+        pSerializer->deferRead([entityID = level.toEntity(&o), parentID](Level & level) {
+          components::Transform * pTransform = level.tryGet<components::Transform>(entityID);
+          if (pTransform == nullptr) {
+            pTransform->setParent(&level, parentID);
+          }
+        });
+      }
+
+      return true;
+    }
+  };
+
+  // A Specific serializer type that should be specialized for more control over entity component serialization.
+  template<>
+  struct engine::LevelComponentSerializer<components::StaticMesh> {
+    // Default implementation delegates to a bfc serialize implementation for the component type.
+    inline static bfc::SerializedObject write(LevelSerializer * pSerializer, Level const & level, components::StaticMesh const & o) {
+      BFC_UNUSED(pSerializer, level);
+
+      return bfc::SerializedObject::MakeMap({
+        {"castShadows", bfc::serialize(o.castShadows)},
+        {"materials", pSerializer->writeAssets(o.materials)},
+        {"mesh", pSerializer->writeAsset(o.pMesh)},
+      });
+    }
+
+    inline static bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & s, Level & level, components::StaticMesh & o) {
+      BFC_UNUSED(pSerializer, level);
+
+      s.get("castShadows").read(o.castShadows);
+
+      pSerializer->readAsset(s.get("mesh"), o.pMesh);
+      pSerializer->readAssets(s.get("materials"), o.materials);
+
+      return true;
+    }
+  };
+
+  template<>
+  struct engine::LevelComponentSerializer<components::Skybox> {
+    inline static bfc::SerializedObject write(LevelSerializer * pSerializer, Level const & level, components::Skybox const & o) {
+      return bfc::SerializedObject::MakeMap({{"texture", pSerializer->writeAsset(o.pTexture)}});
+    }
+
+    inline static bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & s, Level & level, components::Skybox & o) {
+      pSerializer->readAsset(s.get("texture"), o.pTexture);
+
+      return true;
+    }
+  };
+
+  template<>
+  struct engine::LevelComponentSerializer<components::PostProcess_Bloom> {
+    inline static bfc::SerializedObject write(LevelSerializer * pSerializer, Level const & level, components::PostProcess_Bloom const & o) {
+      return bfc::SerializedObject::MakeMap({{"filterRadius", bfc::serialize(o.filterRadius)},
+                                             {"strength", bfc::serialize(o.strength)},
+                                             {"threshold", bfc::serialize(o.threshold)},
+                                             {"dirtIntensity", bfc::serialize(o.dirtIntensity)},
+                                             {"dirt", pSerializer->writeAsset(o.dirt)}});
+    }
+
+    inline static bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & s, Level & level, components::PostProcess_Bloom & o) {
+      bfc::mem::construct(&o);
+
+      s.get("filterRadius").read(o.filterRadius);
+      s.get("strength").read(o.strength);
+      s.get("threshold").read(o.threshold);
+      s.get("dirtIntensity").read(o.dirtIntensity);
+
+      pSerializer->readAsset(s.get("dirt"), o.dirt);
+
+      return true;
+    }
+  };
+} // namespace engine
+
 namespace bfc {
   template<>
   struct Serializer<components::Name> {
@@ -143,46 +269,9 @@ namespace bfc {
   };
 
   template<>
-  struct Serializer<components::Transform> {
-    inline static SerializedObject write(components::Transform const & o) {
-      return SerializedObject::MakeMap({
-        { "translation", serialize(o.translation()) },
-        { "ypr", serialize(glm::degrees(o.ypr())) },
-        { "scale", serialize(o.scale()) },
-      });
-    }
-
-    inline static bool read(SerializedObject const & s, components::Transform & o) {
-      Vec3d translation, ypr, scale;
-      deserialize(s.get("translation"), translation);
-      deserialize(s.get("ypr"), ypr);
-      deserialize(s.get("scale"), scale);
-
-      mem::construct(&o);
-      o.setTranslation(translation);
-      o.setYpr(glm::radians(ypr));
-      o.setScale(scale);
-
-      return true;
-    }
-  };
-
-  // template<>
-  // struct Serializer<components::StaticMesh> {
-  //   inline static SerializedObject write(components::StaticMesh const & o) {
-  //     return serialize(o.);
-  //   }
-  // 
-  //   inline static bool read(SerializedObject const & s, components::StaticMesh & o) {
-  //     return deserialize(s, o.name);
-  //   }
-  // };
-
-  template<>
   struct EnumValueMap<components::LightType> {
-    inline static Map<components::LightType, String> const mapping = {{components::LightType_Sun,   "sun"},
-                                                                      {components::LightType_Point, "point"},
-                                                                      {components::LightType_Spot,  "spot"}};
+    inline static Map<components::LightType, String> const mapping = {
+      {components::LightType_Sun, "sun"}, {components::LightType_Point, "point"}, {components::LightType_Spot, "spot"}};
   };
 
   template<>
@@ -192,10 +281,10 @@ namespace bfc {
         {"type", serialize(o.type)},
         {"colour", serialize(o.colour)},
         {"ambient", serialize(o.ambient)},
-        {"attenuation", serialize(o.type)},
+        {"attenuation", serialize(o.attenuation)},
         {"strength", serialize(o.strength)},
-        {"innerConeAngle", serialize(o.innerConeAngle)},
-        {"outerConeAngle", serialize(o.outerConeAngle)},
+        {"innerConeAngle", serialize(glm::degrees(o.innerConeAngle))},
+        {"outerConeAngle", serialize(glm::degrees(o.outerConeAngle))},
         {"castShadows", serialize(o.castShadows)},
       });
     }
@@ -212,32 +301,24 @@ namespace bfc {
       s.get("outerConeAngle").read(o.outerConeAngle);
       s.get("castShadows").read(o.castShadows);
 
+      o.innerConeAngle = glm::radians(o.innerConeAngle);
+      o.outerConeAngle = glm::radians(o.outerConeAngle);
+
       return true;
     }
   };
-
-  // template<>
-  // struct Serializer<components::Skybox> {
-  //   inline static SerializedObject write(components::Skybox const & o) {
-  //     return serialize(o.name);
-  //   }
-  // 
-  //   inline static bool read(SerializedObject const & s, components::Skybox & o) {
-  //     return deserialize(s, o.name);
-  //   }
-  // };
 
   template<>
   struct Serializer<components::PostProcessVolume> {
     inline static SerializedObject write(components::PostProcessVolume const & o) {
       return SerializedObject::MakeMap({
-        {"enabled",  serialize(o.enabled)},
-        {"extents",  serialize(o.extents)},
+        {"enabled", serialize(o.enabled)},
+        {"extents", serialize(o.extents)},
         {"infinite", serialize(o.infinite)},
-        {"effects",  serialize(o.effects)},
+        {"effects", serialize(o.effects)},
       });
     }
-  
+
     inline static bool read(SerializedObject const & s, components::PostProcessVolume & o) {
       mem::construct(&o);
 
@@ -262,31 +343,6 @@ namespace bfc {
       mem::construct(&o);
 
       s.get("exposure").read(o.exposure);
-
-      return true;
-    }
-  };
-
-  template<>
-  struct Serializer<components::PostProcess_Bloom> {
-    inline static SerializedObject write(components::PostProcess_Bloom const & o) {
-      return SerializedObject::MakeMap({
-        {"filterRadius", serialize(o.filterRadius)},
-        {"strength", serialize(o.strength)},
-        {"threshold", serialize(o.threshold)},
-        {"dirtIntensity", serialize(o.dirtIntensity)},
-        // {"dirt", serialize(o.dirt)},
-      });
-    }
-
-    inline static bool read(SerializedObject const & s, components::PostProcess_Bloom & o) {
-      mem::construct(&o);
-
-      s.get("filterRadius").read(o.filterRadius);
-      s.get("strength").read(o.strength);
-      s.get("threshold").read(o.threshold);
-      s.get("dirtIntensity").read(o.dirtIntensity);
-      // s.get("dirt").read(o.dirt);
 
       return true;
     }
@@ -335,4 +391,4 @@ namespace bfc {
       return true;
     }
   };
-}
+} // namespace bfc

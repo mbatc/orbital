@@ -41,7 +41,7 @@ namespace engine {
         }
 
         media::Surface dst = sfc.slice(face);
-        media::convertSurface(&sfc, *pSurface);
+        media::convertSurface(&dst, *pSurface);
       }
       break;
     case SkyboxFormat_Equirectangular: BFC_FAIL("Not implemented"); return nullptr;

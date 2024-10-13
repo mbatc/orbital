@@ -17,7 +17,7 @@ namespace engine {
     LevelManager();
 
     virtual bool init(Application * pApp);
-
+    virtual void shutdown() override;
     virtual void loop();
 
   private:
@@ -25,13 +25,8 @@ namespace engine {
     void registerComponentTypes();
 
     bfc::Ref<Level> m_pActiveLevel = nullptr;
-
     bfc::Ref<DeferredRenderer> m_pRenderer;
-    bfc::Ref<bfc::Mesh>        m_pMesh;
-    bfc::Ref<bfc::Texture>     m_pSkybox;
-
-    bfc::Vector<bfc::Ref<bfc::Material>> m_materials;
-
+    bfc::Ref<bfc::EventListener>    m_pInputs    = nullptr;
     Rendering * m_pRendering = nullptr;
   };
 } // namespace engine

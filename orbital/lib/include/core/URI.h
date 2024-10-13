@@ -102,6 +102,10 @@ namespace bfc {
   private:
     String m_uri;
   };
+
+  inline char const * getStringFormatValue(URI const & o) {
+    return o.c_str();
+  }
 } // namespace bfc
 
 namespace std {
