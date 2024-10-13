@@ -60,7 +60,7 @@ namespace engine {
       BFC_UNUSED(pSerializer);
 
       bfc::Uninitialized<T> component;
-      if (!LevelComponentSerializer<T>::read(pSerializer, serialized, level, component.get())) {
+      if (!LevelComponentSerializer<T>::read(pSerializer, serialized, level, entity, component.get())) {
         return false;
       }
 

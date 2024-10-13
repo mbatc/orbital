@@ -55,6 +55,8 @@ namespace engine {
 
   bool LevelSerializer::deserialize(SerializedObject const & serialized, Level & level) {
     SerializedObject const & entities = serialized.get("entities");
+    bfc::Vector<EntityID>    ids;
+
     if (entities.isArray()) {
       for (int64_t i = 0; i < entities.size(); ++i) {
         SerializedObject const & entity = entities.at(i);
@@ -72,6 +74,14 @@ namespace engine {
 
         if (entityID == InvalidEntity) {
           BFC_LOG_WARNING("LevelSerializer", "Failed to create or find entity (uuid=%s)", uuid.toString());
+        }
+        ids.pushBack(entityID);
+      }
+
+      for (int64_t i = 0; i < entities.size(); ++i) {
+        SerializedObject const & entity   = entities.at(i);
+        auto                     entityID = ids[i];
+        if (entityID == InvalidEntity) {
           continue;
         }
 
@@ -83,12 +93,12 @@ namespace engine {
         for (auto & [name, data] : components.asMap()) {
           auto pInterface = ILevelComponentType::find(name);
           if (pInterface == nullptr) {
-            BFC_LOG_WARNING("LevelSerializer", "Component type is not supported (entity-uuid=%s, type=%s)", uuid.toString(), name);
+            BFC_LOG_WARNING("LevelSerializer", "Component type is not supported (type=%s)", name);
             continue;
           }
 
           if (!pInterface->read(this, data, level, entityID)) {
-            BFC_LOG_WARNING("LevelSerializer", "Failed to read component data (entity-uuid=%s, type=%s)", uuid.toString(), name);
+            BFC_LOG_WARNING("LevelSerializer", "Failed to read component data (type=%s)", name);
             continue;
           }
         }
@@ -119,7 +129,7 @@ namespace engine {
       return SerializedObject::Empty();
     }
 
-    return SerializedObject::MakeMap({
+    return  SerializedObject::MakeMap({
       { "uri", getAssets()->uriOf(handle).str() }
     });
   }

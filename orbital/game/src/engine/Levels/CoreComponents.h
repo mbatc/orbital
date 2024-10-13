@@ -164,7 +164,7 @@ namespace engine {
       return ret;
     }
 
-    inline static bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & s, Level & level, components::Transform & o) {
+    inline static bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & s, Level & level, EntityID entity, components::Transform & o) {
       bfc::Vec3d translation, ypr, scale;
       deserialize(s.get("translation"), translation);
       deserialize(s.get("ypr"), ypr);
@@ -179,10 +179,9 @@ namespace engine {
       if (parentGuid.isText()) {
         bfc::UUID id       = parentGuid.asText();
         EntityID  parentID = level.find(id);
-
-        pSerializer->deferRead([entityID = level.toEntity(&o), parentID](Level & level) {
-          components::Transform * pTransform = level.tryGet<components::Transform>(entityID);
-          if (pTransform == nullptr) {
+        pSerializer->deferRead([entity, parentID](Level & level) {
+          components::Transform * pTransform = level.tryGet<components::Transform>(entity);
+          if (pTransform != nullptr) {
             pTransform->setParent(&level, parentID);
           }
         });
@@ -206,7 +205,7 @@ namespace engine {
       });
     }
 
-    inline static bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & s, Level & level, components::StaticMesh & o) {
+    inline static bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & s, Level & level, EntityID entity, components::StaticMesh & o) {
       BFC_UNUSED(pSerializer, level);
 
       s.get("castShadows").read(o.castShadows);
@@ -224,7 +223,7 @@ namespace engine {
       return bfc::SerializedObject::MakeMap({{"texture", pSerializer->writeAsset(o.pTexture)}});
     }
 
-    inline static bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & s, Level & level, components::Skybox & o) {
+    inline static bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & s, Level & level, EntityID entity, components::Skybox & o) {
       pSerializer->readAsset(s.get("texture"), o.pTexture);
 
       return true;
@@ -241,7 +240,7 @@ namespace engine {
                                              {"dirt", pSerializer->writeAsset(o.dirt)}});
     }
 
-    inline static bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & s, Level & level, components::PostProcess_Bloom & o) {
+    inline static bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & s, Level & level, EntityID entity, components::PostProcess_Bloom & o) {
       bfc::mem::construct(&o);
 
       s.get("filterRadius").read(o.filterRadius);

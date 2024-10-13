@@ -4,6 +4,8 @@
 #include "core/typeindex.h"
 
 namespace engine {
+  using EntityID = uint64_t;
+
   class Level;
   class LevelSerializer;
   class AssetManager;
@@ -18,7 +20,7 @@ namespace engine {
       return bfc::serialize(component);
     }
 
-    inline static bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & serialized, Level & level, T & o) {
+    inline static bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & serialized, Level & level, EntityID entity, T & o) {
       BFC_UNUSED(pSerializer, level);
 
       return serialized.read(o);
