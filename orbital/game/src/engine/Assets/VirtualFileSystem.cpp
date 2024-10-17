@@ -120,4 +120,11 @@ namespace engine {
 
     return resource;
   }
+  bool VirtualFileSystem::serialize(bfc::URI const & resource, SerializedObject const & o, bfc::DataFormat format) {
+    return bfc::serialize(resolveUri(resource), o, format);
+  }
+
+  std::optional<SerializedObject> VirtualFileSystem::deserialize(bfc::URI const & resource, bfc::DataFormat format) {
+    return bfc::deserialize(resolveUri(resource), format);
+  }
 }

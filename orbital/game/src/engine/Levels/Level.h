@@ -8,7 +8,21 @@
 
 #include "LevelView.h"
 
+namespace bfc {
+  class Events;
+}
+
 namespace engine {
+  class Level;
+  // class ILevelData {
+  // public:
+  //   virtual ~ILevelData() = default;
+  // 
+  //   virtual bfc::Ref<ILevelData> copy(bfc::Ref<ILevelData> *pData) = 0;
+  //   virtual bool                 serialize() = 0;
+  //   virtual bool                 deserialize() = 0;
+  // };
+
   class Level {
   public:
     class EntityView {
@@ -40,6 +54,8 @@ namespace engine {
     };
 
     Level();
+
+    ~Level();
 
     /// Create a new empty entity.
     EntityID create(std::optional<bfc::UUID> const & id = std::nullopt);
@@ -149,6 +165,51 @@ namespace engine {
       return { &components<Components>()... };
     }
 
+    /// Copy entities to pDstLevel
+    bfc::Vector<EntityID> copyTo(Level * pDstLevel, bfc::Span<EntityID const> const & entities, bool preserveUUIDs = false);
+
+    /// Copy an entity to pDstLevel
+    bfc::Vector<EntityID> copyTo(Level * pDstLevel, bool preserveUUIDs = false);
+
+    /// Copy an entity to pDstLevel
+    bfc::Vector<EntityID> copyTo(Level * pDstLevel, EntityID const & entity, bool preserveUUIDs = false);
+
+    /// Copy an entity in this scene.
+    EntityID copy(EntityID const & entity);
+
+    /// Remove all entities from the scene.
+    void clear();
+
+    /// Add some data to the level.
+    /// Data is an arbitrary structure 
+    template<typename T, typename... Args>
+    bfc::Ref<T> addData(Args&&... args) {
+      const bfc::type_index type = bfc::TypeID<T>();
+      if (m_data.contains(type)) {
+        return nullptr;
+      }
+      auto pNewRef = bfc::NewRef<T>(std::forward<Args>(args)...);
+      m_data.add(type, pNewRef);
+      return pNewRef;
+    }
+
+    /// Get level data.
+    template<typename T>
+    bfc::Ref<T> getData() const {
+      const bfc::type_index type = bfc::TypeID<T>();
+      bfc::Ref<void>        val;
+      m_data.tryGet(type, val);
+      return std::static_pointer_cast<T>(val);
+    }
+
+    template<typename T>
+    bfc::Ref<const T> getData() {
+      const bfc::type_index type = bfc::TypeID<T>();
+      bfc::Ref<void>        val;
+      m_data.tryGet(type, val);
+      return std::static_pointer_cast<const T>(val);
+    }
+
     /// Unpack the index from an entity ID.
     inline static constexpr int64_t indexOf(EntityID const & entityID) {
       return (entityID & 0x00000000FFFFFFFF);
@@ -166,6 +227,9 @@ namespace engine {
 
   private:
     bool contains(int64_t const & index, int64_t const & version) const;
+
+    bfc::Ref<bfc::Events> m_pEvents;
+    bfc::Map<bfc::type_index, bfc::Ref<void>> m_data;
 
     int64_t               m_entityCount = 0;
     bfc::Vector<EntityID> m_entities;

@@ -33,28 +33,30 @@ namespace engine {
 
         for (int64_t i = 0; i < pMesh->getSubmeshCount(); ++i) {
           auto const & sm = pMesh->getSubMesh(i);
-          if (i >= meshComponent.materials.size() || meshComponent.materials[i] == nullptr) {
-            continue;
-          }
 
           geometry::Boxf bounds = sm.bounds;
           bounds.transform(modelMat);
-  
-          Material *pMaterial = i < meshComponent.materials.size() ? meshComponent.materials[i].get() : nullptr;
-          if (pMaterial == nullptr)
-            continue;
 
+          Material * pMaterial = i < meshComponent.materials.size() ? meshComponent.materials[i].get() : nullptr;
           MeshRenderable renderable;
-          renderable.elementOffset  = sm.elmOffset;
-          renderable.elementCount   = sm.elmCount;
-          renderable.modelMatrix    = modelMat;
-          renderable.normalMatrix   = normalMat;
-          renderable.materialBuffer = pMaterial->getResource();
-          renderable.vertexArray    = pMesh->getVertexArray();
-          renderable.bounds         = bounds;
-          for (auto & [i, texture] : enumerate(pMaterial->textures)) {
-            if (texture != nullptr) {
-              renderable.materialTextures[i] = texture->getResource();
+          renderable.elementOffset = sm.elmOffset;
+          renderable.elementCount  = sm.elmCount;
+          renderable.modelMatrix   = modelMat;
+          renderable.normalMatrix  = normalMat;
+          renderable.vertexArray   = pMesh->getVertexArray();
+          renderable.bounds        = bounds;
+
+          if (pMaterial == nullptr) {
+            renderable.materialBuffer = InvalidGraphicsResource;
+            for (auto & texture : renderable.materialTextures) {
+              texture = InvalidGraphicsResource;
+            }
+          } else {
+            renderable.materialBuffer = pMaterial->getResource();
+            for (auto & [i, texture] : enumerate(pMaterial->textures)) {
+              if (texture != nullptr) {
+                renderable.materialTextures[i] = texture->getResource();
+              }
             }
           }
           meshes.pushBack(renderable);
@@ -205,6 +207,8 @@ namespace engine {
     PostProcessCollector pps;
 
     for (auto & view : m_views) {
+      view.pRenderData->clear();
+
       staticMeshes.getRenderData(&view, m_pLevel.get());
       lights.getRenderData(&view, m_pLevel.get());
       skyboxes.getRenderData(&view, m_pLevel.get());

@@ -1,14 +1,13 @@
 #include "AssetManager.h"
 #include "AssetLoadContext.h"
 #include "AssetLoader.h"
+#include "Assets/MeshLoader.h"
+#include "Assets/ShaderLoader.h"
+#include "Assets/TextureLoader.h"
+#include "Assets/SkyboxLoader.h"
 
-#include "engine/Assets/MeshLoader.h"
-#include "engine/Assets/ShaderLoader.h"
-#include "engine/Assets/TextureLoader.h"
-#include "engine/Assets/SkyboxLoader.h"
-
-#include "../Application.h"
-#include "../Rendering.h"
+#include "Application.h"
+#include "Rendering/Rendering.h"
 
 #include "util/Log.h"
 

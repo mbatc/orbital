@@ -2,12 +2,12 @@
 #include "LevelSerializer.h"
 #include "Level.h"
 
-#include "../Application.h"
-#include "../Renderer/RenderData.h"
-#include "../Renderer/RenderScene.h"
-#include "../Renderer/Renderables.h"
-#include "../Rendering.h"
-#include "../assets/AssetManager.h"
+#include "Application.h"
+#include "Rendering/RenderData.h"
+#include "Rendering/RenderScene.h"
+#include "Rendering/Renderables.h"
+#include "Rendering/Rendering.h"
+#include "Assets/AssetManager.h"
 
 #include "mesh/Mesh.h"
 #include "platform/Window.h"
@@ -23,35 +23,38 @@ namespace engine {
     : Subsystem(TypeID<LevelManager>(), "LevelManager") {}
 
   bool LevelManager::init(Application * pApp) {
+    settings.startupLevel = pApp->addSetting("level-manager/startup-level", URI::File("game:levels/main.level"));
+
     registerComponentTypes();
 
-    auto pAssets = pApp->findSubsystem<AssetManager>();
+    m_pAssets = pApp->findSubsystem<AssetManager>();
 
-    m_pRendering   = pApp->findSubsystem<Rendering>().get();
+    m_pRendering   = pApp->findSubsystem<Rendering>();
     m_pActiveLevel = NewRef<Level>();
-    m_pRenderer    = NewRef<DeferredRenderer>(m_pRendering->getDevice(), pAssets.get());
 
     m_pInputs      = pApp->addListener();
     m_pInputs->on<events::KeyDown>([=](events::KeyDown const & kd) {
       if (kd.code == KeyCode_L) {
         BFC_LOG_INFO("LevelManager", "Reloading level");
 
-        *m_pActiveLevel = {};
-        LevelSerializer(pAssets.get()).deserialize(URI::File("D:/test.level"), *m_pActiveLevel);
+        Level loaded;
+        LevelSerializer(m_pAssets.get()).deserialize(settings.startupLevel.get(), loaded);
+        m_pActiveLevel->clear();
+        loaded.copyTo(m_pActiveLevel.get(), true);
       }
       return true;
     });
 
-    URI levelPath = URI::File("D:/test.level");
-
-    if (bfc::uriExists(levelPath)) {
-      LevelSerializer(pAssets.get()).deserialize(URI::File("D:/test.level"), *m_pActiveLevel);
+    // Load the startup level
+    URI levelPath = settings.startupLevel.get();
+    if (m_pAssets->getFileSystem()->exists(levelPath)) {
+      LevelSerializer(m_pAssets.get()).deserialize(settings.startupLevel.get(), *m_pActiveLevel);
     } else {
       Filename skyboxPath = "game:skybox/nebula.skybox";
       EntityID testEntity = m_pActiveLevel->create();
 
       m_pActiveLevel->add<components::Name>(testEntity).name       = "Environment";
-      m_pActiveLevel->add<components::Skybox>(testEntity).pTexture = pAssets->load<bfc::Texture>(URI::File(skyboxPath));
+      m_pActiveLevel->add<components::Skybox>(testEntity).pTexture = m_pAssets->load<bfc::Texture>(URI::File(skyboxPath));
 
       components::Transform & sunTransform = m_pActiveLevel->add<components::Transform>(testEntity);
       sunTransform.lookAt(bfc::Vec3d(1, 1, -1));
@@ -61,22 +64,7 @@ namespace engine {
       sun.colour              = {0.7f, 0.7f, 0.7f};
       sun.castShadows         = true;
 
-      Filename path       = "game:models/donut/dohey.obj";
-      EntityID meshEntity = m_pActiveLevel->create();
-
-      m_pActiveLevel->add<components::Name>(meshEntity).name = "The Dohey";
-
-      components::Transform &  transform = m_pActiveLevel->add<components::Transform>(meshEntity);
-      components::StaticMesh & mesh      = m_pActiveLevel->add<components::StaticMesh>(meshEntity);
-
-      mesh.pMesh = pAssets->load<Mesh>(URI::File(path));
-      for (int64_t i = 0; i < mesh.pMesh->getSubmeshCount(); ++i) {
-        URI matUri = URI::File(String::format("%s#material.%lld", path.c_str(), i));
-        mesh.materials.pushBack(pAssets->load<Material>(matUri));
-      }
-      mesh.castShadows = true;
-
-      LevelSerializer(pAssets.get()).serialize(levelPath, *m_pActiveLevel);
+      LevelSerializer(m_pAssets.get()).serialize(levelPath, *m_pActiveLevel);
     }
 
     return true;
@@ -84,29 +72,46 @@ namespace engine {
 
   void LevelManager::shutdown() {
     m_pActiveLevel = nullptr;
-    m_pRenderer    = nullptr;
   }
 
-  void LevelManager::loop() {
-    Vec2i windowSize = m_pRendering->getMainWindow()->getSize();
-    m_pRenderer->onResize(windowSize);
+  bfc::Ref<Level> LevelManager::getActiveLevel() const {
+    return m_pActiveLevel;
+  }
 
-    RenderView  view;
-    RenderScene scene(m_pActiveLevel);
-    view.viewMatrix       = glm::inverse(glm::translate<double>(bfc::Vec3d{0, 0.2, 0.5}));
-    view.projectionMatrix = glm::perspective<double>(glm::radians(60.0f), (float)windowSize.x / windowSize.y, 0.01f, 1000.0f);
-    view.viewport     = {0, 0, 1, 1};
-    view.renderTarget = InvalidGraphicsResource;
+  void LevelManager::setActiveLevel(bfc::Ref<Level> const & pLevel) {
+    // TODO: Emit an event
+    m_pActiveLevel = pLevel;
+  }
 
-    scene.setViews({&view, 1});
-    scene.collect();
+  bool LevelManager::Import(Level * pLevel, bfc::URI const & uri) const {
+    if (m_pAssets->canLoad<bfc::Mesh>(uri)) {
+      Ref<Mesh> pMesh      = m_pAssets->load<Mesh>(uri);
+      if (pMesh == nullptr) {
+        return false;
+      }
 
-    m_pRenderer->render(scene.views());
+      EntityID meshEntity = m_pActiveLevel->create();
+
+      m_pActiveLevel->add<components::Name>(meshEntity).name = Filename::name(uri.path(), false);
+
+      components::Transform &  transform = m_pActiveLevel->add<components::Transform>(meshEntity);
+      components::StaticMesh & mesh      = m_pActiveLevel->add<components::StaticMesh>(meshEntity);
+
+      mesh.pMesh = pMesh;
+      for (int64_t i = 0; i < mesh.pMesh->getSubmeshCount(); ++i) {
+        URI matUri = uri.withFragment(String::format("material.%lld", i));
+        mesh.materials.pushBack(m_pAssets->load<Material>(matUri));
+      }
+      return true;
+    }
+
+    return false;
   }
 
   void LevelManager::registerComponentTypes() {
     registerComponentType<components::Name>("name");
     registerComponentType<components::Transform>("transform");
+    registerComponentType<components::Camera>("camera");
     registerComponentType<components::Light>("light");
     registerComponentType<components::Skybox>("skybox");
     registerComponentType<components::StaticMesh>("static-mesh");

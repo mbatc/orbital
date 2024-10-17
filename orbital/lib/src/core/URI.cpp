@@ -132,14 +132,14 @@ namespace bfc {
     if (hostStart == npos)
       hostStart = 0;
 
-    return auth.substr(hostStart, hostEnd - hostStart);
+    return auth.substr(hostStart, hostEnd - hostStart).substr(1);
   }
 
   StringView URI::port(StringView const & uri){
     StringView auth      = authority(uri);
     int64_t    portStart = auth.find(':');
 
-    return auth.substr(portStart);
+    return auth.substr(portStart).substr(1);
   }
 
   StringView URI::user(StringView const & uri) {
@@ -155,11 +155,11 @@ namespace bfc {
   StringView URI::query(StringView const & uri) {
     int64_t queryStart    = uri.findLast('?');
     int64_t fragmentStart = uri.find('#', queryStart);
-    return uri.substr(queryStart, fragmentStart - queryStart);
+    return uri.substr(queryStart, fragmentStart - queryStart).substr(1);
   }
 
   StringView URI::fragment(StringView const & uri) {
-    return uri.substr(uri.findLast('#'));
+    return uri.substr(uri.findLast('#')).substr(1);
   }
 
   StringView URI::path(StringView const & uri) {
@@ -216,31 +216,39 @@ namespace bfc {
   }
 
   URI URI::withScheme(StringView const & newScheme) const {
-    return m_uri.replacePart(scheme(), newScheme);
+    return replacePartSuffixed(scheme(), newScheme, ":");
   }
 
   URI URI::withAuthority(StringView const & newAuth) const {
-    return m_uri.replacePart(authority(), newAuth);
+    return replacePartPrefixed(authority(), newAuth, "//");
   }
 
   URI URI::withPort(StringView const & newPort) const {
-    return m_uri.replacePart(port(), newPort);
+    if (host().empty()) {
+      return withHost("localhost").withPort(newPort);
+    }
+
+    return replacePartPrefixed(port(), newPort, ":");
   }
 
   URI URI::withHost(StringView const & newHost) const {
-    return m_uri.replacePart(host(), newHost);
+    return replacePartPrefixed(host(), newHost, "@");
   }
 
   URI URI::withUser(StringView const & newUser) const {
-    return m_uri.replacePart(user(), newUser);
+    if (host().empty()) {
+      return withHost("localhost").withUser(newUser);
+    }
+
+    return replacePartSuffixed(user(), newUser, "@");
   }
 
   URI URI::withQuery(StringView const & newQuery) const {
-    return m_uri.replacePart(query(), newQuery);
+    return replacePartPrefixed(query(), newQuery, "?");
   }
 
   URI URI::withFragment(StringView const & newFragment) const {
-    return m_uri.replacePart(fragment(), newFragment);
+    return replacePartPrefixed(fragment(), newFragment, "#");
   }
 
   URI URI::withPath(StringView const & newPath) const {
@@ -297,6 +305,23 @@ namespace bfc {
     transformed.path     = newPath;
     return transformed.toString();
   }
+  
+  URI URI::replacePartPrefixed(StringView const & section, StringView const & replace, StringView const & prefixOnEmpty) const {
+    if (section.empty()) {
+      return m_uri.replacePart(section, prefixOnEmpty + replace);
+    } else {
+      return m_uri.replacePart(section, replace);
+    }
+  }
+
+  URI URI::replacePartSuffixed(StringView const & section, StringView const & replace, StringView const & suffixOnEmpty) const {
+    if (section.empty()) {
+      return m_uri.replacePart(section, replace + suffixOnEmpty);
+    } else {
+      return m_uri.replacePart(section, replace);
+    }
+  }
+
   String URI::Components::toString() const {
     if (scheme.empty() && auth.empty() && path.empty() && query.empty() && fragment.empty()) {
       return "";

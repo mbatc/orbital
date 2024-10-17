@@ -19,6 +19,6 @@ namespace engine {
     virtual void shutdown() {}
 
     virtual bool parseCommandLine(int argc, char** argv) { BFC_UNUSED(argc, argv); return true; }
-    virtual void loop() {}
+    virtual void loop(Application * pApp) {}
   };
 }

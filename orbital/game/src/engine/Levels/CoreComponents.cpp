@@ -211,4 +211,7 @@ namespace components {
       m_parent = entityID;
     }
   }
+  bfc::Mat4 Camera::projectionMat(float aspect) const {
+    return glm::perspective(fov, aspect, nearPlane, farPlane);
+  }
 } // namespace components

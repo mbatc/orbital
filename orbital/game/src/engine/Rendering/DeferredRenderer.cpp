@@ -39,6 +39,8 @@ namespace engine {
       pDevice->bindProgram(*m_shader);
       pDevice->bindUniformBuffer(*m_pModelData, renderer::BufferBinding_ModelBuffer);
 
+      GraphicsResource defaultMaterial = pDeferred->getDefaultMaterial().getResource();
+
       geometry::Frustum<float> camFrustum = view.projectionMatrix * view.viewMatrix;
 
       for (auto & renderable : view.pRenderData->renderables<MeshRenderable>()) {
@@ -59,7 +61,12 @@ namespace engine {
           }
         }
 
-        pDevice->bindUniformBuffer(renderable.materialBuffer, renderer::BufferBinding_PBRMaterial);
+        if (renderable.materialBuffer != InvalidGraphicsResource) {
+          pDevice->bindUniformBuffer(renderable.materialBuffer, renderer::BufferBinding_PBRMaterial);
+        } else {
+          pDevice->bindUniformBuffer(defaultMaterial, renderer::BufferBinding_PBRMaterial);
+        }
+
         pDevice->bindVertexArray(renderable.vertexArray);
         pDevice->drawIndexed(renderable.elementCount, renderable.elementOffset, PrimitiveType_Triangle);
       }
@@ -432,7 +439,7 @@ namespace engine {
       for (auto const & cm : skyboxes) {
         pDevice->bindTexture(cm.texture, 0);
       }
-      pDevice->draw(3);
+      pDevice->draw(6);
       pDevice->bindRenderTarget(view.renderTarget);
 
       pState->setDepthRange(0, 1);
@@ -863,6 +870,8 @@ namespace engine {
     m_defaultMaterialTextures[Material::TextureSlot_Alpha]      = whiteTex;
     m_defaultMaterialTextures[Material::TextureSlot_Normal]     = blueTex;
 
+    m_defaultMaterial.upload(pDevice);
+
     // Add renderer features
     addFeature<Feature_MeshBasePass>(pAssets, & m_gbuffer, &m_modelData);
     addFeature<Feature_LightingPass>(pDevice, pAssets, &m_gbuffer, &m_finalTarget, &m_modelData);
@@ -880,6 +889,10 @@ namespace engine {
 
   Texture const & DeferredRenderer::getDefaultTexture(Material::TextureSlot slot) const {
     return m_defaultMaterialTextures[slot];
+  }
+
+  bfc::StructuredHardwareBuffer<bfc::renderer::PBRMaterial> const & DeferredRenderer::getDefaultMaterial() const {
+    return m_defaultMaterial;
   }
 
   void DeferredRenderer::onResize(Vec2i size) {

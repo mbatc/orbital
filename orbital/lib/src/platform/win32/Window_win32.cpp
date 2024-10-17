@@ -61,6 +61,8 @@ namespace bfc {
       // Create Window
       m_pData->hWnd = CreateWindowEx(0, MAKEINTATOM(clsAtom), "Window", WS_OVERLAPPEDWINDOW, 0, 0, 800, 600, 0, 0, hInstance, 0);
 
+      setDragDrop(true);
+
       UpdateWindow(m_pData->hWnd);
 
       g_handleToWindow.add(m_pData->hWnd, this);
@@ -100,6 +102,10 @@ namespace bfc {
       GetWin32Style(m_style, &winStyle, &winStyleEx);
       AdjustWindowRectEx(&rect, winStyle, false, winStyleEx);
       SetWindowPos(m_pData->hWnd, 0, rect.left, rect.top, 0, 0, SWP_NOZORDER | SWP_NOSIZE | SWP_NOREPOSITION);
+    }
+
+    void Window::setDragDrop(bool enabled) {
+      DragAcceptFiles(m_pData->hWnd, enabled);
     }
 
     bfc::String Window::getTitle() const {
@@ -241,7 +247,7 @@ namespace bfc {
         //   Vec2i  position = Vec2i((float)pRect->left, (float)pRect->top);
         //   Vec2i  size     = Vec2i(float(pRect->right - pRect->left), float(pRect->bottom - pRect->top));
         //   pEvents->broadcast(events::WindowDPIChanged{&window, Vec2(LOWORD(wParam), HIWORD(wParam)), size, position});
-        // 
+        //
         //   ::SetWindowPos(hWnd, 0, position.x, position.y, size.x, size.y, SWP_NOZORDER | SWP_NOREPOSITION);
         // } break;
         case WM_ACTIVATE:
@@ -251,7 +257,7 @@ namespace bfc {
             pEvents->broadcast(events::ActivateWindow{&window});
           break;
         case WM_SIZE: {
-          Vec2i sz = {LOWORD(lParam), HIWORD(lParam) };
+          Vec2i sz = {LOWORD(lParam), HIWORD(lParam)};
           pEvents->broadcast(events::ResizeWindow{&window, sz});
         } break;
         case WM_MOVE: {
@@ -270,6 +276,23 @@ namespace bfc {
         case WM_MBUTTONDOWN: pEvents->broadcast(events::MouseDown{&window, MouseButton_Middle, ts}); break;
         case WM_MOUSEWHEEL: pEvents->broadcast(events::MouseScroll{&window, float(GET_WHEEL_DELTA_WPARAM(wParam)) / WHEEL_DELTA, false, ts}); break;
         case WM_MOUSEHWHEEL: pEvents->broadcast(events::MouseScroll{&window, float(GET_WHEEL_DELTA_WPARAM(wParam)) / WHEEL_DELTA, true, ts}); break;
+        case WM_DROPFILES: {
+          events::DroppedFiles e{&window};
+
+          HDROP hDrop = (HDROP)wParam;
+          UINT numDropped = DragQueryFile(hDrop, 0xFFFFFFFF, NULL, 0);
+          for (UINT i = 0; i < numDropped; ++i) {
+            UINT len = DragQueryFile(hDrop, i, NULL, 0);
+            bfc::Vector<char> buffer;
+            buffer.resize(len + 1, 0);
+
+            if (DragQueryFileA(hDrop, i, buffer.data(), (UINT)buffer.size()) != 0)
+              e.files.pushBack(buffer.data());
+          }
+
+          pEvents->broadcast(e);
+          break;
+        }
         }
       }
 

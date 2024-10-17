@@ -100,6 +100,9 @@ namespace bfc {
     URI resolveRelativeReference(URI const & reference, bool strict = false) const;
 
   private:
+    URI replacePartPrefixed(StringView const & section, StringView const & replace, StringView const & prefixOnEmpty) const;
+    URI replacePartSuffixed(StringView const & section, StringView const & replace, StringView const & suffixOnEmpty) const;
+
     String m_uri;
   };
 

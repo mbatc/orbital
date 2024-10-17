@@ -1,6 +1,6 @@
 #include "LevelSerializer.h"
+#include "Assets/AssetManager.h"
 #include "Level.h"
-#include "../assets/AssetManager.h"
 #include "util/Log.h"
 
 using namespace bfc;
@@ -10,11 +10,11 @@ namespace engine {
     : m_pManager(pManager) {}
 
   bool LevelSerializer::serialize(URI const & uri, Level const & level) {
-    return bfc::serialize(uri, serialize(level));
+    return m_pManager->getFileSystem()->serialize(uri, serialize(level));
   }
 
   bool LevelSerializer::deserialize(URI const & uri, Level & level) {
-    std::optional<SerializedObject> serialized = bfc::deserialize(uri, DataFormat_YAML);
+    std::optional<SerializedObject> serialized = m_pManager->getFileSystem()->deserialize(uri, DataFormat_YAML);
     if (!serialized.has_value()) {
       return false;
     }
@@ -35,7 +35,7 @@ namespace engine {
         }
 
         StringView componentName = ILevelComponentType::findName(type);
-        auto            pInterface    = ILevelComponentType::find(componentName);
+        auto       pInterface    = ILevelComponentType::find(componentName);
         if (pInterface == nullptr) {
           BFC_LOG_WARNING("LevelSerializer", "Unabled to serialized component. Failed to find interface (type=%s). Have you called registerComponentType?",
                           type.name());
@@ -129,9 +129,7 @@ namespace engine {
       return SerializedObject::Empty();
     }
 
-    return  SerializedObject::MakeMap({
-      { "uri", getAssets()->uriOf(handle).str() }
-    });
+    return SerializedObject::MakeMap({{"uri", getAssets()->uriOf(handle).str()}});
   }
 
   Ref<void> LevelSerializer::readAsset(SerializedObject const & serialized, type_index const & typeInfo) {

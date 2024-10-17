@@ -37,6 +37,9 @@ namespace engine {
     /// Get the default texture for a texture slot.
     bfc::Texture const & getDefaultTexture(bfc::Material::TextureSlot slot) const;
 
+    /// Get the default material data
+    bfc::StructuredHardwareBuffer<bfc::renderer::PBRMaterial> const & getDefaultMaterial() const;
+
   protected:
     virtual void beginView(RenderView const & view) override;
     virtual void endView(RenderView const & view) override;
@@ -48,6 +51,7 @@ namespace engine {
 
     bfc::GraphicsResource m_finalTarget = bfc::InvalidGraphicsResource;
 
+    bfc::StructuredHardwareBuffer<bfc::renderer::PBRMaterial>  m_defaultMaterial;
     bfc::StructuredHardwareBuffer<bfc::renderer::ModelBuffer>  m_modelData;
     bfc::StructuredHardwareBuffer<bfc::renderer::CameraBuffer> m_cameraData;
 

@@ -9,8 +9,9 @@ characterset "MBCS"
 
 includedirs {
   "../lib/include",
-  "../engine/include",
-  "src/"
+  "src/app",
+  "src/engine",
+  "src",
 }
 
 dependson {

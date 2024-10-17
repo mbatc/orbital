@@ -15,6 +15,11 @@ namespace bfc {
     double mins() const;
     double hours() const;
 
+    Timestamp operator-(Timestamp const & rhs) const;
+    Timestamp operator+(Timestamp const & rhs) const;
+    Timestamp operator/(Timestamp const & rhs) const;
+    Timestamp operator*(Timestamp const & rhs) const;
+
     static Timestamp fromNanos(int64_t len);
     static Timestamp fromMicros(int64_t len);
     static Timestamp fromMillis(int64_t len);

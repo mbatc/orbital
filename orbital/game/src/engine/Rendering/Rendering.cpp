@@ -1,5 +1,6 @@
 #include "Rendering.h"
 #include "Application.h"
+#include "Viewport/Viewport.h"
 
 #include "render/GraphicsDevice.h"
 #include "render/Shader.h"
@@ -36,7 +37,7 @@ namespace engine {
       return true;
     });
 
-    m_api = pApp->addSetting<String>("Rendering/api", "OpenGL");
+    m_api = pApp->addSetting<String>("rendering/api", "OpenGL");
 
     m_pDevice = createGraphicsDevice(m_api.get());
     if (m_pDevice == nullptr) {
@@ -56,10 +57,27 @@ namespace engine {
     m_pWindow = nullptr;
   }
 
-  void Rendering::loop()
+  void Rendering::loop(Application * pApp)
   {
+    BFC_UNUSED(pApp);
     m_pDevice->bindRenderTarget(InvalidGraphicsResource);
     m_pDevice->swap();
     m_pDevice->clear({ 0, 0, 0, 1 });
+
+    m_pMainViewport->setSize(m_pWindow->getSize());
+    m_pMainViewport->render(InvalidGraphicsResource);
+  }
+
+  void Rendering::setMainViewport(bfc::Ref<Viewport> const & pViewport) {
+    if (m_pMainViewport != nullptr) {
+      m_pMainViewport->getEvents()->stopListening(m_pWindow->getEvents());
+    }
+
+    m_pMainViewport = pViewport;
+    m_pMainViewport->getEvents()->listenTo(m_pWindow->getEvents());
+  }
+
+  bfc::Ref<Viewport> Rendering::getMainViewport() {
+    return m_pMainViewport;
   }
 }

@@ -1,6 +1,6 @@
 #include "Viewport.h"
-#include "Renderer/DeferredRenderer.h"
-#include "Renderer/RenderScene.h"
+#include "Rendering/DeferredRenderer.h"
+#include "Rendering/RenderScene.h"
 
 using namespace bfc;
 
@@ -11,32 +11,18 @@ namespace engine {
     m_mouse.attachTo(&m_events);
     m_keyboard.attachTo(&m_events);
 
-    m_pGraphics    = pGraphics;
-    m_pRenderer    = NewRef<DeferredRenderer>(pGraphics, pAssets);
-    m_renderTarget = pGraphics->getRenderTargetManager()->createRenderTarget(RenderTargetType_Texture);
+    m_pGraphics = pGraphics;
+    m_pRenderer = NewRef<DeferredRenderer>(pGraphics, pAssets);
   }
 
-  void Viewport::render() {
+  void Viewport::render(bfc::GraphicsResource renderTarget) {
     if (m_renderScene.getLevel() == nullptr || getSize().x == 0 || getSize().y == 0)
       return;
 
-    RenderView view;
-    view.viewport         = {0, 0, 1, 1};
-    view.viewMatrix       = m_viewMatrix;
-    view.projectionMatrix = m_projectionMatrix;
-    view.renderTarget     = getRenderTarget();
-
-    // camera.get<CameraComponent>().calculateProjection({
-    //   view.viewport.x * viewportSize.x,
-    //   view.viewport.y * viewportSize.y,
-    //   view.viewport.z * viewportSize.x,
-    //   view.viewport.w * viewportSize.y
-    // });
-
-    m_renderScene.setViews({ &view, 1});
+    m_renderScene.setViews(collectViews(renderTarget));
     m_renderScene.collect();
 
-    getGraphics()->bindRenderTarget(getRenderTarget());
+    getGraphics()->bindRenderTarget(renderTarget);
     getGraphics()->clear({0, 0, 0, 255});
     getRenderer()->render(m_renderScene.views());
   }
@@ -45,16 +31,17 @@ namespace engine {
     if (m_size == size) {
       return;
     }
-    m_colourTexture.load2D<RGBAu8>(m_pGraphics, size);
-    m_depthTexture.load2D(m_pGraphics, size, DepthStencilFormat_D24S8);
-    m_pGraphics->getRenderTargetManager()->attachColour(m_renderTarget, m_colourTexture);
-    m_pGraphics->getRenderTargetManager()->attachDepth(m_renderTarget, m_depthTexture);
+
     m_pRenderer->onResize(size);
     m_size = size;
   }
 
   void Viewport::setLevel(bfc::Ref<Level> const & pLevel) {
     m_renderScene = RenderScene(pLevel);
+  }
+
+  Level * Viewport::getLevel() const {
+    return m_renderScene.getLevel();
   }
 
   bfc::Vec2i Viewport::getSize() const {
@@ -103,18 +90,6 @@ namespace engine {
 
   DeferredRenderer * Viewport::getRenderer() const {
     return m_pRenderer.get();
-  }
-
-  GraphicsResource const & Viewport::getRenderTarget() const {
-    return m_renderTarget;
-  }
-
-  Texture const & Viewport::getColourTexture() const {
-    return m_colourTexture;
-  }
-
-  Texture const & Viewport::getDepthTexture() const {
-    return m_depthTexture;
   }
 
   GraphicsDevice * Viewport::getGraphics() const {

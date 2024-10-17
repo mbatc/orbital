@@ -34,7 +34,7 @@ namespace engine {
     virtual bfc::Ref<bfc::Material> load(bfc::URI const & uri, AssetLoadContext * pManager) const override;
     virtual bool                    handles(bfc::URI const & uri, AssetManager const * pManager) const override;
 
-    inline static bfc::String fragmentPrefix = "#material.";
+    inline static bfc::String fragmentPrefix = "material.";
 
   private:
     bfc::GraphicsDevice * m_pGraphics;

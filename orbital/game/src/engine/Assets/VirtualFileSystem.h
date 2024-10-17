@@ -109,6 +109,10 @@ namespace engine {
       return bfc::deserialize<T>(resolveUri(resource), format);
     }
 
+    bool serialize(bfc::URI const & resource, bfc::SerializedObject const & o, bfc::DataFormat format = bfc::DataFormat_YAML);
+
+    std::optional<bfc::SerializedObject> deserialize(bfc::URI const & resource, bfc::DataFormat format = bfc::DataFormat_YAML);
+
   private:
     std::mutex                      m_lock;
     bfc::Map<bfc::String, bfc::URI> m_drives;

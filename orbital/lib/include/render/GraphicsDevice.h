@@ -96,8 +96,8 @@ namespace bfc {
     CubeMapFace_Left,
     CubeMapFace_Top,
     CubeMapFace_Bottom,
-    CubeMapFace_Back,
     CubeMapFace_Front,
+    CubeMapFace_Back,
     CubeMapFace_Count,
   };
 

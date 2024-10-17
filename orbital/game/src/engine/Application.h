@@ -40,6 +40,8 @@ namespace engine {
 
     bfc::Filename getWorkingDirectory() const;
 
+    bfc::Timestamp getDeltaTime() const;
+
     template<typename SubsystemType, typename... Args>
     bfc::Ref<SubsystemType> addSubsystem(Args&&... args) {
       auto pSystem = bfc::NewRef<SubsystemType>(std::forward<Args>(args)...);
@@ -85,6 +87,9 @@ namespace engine {
     // Program running state
     bool m_running = true;
     int m_exitCode = 0;
+
+    bfc::Timestamp m_timestep;
+    bfc::Timestamp m_lastFrameTime;
 
     // Arguments parsed to the application
     bfc::Vector<bfc::String> m_arguments; 

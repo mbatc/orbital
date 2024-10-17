@@ -12,6 +12,25 @@ namespace engine {
 
   class Level;
   class LevelSerializer;
+  class LevelCopyContext {
+  public:
+    LevelCopyContext(Level * pDst, Level const * pSrc);
+    ~LevelCopyContext();
+
+    EntityID remap(EntityID const & src) const;
+    bool     remap(EntityID * pEntityID) const;
+
+    bool addMappedEntity(EntityID const & dst, EntityID const & src);
+    void defer(std::function<void(LevelCopyContext *, Level *)> const & func);
+
+  private:
+    Level *       m_pDstLevel = nullptr;
+    Level const * m_pSrcLevel = nullptr;
+
+    bfc::Vector<std::function<void(LevelCopyContext *, Level *)>> m_deferred;
+    bfc::Map<EntityID, EntityID>                                  m_mappedEntities;
+  };
+
   class ILevelComponentType {
   public:
     /// Add a new component type interface.
@@ -40,7 +59,15 @@ namespace engine {
 
     virtual bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & serialized, Level & level, EntityID entity) const = 0;
 
-    virtual bool copy(Level * pDstLevel, EntityID dstEntity, Level const * pSrcLevel, EntityID srcEntity) const = 0;
+    virtual bool copy(LevelCopyContext * pContext, Level * pDstLevel, EntityID dstEntity, Level const & srcLevel, EntityID srcEntity) const = 0;
+  };
+
+  template<typename T>
+  struct LevelComponentCopier {
+    inline static void copy(LevelCopyContext * pContext, Level * pDstLevel, EntityID dstEntity, Level const & srcLevel, T const & component) {
+      BFC_UNUSED(pContext, srcLevel);
+      pDstLevel->replace<T>(dstEntity, component);
+    }
   };
 
   /// Interface used by Levels for a component of type `T`.
@@ -68,9 +95,9 @@ namespace engine {
       return true;
     }
 
-    virtual bool copy(Level * pDstLevel, EntityID dstEntity, Level const * pSrcLevel, EntityID srcEntity) const override {
-      if (T const * pSrcComponent = pSrcLevel->tryGet<T>(srcEntity)) {
-        pDstLevel->replace<T>(dstEntity, *pSrcComponent);
+    virtual bool copy(LevelCopyContext * pContext, Level * pDstLevel, EntityID dstEntity, Level const & srcLevel, EntityID srcEntity) const override {
+      if (T const * pSrcComponent = srcLevel.tryGet<T>(srcEntity)) {
+        LevelComponentCopier<T>::copy(pContext, pDstLevel, dstEntity, srcLevel, *pSrcComponent);
         return true;
       }
 
@@ -172,8 +199,8 @@ namespace engine {
       const int64_t index = toIndex(entityID);
 
       if (index != bfc::npos) {
-        mem::destruct(m_components.begin() + index);
-        mem::construct(m_components.begin() + index, std::forward<Args>(args)...);
+        bfc::mem::destruct(m_components.begin() + index);
+        bfc::mem::construct(m_components.begin() + index, std::forward<Args>(args)...);
         return m_components[index];
       }
 

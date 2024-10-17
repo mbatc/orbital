@@ -71,12 +71,17 @@ namespace engine {
   }
 
   int Application::run() {
+    m_lastFrameTime = bfc::Timestamp::now();
     while (m_running) {
+
       Events::update();
 
       for (int64_t i = 0; i < m_subsystems.size(); ++i) {
-        m_subsystems[i]->loop();
+        m_subsystems[i]->loop(this);
       }
+      auto now        = bfc::Timestamp::now();
+      m_timestep      = now.length - m_lastFrameTime.length;
+      m_lastFrameTime = now;
     }
 
     return m_exitCode;
@@ -109,6 +114,10 @@ namespace engine {
 
   bfc::Filename Application::getWorkingDirectory() const {
     return bfc::os::getCwd();
+  }
+
+  bfc::Timestamp Application::getDeltaTime() const {
+    return m_timestep;
   }
 
   bool Application::addSubsystem(bfc::Ref<Subsystem> const & pSystem) {

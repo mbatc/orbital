@@ -5,6 +5,7 @@
 #include "geometry/Geometry.h"
 #include "math/MathTypes.h"
 #include "util/UUID.h"
+#include "render/GraphicsDevice.h"
 
 #include "LevelSerializer.h"
 
@@ -77,6 +78,19 @@ namespace components {
     bfc::Vec3d m_translation = {0, 0, 0};
     bfc::Quatd m_orientation = glm::identity<bfc::Quatd>();
     bfc::Vec3d m_scale       = {1, 1, 1};
+  };
+
+  struct Camera {
+    float fov       = glm::radians(60.0f);
+    float nearPlane = 0.01f;
+    float farPlane  = 1000.0f;
+
+    bfc::Vec2 viewportPosition = {0, 0};
+    bfc::Vec2 viewportSize     = {1, 1};
+
+    bfc::GraphicsResource renderTarget = bfc::InvalidGraphicsResource;
+
+    bfc::Mat4 projectionMat(float aspect = 1) const;
   };
 
   enum LightType {
@@ -191,6 +205,23 @@ namespace engine {
     }
   };
 
+  template<>
+  struct engine::LevelComponentCopier<components::Transform> {
+    inline static void copy(LevelCopyContext * pContext, Level * pDstLevel, EntityID dstEntity, Level const & srcLevel,
+                            components::Transform const & component) {
+      BFC_UNUSED(srcLevel);
+
+      components::Transform & dst = pDstLevel->replace<components::Transform>(dstEntity);
+      dst.setTranslation(component.translation());
+      dst.setOrientation(component.orientation());
+      dst.setScale(component.scale());
+
+      pContext->defer([dstEntity, parent = component.parent()](LevelCopyContext * pContext, engine::Level * pDstLevel) {
+        if (components::Transform * pTransform = pDstLevel->tryGet<components::Transform>(dstEntity))
+          pTransform->setParent(pDstLevel, pContext->remap(parent));
+      });
+    }
+  };
   // A Specific serializer type that should be specialized for more control over entity component serialization.
   template<>
   struct engine::LevelComponentSerializer<components::StaticMesh> {
@@ -264,6 +295,33 @@ namespace bfc {
 
     inline static bool read(SerializedObject const & s, components::Name & o) {
       return s.read(o.name);
+    }
+  };
+
+  template<>
+  struct Serializer<components::Camera> {
+    inline static SerializedObject write(components::Camera const & o) {
+      return SerializedObject::MakeMap({
+        {"farPlane", serialize(o.farPlane)},
+        {"nearPlane", serialize(o.nearPlane)},
+        {"viewportSize", serialize(o.viewportSize)},
+        {"viewportPosition", serialize(o.viewportPosition)},
+        {"fov", serialize(glm::degrees(o.fov))}
+      });
+    }
+
+    inline static bool read(SerializedObject const & s, components::Camera & o) {
+      mem::construct(&o);
+
+      s.get("farPlane").read(o.farPlane);
+      s.get("nearPlane").read(o.nearPlane);
+      s.get("viewportSize").read(o.viewportSize);
+      s.get("viewportPosition").read(o.viewportPosition);
+      s.get("fov").read(o.fov);
+
+      o.fov = glm::radians(o.fov);
+
+      return true;
     }
   };
 

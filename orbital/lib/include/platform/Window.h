@@ -3,6 +3,7 @@
 #include "../core/Core.h"
 #include "../core/String.h"
 #include "../core/Timestamp.h"
+#include "../core/Filename.h"
 #include "../math/MathTypes.h"
 #include "../platform/Events.h"
 #include "../platform/KeyCode.h"
@@ -31,6 +32,7 @@ namespace bfc {
       void setTitle(String const & title);
       void setSize(Vec2i const & size);
       void setPosition(Vec2i const & position);
+      void setDragDrop(bool enabled);
 
       String getTitle() const;
       Vec2i getSize() const;
@@ -153,6 +155,11 @@ namespace bfc {
       float amount = 0;
       bool horizontal = false;
       Timestamp ts;
+    };
+
+    struct DroppedFiles {
+      platform::Window * pWindow = nullptr;
+      Vector<Filename>   files;
     };
 
     struct MousePosition {

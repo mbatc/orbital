@@ -1,9 +1,16 @@
 #include "Level.h"
+#include "platform/Events.h"
 
 using namespace bfc;
 
 namespace engine {
-  Level::Level() {}
+  Level::Level() 
+    : m_pEvents(bfc::NewRef<Events>("Level"))
+  {}
+
+  Level::~Level() {
+    clear();
+  }
 
   EntityID Level::create(std::optional<UUID> const & id) {
     int64_t newEntityIndex   = m_entities.size();
@@ -49,7 +56,6 @@ namespace engine {
     }
 
     // Remove any components attached to this entity.
-
     m_idToEntity.erase(m_ids[index]);
     m_ids.erase(index);
     m_entities[index] = InvalidEntity;
@@ -79,6 +85,76 @@ namespace engine {
 
   Level::EntityView Level::entities() const {
     return EntityView(this);
+  }
+
+  bfc::Vector<EntityID> Level::copyTo(Level * pDstLevel, bfc::Span<EntityID const> const & entities, bool preserveUUIDs) {
+    LevelCopyContext context(pDstLevel, this);
+
+    bfc::Vector<EntityID> dstEntities;
+    dstEntities.reserve(entities.size());
+
+    // Find or create all the entities
+    for (EntityID const & src : entities) {
+      if (!contains(src)) {
+        dstEntities.pushBack(InvalidEntity);
+        continue;
+      }
+
+      EntityID dstEntity = InvalidEntity;
+      if (preserveUUIDs) {
+        bfc::UUID uuid = uuidOf(src);
+        dstEntity      = pDstLevel->find(uuid);
+        if (dstEntity == InvalidEntity) {
+          dstEntity = pDstLevel->create(uuid);
+        }
+      } else {
+        dstEntity = pDstLevel->create();
+      }
+
+      context.addMappedEntity(dstEntity, src);
+      dstEntities.pushBack(dstEntity);
+    }
+
+    for (const auto & [index, src] : enumerate(entities)) {
+      EntityID dstEntity = dstEntities[index];
+      if (dstEntity == InvalidEntity) {
+        continue;
+      }
+
+      for (const auto& [type, pComponents] : components()) {
+        auto pInterface = ILevelComponentType::find(type);
+        pInterface->copy(&context, pDstLevel, dstEntity, *this, src);
+      }
+    }
+
+    return dstEntities;
+  }
+
+  bfc::Vector<EntityID> Level::copyTo(Level * pDstLevel, bool preserveUUIDs) {
+    return copyTo(pDstLevel, m_entities);
+  }
+
+  bfc::Vector<EntityID> Level::copyTo(Level * pDstLevel, EntityID const & entity, bool preserveUUIDs) {
+    bfc::Vector<EntityID> ret = copyTo(pDstLevel, {&entity, 1}, preserveUUIDs);
+    ret.eraseValue(InvalidEntity);
+    return ret;
+  }
+
+  EntityID Level::copy(EntityID const & entity) {
+    return copyTo(this, entity, false).front();
+  }
+
+  void Level::clear() {
+    for (auto & [type, pComponents] : m_components) {
+      for (int64_t i = pComponents->entities().size(); i >= 0; --i) {
+        pComponents->erase(pComponents->entities()[i]);
+      }
+    }
+    m_ids.clear();
+    m_idToEntity.clear();
+    m_entities.clear();
+    m_freed.clear();
+    m_entityCount = 0;
   }
 
   bool Level::contains(int64_t const & index, int64_t const & version) const {
@@ -133,4 +209,35 @@ namespace engine {
   Level::EntityView::Iterator Level::EntityView::end() const {
     return Iterator(m_pLevel->m_entities, m_pLevel->m_entities.size());
   }
+
+  LevelCopyContext::LevelCopyContext(Level * pDst, Level const * pSrc)
+    : m_pDstLevel(pDst)
+    , m_pSrcLevel(pSrc) {}
+
+  LevelCopyContext::~LevelCopyContext() {
+    for (auto& cb : m_deferred) {
+      cb(this, m_pDstLevel);
+    }
+  }
+
+  EntityID LevelCopyContext::remap(EntityID const & src) const {
+    return m_mappedEntities.getOr(src, InvalidEntity);
+  }
+
+  bool LevelCopyContext::remap(EntityID * pSrcEntityID) const {
+    return m_mappedEntities.tryGet(EntityID(*pSrcEntityID), pSrcEntityID);
+  }
+
+  bool LevelCopyContext::addMappedEntity(EntityID const & dst, EntityID const & src) {
+    if (!m_pDstLevel->contains(dst) || !m_pSrcLevel->contains(src))
+      return false; // invalid entity id
+    if (m_mappedEntities.contains(src))
+      return false; // already mapped
+    return m_mappedEntities.tryAdd(src, dst);
+  }
+
+  void LevelCopyContext::defer(std::function<void(LevelCopyContext *, Level *)> const & func) {
+    m_deferred.pushBack(func);
+  }
+
 } // namespace engine

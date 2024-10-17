@@ -4,7 +4,7 @@
 #include "input/Mouse.h"
 #include "platform/Events.h"
 #include "render/Texture.h"
-#include "Renderer/RenderScene.h"
+#include "Rendering/RenderScene.h"
 
 namespace bfc {
   class GraphicsDevice;
@@ -19,12 +19,19 @@ namespace engine {
     Viewport(bfc::GraphicsDevice * pGraphics, AssetManager * pAssets, bfc::StringView const & viewportName);
 
     /// Render the viewport.
-    void render();
+    void render(bfc::GraphicsResource renderTarget);
+
+    /// Collect all of the views that need to be rendered
+    virtual bfc::Vector<RenderView> collectViews(bfc::GraphicsResource renderTarget) const = 0;
 
     /// Set the size of the viewport.
     void setSize(bfc::Vec2i const & size);
 
+    /// Set the Level this viewport should render.
     void setLevel(bfc::Ref<Level> const & pLevel);
+
+    /// Get the Level this viewport is rendering.
+    Level * getLevel() const;
 
     /// Get the size of the viewport.
     bfc::Vec2i getSize() const;
@@ -46,10 +53,6 @@ namespace engine {
     bfc::Mat4d getView() const;
     bfc::Mat4d getProjection() const;
 
-    bfc::GraphicsResource const & getRenderTarget() const;
-    bfc::Texture const &          getColourTexture() const;
-    bfc::Texture const &          getDepthTexture() const;
-
     DeferredRenderer *    getRenderer() const;
     bfc::GraphicsDevice * getGraphics() const;
 
@@ -65,10 +68,6 @@ namespace engine {
     bfc::Mouse    m_mouse;
 
     bfc::Ref<DeferredRenderer> m_pRenderer;
-
-    bfc::GraphicsResource m_renderTarget = bfc::InvalidGraphicsResource;
-    bfc::Texture          m_colourTexture;
-    bfc::Texture          m_depthTexture;
 
     bfc::Mat4d m_viewMatrix       = bfc::math::identity<bfc::Mat4d>();
     bfc::Mat4d m_projectionMatrix = bfc::math::identity<bfc::Mat4d>();

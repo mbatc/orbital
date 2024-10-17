@@ -1,6 +1,7 @@
 #pragma once
 
-#include "../Renderer/DeferredRenderer.h"
+#include "util/Settings.h"
+// #include "LevelImporter.h"
 #include "../Subsystem.h"
 
 namespace bfc {
@@ -9,6 +10,7 @@ namespace bfc {
 } // namespace bfc
 
 namespace engine {
+  class AssetManager;
   class Rendering;
   class Level;
 
@@ -16,17 +18,25 @@ namespace engine {
   public:
     LevelManager();
 
-    virtual bool init(Application * pApp);
+    struct {
+      bfc::Setting<bfc::URI> startupLevel;
+    } settings;
+
+    virtual bool init(Application * pApp) override;
     virtual void shutdown() override;
-    virtual void loop();
+
+    bfc::Ref<Level> getActiveLevel() const;
+    void            setActiveLevel(bfc::Ref<Level> const & pLevel);
+
+    bool Import(Level * pLevel, bfc::URI const & uri) const;
 
   private:
     // Register the game component types.
     void registerComponentTypes();
 
-    bfc::Ref<Level> m_pActiveLevel = nullptr;
-    bfc::Ref<DeferredRenderer> m_pRenderer;
-    bfc::Ref<bfc::EventListener>    m_pInputs    = nullptr;
-    Rendering * m_pRendering = nullptr;
+    bfc::Ref<AssetManager>       m_pAssets      = nullptr; 
+    bfc::Ref<Level>              m_pActiveLevel = nullptr;
+    bfc::Ref<Rendering>          m_pRendering   = nullptr;
+    bfc::Ref<bfc::EventListener> m_pInputs      = nullptr;
   };
 } // namespace engine

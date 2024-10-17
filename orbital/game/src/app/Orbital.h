@@ -1,7 +1,6 @@
 #pragma once
 
-#include "engine/Application.h"
-#include "engine/Game.h"
+#include "Application.h"
 
 namespace engine {
   class VirtualFileSystem;
@@ -19,7 +18,7 @@ public:
   Orbital();
 
 private:
-  engine::Game m_game;
+  // engine::Game m_game;
 
   bfc::Ref<engine::VirtualFileSystem> m_pFileSystem;
   // bfc::Ref<engine::Windowing> m_pWindowing;

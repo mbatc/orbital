@@ -51,33 +51,27 @@ layout(std140, binding = 3) buffer lights {
 
 // -----------------------------
 
-const vec2 positions[3] = vec2[] (
+const vec2 positions[4] = vec2[] (
     vec2(-1.0, -1.0),
-    vec2( 3.0, -1.0),
-    vec2(-1.0,  3.0)
+    vec2( 1.0, -1.0),
+    vec2( 1.0,  1.0),
+    vec2(-1.0,  1.0)
 );
 
-const vec2 uvs[3] = vec2[] (
-    vec2(0.0, 0.0),
-    vec2(2.0, 0.0),
-    vec2(0.0, 2.0)
+const int indices[6] = int[] (
+    0, 1, 2,
+    0, 2, 3
 );
 
-out vec2 vsout_uv0;
-out vec3 vsout_position0;
 out vec3 vsout_direction0;
 
 void main()
 {
-  gl_Position = vec4(positions[gl_VertexID], 0, 1);
-
-  vsout_uv0 = uvs[gl_VertexID];
-  vsout_position0 = vec3(positions[gl_VertexID], 0);
-  gl_Position = vec4(positions[gl_VertexID], 0.0, 1.0);
+  gl_Position = vec4(positions[indices[gl_VertexID]], 0, 1);
 
   // Calculate world space direction
   mat3 rotation = mat3(invViewMatrix);
-  vec4 direction = invProjMatrix * vec4(positions[gl_VertexID], 0, 1);
+  vec4 direction = invProjMatrix * vec4(positions[indices[gl_VertexID]], 0, 1);
   direction /= direction.w;
   vsout_direction0 = normalize(rotation * vec3(direction));
 }
