@@ -68,8 +68,11 @@ namespace bfc {
     template<typename T>
     bool Input(String const& name, T * pValue) {
       if constexpr (has_reflect_v<T>) {
+        ImGui::Text(name.c_str());
+        ImGui::PushID(name.c_str());
         bool changed = false;
         reflect<T>().visit(pValue, detail::InputVisitor{&changed});
+        ImGui::PopID();
         return changed;
       } else {
         return Input(name, InputTraits<T>::dataType, pValue, InputTraits<T>::format.c_str(), InputTraits<T>::width);

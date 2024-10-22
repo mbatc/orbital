@@ -126,6 +126,7 @@ namespace engine {
       return false;
     }
 
+    pSystem->m_pApp = this;
     m_subsystems.pushBack(pSystem);
     return true;
   }

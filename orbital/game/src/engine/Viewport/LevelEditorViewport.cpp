@@ -103,7 +103,10 @@ namespace engine {
 
   LevelEditorViewport::LevelEditorViewport(GraphicsDevice * pGraphics, AssetManager * pAssets) 
     : Viewport(pGraphics, pAssets, "LevelEditor")
-    , camera(&getMouse(), &getKeyboard()) {}
+    , camera(&m_mouse, &m_keyboard) {
+    m_mouse.attachTo(getEvents());
+    m_keyboard.attachTo(getEvents());
+  }
 
   Vector<RenderView> LevelEditorViewport::collectViews(bfc::GraphicsResource renderTarget) const {
     RenderView view;
@@ -112,5 +115,28 @@ namespace engine {
     view.projectionMatrix = camera.projectionMat((float)getSize().x / getSize().y);
     view.renderTarget     = renderTarget;
     return { view };
+  }
+
+  bfc::Map<bfc::String, bfc::InputDevice *> LevelEditorViewport::getInputDevices() {
+    return {
+      {"keyboard", &m_keyboard},
+      {"mouse",    &m_mouse},
+    };
+  }
+
+  const bfc::Mouse & LevelEditorViewport::getMouse() const {
+    return m_mouse;
+  }
+
+  const bfc::Keyboard & LevelEditorViewport::getKeyboard() const {
+    return m_keyboard;
+  }
+
+  bfc::Mouse & LevelEditorViewport::getMouse() {
+    return m_mouse;
+  }
+
+  bfc::Keyboard & LevelEditorViewport::getKeyboard() {
+    return m_keyboard;
   }
 } // namespace engine

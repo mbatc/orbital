@@ -2,9 +2,12 @@
 #include "util/Log.h"
 
 int main(int argc, char ** argv) {
+  auto lambda = [](int, float, bool) {};
+  using Type = bfc::function_type<decltype(lambda)>;
+
   Orbital orbital;
   auto logListener = orbital.addListener();
-  logListener->on<bfc::events::AddLog>([](bfc::events::AddLog const & e) {
+  logListener->on([](bfc::events::AddLog const & e) {
     const char * level = "INFO";
     switch (e.level) {
     case bfc::Log::Level_Info:    level = "INFO"; break;
@@ -19,7 +22,6 @@ int main(int argc, char ** argv) {
       (int)e.func.length(), e.func.begin(),
       e.line
     );
-    return true;
   });
 
   if (!orbital.parseCommandLine(argc, argv)) {

@@ -213,6 +213,16 @@ namespace bfc {
     }
 
     template<typename T>
+    T clamp(T const& value, T const& minValue, T const& maxValue) {
+      return max(min(value, maxValue), minValue);
+    }
+
+    template<typename T>
+    T abs(T const & o) {
+      return glm::abs(o);
+    }
+
+    template<typename T>
     Vector2<T> abs(Vector2<T> const & o) {
       return {glm::abs(o.x), glm::abs(o.y)};
     }

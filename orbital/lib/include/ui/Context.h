@@ -3,9 +3,9 @@
 #include "../../../vendor/imgui/imgui.h"
 #include "../../../vendor/imgui/imgui_internal.h"
 #include "../../../vendor/ImGuizmo/ImGuizmo.h"
-
 #include "../render/GraphicsDevice.h"
 #include "../render/Shader.h"
+#include "../platform/Events.h"
 
 // ImGui helpers should go here
 namespace bfc {
@@ -39,8 +39,19 @@ namespace bfc {
       /// This is shorthand for from (Context*)ImGui::GetIO().UserData
       static Context * Current();
 
+      Events * getEvents() {
+        return &m_events;
+      }
+
+      Events const * getEvents() const {
+        return &m_events;
+      }
+
     private:
       void updateMouseData();
+
+      Events m_events;
+      Ref<EventListener> m_pListener = nullptr;
 
       GraphicsDevice * m_pDevice        = nullptr;
       ImGuiContext *   m_pImContext     = nullptr;

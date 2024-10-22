@@ -6,11 +6,8 @@ using namespace bfc;
 
 namespace engine {
   Viewport::Viewport(GraphicsDevice * pGraphics, AssetManager * pAssets, StringView const & viewportName)
-    : m_events(String::format("Viewport.%s", viewportName))
+    : m_events(String::format("Viewport.%.*s", viewportName.length(), viewportName.begin()))
     , m_renderScene(nullptr) {
-    m_mouse.attachTo(&m_events);
-    m_keyboard.attachTo(&m_events);
-
     m_pGraphics = pGraphics;
     m_pRenderer = NewRef<DeferredRenderer>(pGraphics, pAssets);
   }
@@ -48,44 +45,12 @@ namespace engine {
     return m_size;
   }
 
-  const bfc::Mouse & Viewport::getMouse() const {
-    return m_mouse;
-  }
-
-  const bfc::Keyboard & Viewport::getKeyboard() const {
-    return m_keyboard;
-  }
-
-  bfc::Mouse & Viewport::getMouse() {
-    return m_mouse;
-  }
-
-  bfc::Keyboard & Viewport::getKeyboard() {
-    return m_keyboard;
-  }
-
   bfc::Events const * Viewport::getEvents() const {
     return &m_events;
   }
 
   bfc::Events * Viewport::getEvents() {
     return &m_events;
-  }
-
-  void Viewport::setView(Mat4d const & viewMatrix) {
-    m_viewMatrix = viewMatrix;
-  }
-
-  void Viewport::setProjection(Mat4d const & projectionMatrix) {
-    m_projectionMatrix = projectionMatrix;
-  }
-
-  Mat4d Viewport::getView() const {
-    return m_viewMatrix;
-  }
-
-  Mat4d Viewport::getProjection() const {
-    return m_projectionMatrix;
   }
 
   DeferredRenderer * Viewport::getRenderer() const {

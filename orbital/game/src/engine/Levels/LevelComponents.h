@@ -4,6 +4,7 @@
 #include "core/Pool.h"
 #include "core/Serialize.h"
 #include "core/typeindex.h"
+#include "LevelSerializer.h"
 
 namespace engine {
   using EntityID = uint64_t;

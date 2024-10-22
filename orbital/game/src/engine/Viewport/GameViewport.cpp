@@ -6,8 +6,10 @@ using namespace bfc;
 
 namespace engine {
   GameViewport::GameViewport(GraphicsDevice * pGraphics, AssetManager * pAssets)
-    : Viewport(pGraphics, pAssets, "Game")
-  {}
+    : Viewport(pGraphics, pAssets, "Game") {
+    m_mouse.attachTo(getEvents());
+    m_keyboard.attachTo(getEvents());
+  }
 
   Vector<RenderView> GameViewport::collectViews(GraphicsResource renderTarget) const {
     Level * pLevel = getLevel();
@@ -28,8 +30,33 @@ namespace engine {
       view.viewMatrix       = transform.globalTransformInverse(pLevel);
       view.renderTarget     = camera.renderTarget;
       view.viewport         = { camera.viewportPosition, camera.viewportSize };
+
+      ret.pushBack(view);
     }
 
     return ret;
+  }
+
+  bfc::Map<bfc::String, bfc::InputDevice *> GameViewport::getInputDevices() {
+    return {
+      {"keyboard", &m_keyboard},
+      {"mouse", &m_mouse},
+    };
+  }
+
+  const bfc::Mouse & GameViewport::getMouse() const {
+    return m_mouse;
+  }
+
+  const bfc::Keyboard & GameViewport::getKeyboard() const {
+    return m_keyboard;
+  }
+
+  bfc::Mouse & GameViewport::getMouse() {
+    return m_mouse;
+  }
+
+  bfc::Keyboard & GameViewport::getKeyboard() {
+    return m_keyboard;
   }
 } // namespace engine

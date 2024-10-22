@@ -62,6 +62,11 @@ namespace components {
     void setTransform(bfc::Mat4d const & transform);
     void lookAt(bfc::Vec3d const & direction, bfc::Vec3d const & up = bfc::math::up<double>);
 
+    void translate(bfc::Vec3d const & translation);
+    void rotate(bfc::Quatd const & rotation);
+    void scale(bfc::Vec3d const & amount);
+    void scale(double const & amount);
+
     void setGlobalTranslation(engine::Level const * pLevel, bfc::Vec3d const & translation);
     void setGlobalOrientation(engine::Level const * pLevel, bfc::Quatd const & orientation);
     void setGlobalYpr(engine::Level const * pLevel, bfc::Vec3d const & ypr);
@@ -70,6 +75,8 @@ namespace components {
     void setGlobalTransform(engine::Level const * pLevel, bfc::Mat4d const & transform);
 
     void setParent(engine::Level * pLevel, engine::EntityID const & entityID);
+
+    bfc::Span<engine::EntityID> children() const;
 
   private:
     engine::EntityID              m_parent;

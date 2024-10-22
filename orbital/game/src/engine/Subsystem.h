@@ -6,10 +6,11 @@
 
 namespace engine {
   class Application;
-  class Subsystem : bfc::Events {
+  class Subsystem {
+    friend Application;
   public:
-    Subsystem(bfc::type_index const& type, bfc::String const & name)
-      : bfc::Events(name)
+    Subsystem(bfc::type_index const & type, bfc::String const & name)
+      : m_events(name)
       , type(type) {}
 
     const bfc::type_index type;
@@ -20,5 +21,14 @@ namespace engine {
 
     virtual bool parseCommandLine(int argc, char** argv) { BFC_UNUSED(argc, argv); return true; }
     virtual void loop(Application * pApp) {}
+
+    bfc::Events * getEvents();
+    bfc::Events const * getEvents() const;
+
+    Application * getApp() const;
+
+  private:
+    Application * m_pApp = nullptr;
+    bfc::Events m_events;
   };
 }

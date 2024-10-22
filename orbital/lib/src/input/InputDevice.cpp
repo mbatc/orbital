@@ -27,7 +27,32 @@ namespace bfc {
         axis.lastValue = axis.value;
       }
     }
+
+    for (ButtonEvent const & ev : m_buttonEvents) {
+      Button &bt       = m_buttons[ev.index];
+      bt.isPressed    |= !bt.isDown && ev.isDown;
+      bt.isReleased   |= bt.isDown && !ev.isDown;
+      bt.isDown        = ev.isDown;
+      bt.lastTimestamp = ts;
+
+      if (bt.isPressed || bt.isReleased) {
+        bt.stateChangeTS = ts;
+      }
+    }
+
+    for (AxisEvent const & ev : m_axisEvents) {
+      Axis & axis = m_axes[ev.index];
+      axis.value  = ev.value;
+    }
+
+    for (Axis & axis : m_axes) {
+      axis.change = axis.value - axis.lastValue;
+    }
+
+    m_axisEvents.clear();
+    m_buttonEvents.clear();
   }
+
   void InputDevice::customAxisUpdate(int64_t index, std::function<void(Axis *)> callback) {
     m_axes[index].callback = callback;
   }
@@ -77,21 +102,17 @@ namespace bfc {
   }
 
   void InputDevice::updateButton(int64_t index, bool isDown, Timestamp ts) {
-    Button& bt = m_buttons[index];
-    bt.isPressed = !bt.isDown && isDown;
-    bt.isReleased = bt.isDown && !isDown;
-    bt.isDown = isDown;
-    bt.lastTimestamp = ts;
-
-    if (bt.isPressed || bt.isReleased) {
-      bt.stateChangeTS = ts;
-    }
+    ButtonEvent ev;
+    ev.index  = index;
+    ev.isDown = isDown;
+    ev.ts     = ts;
+    m_buttonEvents.pushBack(ev);
   }
 
   void InputDevice::updateAxis(int64_t index, float val) {
-    Axis& axis = m_axes[index];
-    axis.lastValue = axis.value;
-    axis.value = val;
-    axis.change = val - axis.lastValue;
+    AxisEvent ev;
+    ev.index = index;
+    ev.value = val;
+    m_axisEvents.pushBack(ev);
   }
 }

@@ -1,5 +1,5 @@
 entities:
-  - uuid: 256e1fd7-16bd-4f8c-94b7-e9bfaf8c2a9f
+  - uuid: 43bfbcf6-3a0b-4835-9972-757b4d6a32d3
     components:
       name: Environment
       skybox:
@@ -12,8 +12,8 @@ entities:
           - 0
         ypr:
           - 44.999999999999993
-          - 45.000000000000007
-          - 8.9959671327898901e-15
+          - 45.000000000000036
+          - 2.0240926048777256e-14
         scale:
           - 1
           - 1
@@ -36,7 +36,31 @@ entities:
         innerConeAngle: 30.000001907348633
         outerConeAngle: 35
         castShadows: 1
-  - uuid: 848bbef8-721a-428e-ba18-4011b9126115
+  - uuid: 957a9b3a-642c-4ac9-a35d-3078bc30233f
+    components:
+      name: The Launchpad
+      transform:
+        translation:
+          - 0
+          - 0
+          - 0
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 100
+          - 100
+          - 100
+      static-mesh:
+        castShadows: 1
+        materials:
+          - uri: file:game:models/launchpad/launchpad.obj#material.0
+          - uri: file:game:models/launchpad/launchpad.obj#material.1
+          - uri: file:game:models/launchpad/launchpad.obj#material.2
+        mesh:
+          uri: file:game:models/launchpad/launchpad.obj
+  - uuid: fe4e6b6b-89cd-447d-bbeb-b272d4aa06e0
     components:
       name: The Dohey
       transform:
@@ -49,18 +73,19 @@ entities:
           - 0
           - 0
         scale:
-          - 1
-          - 1
-          - 1
+          - 10
+          - 10
+          - 10
+        parent: 957a9b3a-642c-4ac9-a35d-3078bc30233f
       static-mesh:
         castShadows: 1
         materials:
-          - uri: file:game:models/launchpad/launchpad.obj#material.0
-          - uri: file:game:models/launchpad/launchpad.obj#material.1
-          - uri: file:game:models/launchpad/launchpad.obj#material.2
+          - uri: file:game:models/donut/dohey.obj#material.0
+          - uri: file:game:models/donut/dohey.obj#material.1
+          - uri: file:game:models/donut/dohey.obj#material.2
         mesh:
-          uri: file:game:models/launchpad/launchpad.obj
-  - uuid: d82b9ea0-fd9d-43f2-9891-d84a5abaebbf
+          uri: file:game:models/donut/dohey.obj
+  - uuid: e91b12e5-4b24-4f72-b179-481899e25188
     components:
       name: shuttle
       transform:
@@ -73,9 +98,9 @@ entities:
           - 0
           - 0
         scale:
-          - 1
-          - 1
-          - 1
+          - 100
+          - 100
+          - 100
       static-mesh:
         castShadows: 1
         materials:
@@ -99,3 +124,31 @@ entities:
           - uri: file:game:models/shuttle/shuttle.obj#material.17
         mesh:
           uri: file:game:models/shuttle/shuttle.obj
+      vehical-controls: ~
+  - uuid: 5e378eb3-1e10-4e33-a3b9-7ec418a7ce29
+    components:
+      name: vehicle-camera
+      transform:
+        translation:
+          - 0
+          - 5
+          - 15
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 1
+          - 1
+          - 1
+        parent: e91b12e5-4b24-4f72-b179-481899e25188
+      camera:
+        farPlane: 1000
+        nearPlane: 0.0099999997764825821
+        viewportSize:
+          - 1
+          - 1
+        viewportPosition:
+          - 0
+          - 0
+        fov: 60.000003814697266

@@ -323,9 +323,9 @@ namespace bfc {
   // Get details of a function type.
   template<typename T>
   struct function_type {
-    using Ret     = void;
-    using Func    = void;
-    using ArgList = void;
+    using Ret     = typename function_type<decltype(&T::operator())>::Ret;
+    using Func    = typename function_type<decltype(&T::operator())>::Func;
+    using ArgList = typename function_type<decltype(&T::operator())>::ArgList;
   };
 
   template<typename ReturnT, typename... Args>

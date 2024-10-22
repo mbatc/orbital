@@ -15,6 +15,15 @@ namespace bfc {
 
 namespace engine {
   class Viewport;
+
+  namespace events {
+    struct OnRenderViewport {
+      bool                  isMainViewport = false;
+      bfc::GraphicsDevice * pDevice   = nullptr;
+      Viewport *            pViewport = nullptr;
+    };
+  }
+
   class Rendering : public Subsystem {
   public:
     Rendering();

@@ -1,5 +1,6 @@
 #include "Level.h"
 #include "platform/Events.h"
+#include "LevelSystem.h"
 
 using namespace bfc;
 
@@ -146,7 +147,7 @@ namespace engine {
 
   void Level::clear() {
     for (auto & [type, pComponents] : m_components) {
-      for (int64_t i = pComponents->entities().size(); i >= 0; --i) {
+      for (int64_t i = pComponents->entities().size() - 1; i >= 0; --i) {
         pComponents->erase(pComponents->entities()[i]);
       }
     }
@@ -239,5 +240,4 @@ namespace engine {
   void LevelCopyContext::defer(std::function<void(LevelCopyContext *, Level *)> const & func) {
     m_deferred.pushBack(func);
   }
-
 } // namespace engine

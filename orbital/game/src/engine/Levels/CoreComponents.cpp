@@ -152,6 +152,22 @@ namespace components {
     setOrientation(glm::quatLookAt(direction, up));
   }
 
+  void Transform::translate(bfc::Vec3d const & amount) {
+    setTranslation(translation() + amount);
+  }
+
+  void Transform::rotate(bfc::Quatd const & rotation) {
+    setOrientation(orientation() * rotation);
+  }
+
+  void Transform::scale(bfc::Vec3d const & amount) {
+    setScale(scale() * amount);
+  }
+
+  void Transform::scale(double const & amount) {
+    setScale(scale() * amount);
+  }
+
   void Transform::setGlobalTranslation(engine::Level const * pLevel, bfc::Vec3d const & translation) {
     Transform t;
     t.setTransform(globalTransform(pLevel));
@@ -211,6 +227,11 @@ namespace components {
       m_parent = entityID;
     }
   }
+
+  bfc::Span<engine::EntityID> Transform::children() const {
+    return m_children.getView();
+  }
+
   bfc::Mat4 Camera::projectionMat(float aspect) const {
     return glm::perspective(fov, aspect, nearPlane, farPlane);
   }

@@ -1,5 +1,6 @@
 #include "LevelManager.h"
 #include "LevelSerializer.h"
+#include "LevelSystem.h"
 #include "Level.h"
 
 #include "Application.h"
@@ -25,7 +26,7 @@ namespace engine {
   bool LevelManager::init(Application * pApp) {
     settings.startupLevel = pApp->addSetting("level-manager/startup-level", URI::File("game:levels/main.level"));
 
-    registerComponentTypes();
+    registerCoreComponentTypes();
 
     m_pAssets = pApp->findSubsystem<AssetManager>();
 
@@ -33,7 +34,7 @@ namespace engine {
     m_pActiveLevel = NewRef<Level>();
 
     m_pInputs      = pApp->addListener();
-    m_pInputs->on<events::KeyDown>([=](events::KeyDown const & kd) {
+    m_pInputs->on([=](bfc::events::KeyDown const & kd) {
       if (kd.code == KeyCode_L) {
         BFC_LOG_INFO("LevelManager", "Reloading level");
 
@@ -42,13 +43,12 @@ namespace engine {
         m_pActiveLevel->clear();
         loaded.copyTo(m_pActiveLevel.get(), true);
       }
-      return true;
     });
 
     // Load the startup level
     URI levelPath = settings.startupLevel.get();
     if (m_pAssets->getFileSystem()->exists(levelPath)) {
-      LevelSerializer(m_pAssets.get()).deserialize(settings.startupLevel.get(), *m_pActiveLevel);
+      setActiveLevel(load(settings.startupLevel.get()));
     } else {
       Filename skyboxPath = "game:skybox/nebula.skybox";
       EntityID testEntity = m_pActiveLevel->create();
@@ -64,7 +64,7 @@ namespace engine {
       sun.colour              = {0.7f, 0.7f, 0.7f};
       sun.castShadows         = true;
 
-      LevelSerializer(m_pAssets.get()).serialize(levelPath, *m_pActiveLevel);
+      save(levelPath, *m_pActiveLevel);
     }
 
     return true;
@@ -74,13 +74,105 @@ namespace engine {
     m_pActiveLevel = nullptr;
   }
 
+  void LevelManager::loop(Application * pApp) {
+    if (m_state == SimulateState_Playing) {
+      updateLevel(getActiveLevel().get(), pApp->getDeltaTime());
+    }
+  }
+
+  void LevelManager::setSimulateState(SimulateState const & newState) {
+    if (newState == m_state && newState < SimulateState_Count)
+      return;
+
+    if (m_state == SimulateState_Stopped) {
+      // Transition into a "playing" state
+      BFC_LOG_INFO("LevelManager", "Start playing. Backing up level");
+      Ref<Level> pPlayingLevel = NewRef<Level>();
+      m_pActiveLevel->copyTo(pPlayingLevel.get(), true);
+      m_pBackupLevel = m_pActiveLevel;
+      setActiveLevel(pPlayingLevel);
+
+      switch (newState) {
+      case SimulateState_Playing: {
+        playLevel(getActiveLevel().get());
+
+        events::OnLevelPlay e;
+        e.pLevel = getActiveLevel();
+        getEvents()->broadcast(e);
+      } break;
+      }
+    } else {
+      switch (newState) {
+      case SimulateState_Paused: {
+        pauseLevel(getActiveLevel().get());
+
+        events::OnLevelPause e;
+        e.pLevel = getActiveLevel();
+        getEvents()->broadcast(e);
+      } break;
+      case SimulateState_Playing: {
+        playLevel(getActiveLevel().get());
+
+        events::OnLevelPlay e;
+        e.pLevel = getActiveLevel();
+        getEvents()->broadcast(e);
+      } break;
+      case SimulateState_Stopped: {
+        stopLevel(getActiveLevel().get());
+
+        events::OnLevelStop e;
+        e.pLevel = getActiveLevel();
+        getEvents()->broadcast(e);
+        setActiveLevel(m_pBackupLevel);
+      } break;
+      }
+    }
+
+    m_state = newState;
+  }
+
+  SimulateState LevelManager::getSimulateState() const {
+    return m_state;
+  }
+
+  bool LevelManager::load(bfc::URI const & uri, Level * pDst, bool merge) const {
+    return LevelSerializer(m_pAssets.get()).deserialize(uri, *pDst);
+  }
+
+  Ref<Level> LevelManager::load(bfc::URI const & uri) const {
+    Ref<Level> pLevel = NewRef<Level>();
+
+    return load(uri, pLevel.get()) ? pLevel : nullptr;
+  }
+
+  bool LevelManager::save(bfc::URI const & uri, Level const & level) const {
+    return LevelSerializer(m_pAssets.get()).serialize(uri, level);
+  }
+
   bfc::Ref<Level> LevelManager::getActiveLevel() const {
     return m_pActiveLevel;
   }
 
   void LevelManager::setActiveLevel(bfc::Ref<Level> const & pLevel) {
-    // TODO: Emit an event
+    if (m_pActiveLevel != nullptr) {
+      engine::deactivateLevel(pLevel.get());
+
+      events::OnLevelDeactivated e;
+      e.mode = m_state;
+      e.pLevel = m_pActiveLevel;
+      getEvents()->broadcast(e);
+    }
+
     m_pActiveLevel = pLevel;
+
+    if (m_pActiveLevel != nullptr) {
+      engine::activateLevel(pLevel.get());
+
+      events::OnLevelActivated e;
+      e.mode   = m_state;
+      e.pLevel = m_pActiveLevel;
+      getEvents()->broadcast(e);
+    }
   }
 
   bool LevelManager::Import(Level * pLevel, bfc::URI const & uri) const {
@@ -94,7 +186,7 @@ namespace engine {
 
       m_pActiveLevel->add<components::Name>(meshEntity).name = Filename::name(uri.path(), false);
 
-      components::Transform &  transform = m_pActiveLevel->add<components::Transform>(meshEntity);
+      components::Transform  & transform = m_pActiveLevel->add<components::Transform>(meshEntity);
       components::StaticMesh & mesh      = m_pActiveLevel->add<components::StaticMesh>(meshEntity);
 
       mesh.pMesh = pMesh;
@@ -108,7 +200,7 @@ namespace engine {
     return false;
   }
 
-  void LevelManager::registerComponentTypes() {
+  void LevelManager::registerCoreComponentTypes() {
     registerComponentType<components::Name>("name");
     registerComponentType<components::Transform>("transform");
     registerComponentType<components::Camera>("camera");
@@ -121,4 +213,6 @@ namespace engine {
     registerComponentType<components::PostProcess_SSAO>("post-process-ssao");
     registerComponentType<components::PostProcess_SSR>("post-process-ssr");
   }
+
+  void LevelManager::registerCoreSystems() {}
 } // namespace engine

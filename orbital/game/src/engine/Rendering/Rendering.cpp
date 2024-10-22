@@ -5,6 +5,7 @@
 #include "render/GraphicsDevice.h"
 #include "render/Shader.h"
 #include "platform/Window.h"
+#include "Levels/LevelManager.h"
 
 using namespace bfc;
 using namespace bfc::platform;
@@ -66,6 +67,14 @@ namespace engine {
 
     m_pMainViewport->setSize(m_pWindow->getSize());
     m_pMainViewport->render(InvalidGraphicsResource);
+
+    {
+      events::OnRenderViewport e;
+      e.pViewport = m_pMainViewport.get();
+      e.pDevice   = m_pDevice.get();
+      e.isMainViewport = true;
+      pApp->broadcast(e);
+    }
   }
 
   void Rendering::setMainViewport(bfc::Ref<Viewport> const & pViewport) {

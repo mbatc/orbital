@@ -191,14 +191,14 @@ namespace bfc {
     }
 
     Value& get(Key const& key) {
-      Value* pValue = tryGet(key);
-      // Assert if null
+      Value * pValue = tryGet(key);
+      BFC_ASSERT(pValue != nullptr, "Key not found");
       return *pValue;
     }
 
     Value const& get(Key const& key) const {
-      Value* pValue = tryGet(key);
-      // Assert if null
+      Value const * pValue = tryGet(key);
+      BFC_ASSERT(pValue != nullptr, "Key not found");
       return *pValue;
     }
 

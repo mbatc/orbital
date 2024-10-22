@@ -13,16 +13,6 @@ namespace bfc {
 }
 
 namespace engine {
-  class Level;
-  // class ILevelData {
-  // public:
-  //   virtual ~ILevelData() = default;
-  // 
-  //   virtual bfc::Ref<ILevelData> copy(bfc::Ref<ILevelData> *pData) = 0;
-  //   virtual bool                 serialize() = 0;
-  //   virtual bool                 deserialize() = 0;
-  // };
-
   class Level {
   public:
     class EntityView {
@@ -121,7 +111,7 @@ namespace engine {
     /// Test if an entity has a component.
     template<typename T>
     bool has(EntityID const & entityID) const {
-      return components<T>().has(entityID);
+      return components<T>().exists(entityID);
     }
 
     template<typename T>

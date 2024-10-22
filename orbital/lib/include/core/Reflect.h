@@ -204,9 +204,9 @@ namespace bfc {
       (_tryVisit<Indices>(pSelf, visitor), ...);
     }
 
-    template<int64_t Index>
-    inline void _tryVisit(Type * pSelf, ...) const {
-      BFC_UNUSED(pSelf);
+    template<int64_t Index, typename Visitor>
+    inline void _tryVisit(Type * pSelf, Visitor visitor) const {
+      visitor(name<Index>(), get<Index>(pSelf));
     }
 
     template<typename T, int64_t... Indices>

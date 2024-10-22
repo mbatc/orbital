@@ -54,6 +54,19 @@ namespace bfc {
     void updateAxis(int64_t index, float val);
 
   private:
+    struct ButtonEvent {
+      int64_t   index;
+      bool      isDown;
+      Timestamp ts;
+    };
+    Vector<ButtonEvent> m_buttonEvents;
+
+    struct AxisEvent {
+      int64_t index;
+      float   value;
+    };
+    Vector<AxisEvent> m_axisEvents;
+
     Vector<Axis> m_axes;
     Vector<Button> m_buttons;
   };

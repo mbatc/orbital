@@ -59,15 +59,35 @@ namespace bfc {
     ~EventListener();
 
     template<typename T>
-    bool broadcast(T const & event) {
+    void broadcast(T const & event) {
       auto * pFunction = m_handlers.tryGet(TypeID<T>());
-      return pFunction != nullptr && (*pFunction)(&event);
+      if (pFunction == nullptr) {
+        return;
+      }
+
+      (*pFunction)(&event);
+    }
+
+    template<typename HandlerT>
+    EventListener & on(HandlerT func) {
+      using ArgList = typename bfc::function_type<HandlerT>::ArgList;
+      return onDeduced(std::forward<HandlerT>(func), ArgList());
+    }
+
+    template<typename ClassT, typename EventType>
+    EventListener & on(void (ClassT::* func)(EventType), ClassT * pThis) {
+      return on<std::decay_t<EventType>>([pThis, func](EventType e) { (pThis->*func)(e); });
+    }
+
+    template<typename ClassT, typename EventType>
+    EventListener & on(void (ClassT::*func)(EventType) const, ClassT const * pThis) {
+      return on<std::decay_t<EventType>>([pThis, func](EventType e) { (pThis->*func)(e); });
     }
 
     template<typename T>
-    EventListener & on(std::function<bool(T const &)> const & handler) {
+    EventListener & on(std::function<void(T const &)> const & handler) {
       // Create and register handler
-      m_handlers.add(TypeID<T>(), [handler](void const * pEvent) { return handler(*(T const *)pEvent); });
+      m_handlers.add(TypeID<T>(), [handler](void const * pEvent) { handler(*(T const *)pEvent); });
 
       return *this;
     }
@@ -77,9 +97,14 @@ namespace bfc {
     Events * getOwner() const;
 
   private:
+    template<typename HandlerT, typename EventType>
+    EventListener & onDeduced(HandlerT func, bfc::arg_list<EventType>) {
+      return on<std::decay_t<EventType>>(std::forward<HandlerT>(func));
+    }
+
     int64_t  m_index  = -1;
     Events * m_pOwner = nullptr;
 
-    Map<type_index, std::function<bool(void const *)>> m_handlers;
+    Map<type_index, std::function<void(void const *)>> m_handlers;
   };
 } // namespace bfc
