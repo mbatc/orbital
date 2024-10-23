@@ -7,8 +7,6 @@
 #include "util/UUID.h"
 #include "render/GraphicsDevice.h"
 
-#include "LevelSerializer.h"
-
 namespace bfc {
   class Mesh;
   class Texture;
@@ -74,12 +72,15 @@ namespace components {
     void setGlobalLookAt(engine::Level const * pLevel, bfc::Vec3d const & direction, bfc::Vec3d const & up = bfc::math::up<double>);
     void setGlobalTransform(engine::Level const * pLevel, bfc::Mat4d const & transform);
 
-    void setParent(engine::Level * pLevel, engine::EntityID const & entityID);
+    bool setParent(engine::Level * pLevel, engine::EntityID const & entityID);
+    bool addChild(engine::Level * pLevel, engine::EntityID const & entityID);
+    bool removeChild(engine::Level * pLevel, engine::EntityID const & entityID);
+    bool isDescendantOf(engine::Level * pLevel, engine::EntityID const & entityID) const;
 
     bfc::Span<engine::EntityID> children() const;
 
   private:
-    engine::EntityID              m_parent;
+    engine::EntityID              m_parent = engine::InvalidEntity;
     bfc::Vector<engine::EntityID> m_children;
 
     bfc::Vec3d m_translation = {0, 0, 0};
@@ -301,7 +302,8 @@ namespace bfc {
     }
 
     inline static bool read(SerializedObject const & s, components::Name & o) {
-      return s.read(o.name);
+      s.readOrConstruct(o.name);
+      return true;
     }
   };
 

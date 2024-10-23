@@ -61,6 +61,8 @@ namespace engine {
     virtual bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & serialized, Level & level, EntityID entity) const = 0;
 
     virtual bool copy(LevelCopyContext * pContext, Level * pDstLevel, EntityID dstEntity, Level const & srcLevel, EntityID srcEntity) const = 0;
+
+    virtual void * addComponent(Level * pDstLevel, EntityID entity) const = 0;
   };
 
   template<typename T>
@@ -104,6 +106,10 @@ namespace engine {
 
       return false;
     }
+
+    virtual void * addComponent(Level* pDstLevel, EntityID entity) const override {
+      return &pDstLevel->add<T>(entity);
+    }
   };
 
   template<typename T>
@@ -127,6 +133,10 @@ namespace engine {
     virtual int64_t  toIndex(EntityID entityID) const        = 0;
 
     virtual bfc::Span<const EntityID> entities() const = 0;
+
+    virtual void * addOpaque(EntityID entityID) = 0;
+    virtual void * getOpaque(EntityID entityID) = 0;
+    virtual void const * getOpaque(EntityID entityID) const = 0;
   };
 
   template<typename T>
@@ -179,6 +189,18 @@ namespace engine {
 
     virtual int64_t capacity() const override {
       return m_components.capacity();
+    }
+
+    virtual void * getOpaque(EntityID entityID) override {
+      return tryGet(entityID);
+    }
+
+    virtual void const * getOpaque(EntityID entityID) const override {
+      return tryGet(entityID);
+    }
+
+    virtual void * addOpaque(EntityID entityID) override {
+      return &add(entityID);
     }
 
     template<typename... Args>

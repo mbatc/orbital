@@ -34,7 +34,7 @@ namespace bfc {
     }
 
     template<typename T>
-    static RuntimeObject bind(T &instance) {
+    static RuntimeObject bind(T & instance) {
       return bind(&instance);
     }
 
@@ -53,7 +53,7 @@ namespace bfc {
     bool assign(RuntimeObject &&value);
 
     RuntimeObject call(StringView const & name, Vector<RuntimeObject> const & args = {});
-    RuntimeObject get(StringView const & name);
+    RuntimeObject get (StringView const & name);
 
     bfc::type_index     typeInfo() const;
     bfc::template_index templateInfo() const;

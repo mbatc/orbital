@@ -195,26 +195,28 @@ namespace components {
 
   void Transform::setGlobalTransform(engine::Level const * pLevel, bfc::Mat4d const & transform) {
     Transform const * pParentTransform = pLevel->tryGet<Transform>(parent());
-
-    setTransform(pParentTransform->globalTransformInverse(pLevel) * transform);
+    if (pParentTransform != nullptr)
+      setTransform(pParentTransform->globalTransformInverse(pLevel) * transform);
+    else
+      setTransform(transform);
   }
 
   void Transform::setGlobalLookAt(engine::Level const * pLevel, bfc::Vec3d const & direction, bfc::Vec3d const & up) {
     setGlobalOrientation(pLevel, glm::quatLookAt(direction, up));
   }
 
-  void Transform::setParent(engine::Level * pLevel, engine::EntityID const & entityID) {
+  bool Transform::setParent(engine::Level * pLevel, engine::EntityID const & entityID) {
     engine::EntityID self = pLevel->toEntity(this);
     if (self == engine::InvalidEntity) {
       BFC_LOG_WARNING("Transform", "Component level instance mismatched in setParent()");
-      return;
+      return false;
     }
 
     Transform * pOldParent = pLevel->tryGet<Transform>(m_parent);
     Transform * pNewParent = pLevel->tryGet<Transform>(entityID);
 
     if (pOldParent == pNewParent) {
-      return;
+      return true;
     }
 
     if (pOldParent != nullptr) {
@@ -226,6 +228,41 @@ namespace components {
       pNewParent->m_children.pushBack(self);
       m_parent = entityID;
     }
+
+    return true;
+  }
+
+  bool Transform::addChild(engine::Level * pLevel, engine::EntityID const & entityID) {
+    components::Transform * pChildTransform = pLevel->tryGet<components::Transform>(entityID);
+    engine::EntityID        self            = pLevel->toEntity(this);
+    if (pChildTransform->parent() == self)
+      return true;
+
+    pChildTransform->setParent(pLevel, self);
+    return true;
+  }
+
+  bool Transform::removeChild(engine::Level * pLevel, engine::EntityID const & entityID) {
+    components::Transform * pChildTransform = pLevel->tryGet<components::Transform>(entityID);
+    engine::EntityID        self            = pLevel->toEntity(this);
+    if (pChildTransform->parent() != self)
+      return false;
+
+    pChildTransform->setParent(pLevel, engine::InvalidEntity);
+    return true;
+  }
+
+  bool Transform::isDescendantOf(engine::Level * pLevel, engine::EntityID const & entityID) const {
+    if (entityID == engine::InvalidEntity)
+      return false;
+
+    if (parent() == entityID)
+      return true;
+    
+    if (components::Transform * pParentTransform = pLevel->tryGet<components::Transform>(parent()))
+      return pParentTransform->isDescendantOf(pLevel, entityID);
+
+    return false;
   }
 
   bfc::Span<engine::EntityID> Transform::children() const {

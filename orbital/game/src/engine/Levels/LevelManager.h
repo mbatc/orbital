@@ -1,7 +1,9 @@
 #pragma once
 
-#include "util/Settings.h"
 #include "../Subsystem.h"
+#include "core/Timestamp.h"
+#include "core/Serialize.h"
+#include "core/URI.h"
 
 namespace bfc {
   class Mesh;
@@ -54,10 +56,6 @@ namespace engine {
   class LevelManager : public Subsystem {
   public:
     LevelManager();
-
-    struct {
-      bfc::Setting<bfc::URI> startupLevel;
-    } settings;
 
     virtual bool init(Application * pApp) override;
     virtual void shutdown() override;

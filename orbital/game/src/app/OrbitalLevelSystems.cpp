@@ -16,8 +16,8 @@ bool OrbitalGameSystems::init(engine::Application * pApp) {
 }
 
 void OrbitalGameSystems::registerComponents() {
-  engine::registerComponentType<VehicleControls>("vehical-controls");
-  engine::registerComponentType<VehicleCameraControls>("vehical-camera-controls");
+  engine::registerComponentType<VehicleController>("vehicle-controller");
+  engine::registerComponentType<VehicleCameraController>("vehicle-camera-controller");
 }
 
 void OrbitalGameSystems::registerSystems(engine::Application * pApp) {

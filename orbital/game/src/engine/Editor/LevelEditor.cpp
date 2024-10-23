@@ -17,28 +17,51 @@
 using namespace bfc;
 
 namespace engine {
-  static void drawComponentProperties(bfc::Ref<Level> const & pLevel, EntityID entityID, const void * pComponent);
-
-  template<typename T>
-  void tryDrawComponentProperties(bfc::Ref<Level> const & pLevel, EntityID entityID);
-
   LevelEditor::LevelEditor()
     : Subsystem(TypeID<LevelEditor>(), "LevelEditor") {}
 
   bool LevelEditor::init(Application * pApp) {
-    Ref<Rendering>    pRendering = pApp->findSubsystem<Rendering>();
-    Ref<Input>        pInputs    = pApp->findSubsystem<Input>();
-    Ref<LevelManager> pLevels    = pApp->findSubsystem<LevelManager>();
-    Ref<AssetManager> pAssets    = pApp->findSubsystem<AssetManager>();
+    m_pAssets    = pApp->findSubsystem<AssetManager>();
+    m_pRendering = pApp->findSubsystem<Rendering>();
+    m_pLevels    = pApp->findSubsystem<LevelManager>();
 
+    Ref<Input> pInputs = pApp->findSubsystem<Input>();
+
+    settings.startupLevel = pApp->addSetting("level-manager/startup-level", URI::File("game:levels/main.level"));
+
+
+    // Load the startup level
+    URI levelPath = settings.startupLevel.get();
+    if (!m_pAssets->getFileSystem()->exists(levelPath)) {
+      auto pNewLevel = m_pLevels->getActiveLevel();
+
+      Filename skyboxPath = "game:skybox/nebula.skybox";
+      EntityID testEntity = pNewLevel->create();
+
+      pNewLevel->add<components::Name>(testEntity).name       = "Environment";
+      pNewLevel->add<components::Skybox>(testEntity).pTexture = m_pAssets->load<bfc::Texture>(URI::File(skyboxPath));
+
+      components::Transform & sunTransform = pNewLevel->add<components::Transform>(testEntity);
+      sunTransform.lookAt(bfc::Vec3d(1, 1, -1));
+
+      components::Light & sun = pNewLevel->add<components::Light>(testEntity);
+      sun.ambient             = {0.7f, 0.7f, 0.7f};
+      sun.colour              = {0.7f, 0.7f, 0.7f};
+      sun.castShadows         = true;
+
+      m_pLevels->save(levelPath, *pNewLevel);
+    }
+
+    m_pLevels->setActiveLevel(m_pLevels->load(settings.startupLevel.get()));
+    
     // Create an editor viewport and render the active level.
-    m_pEditorViewport = NewRef<LevelEditorViewport>(pRendering->getDevice(), pAssets.get());
-    m_pEditorViewport->setLevel(pLevels->getActiveLevel());
+    m_pEditorViewport = NewRef<LevelEditorViewport>(m_pRendering->getDevice(), m_pAssets.get());
+    m_pEditorViewport->setLevel(m_pLevels->getActiveLevel());
 
     m_pViewportListener = m_pEditorViewport->getEvents()->addListener();
-    m_pViewportListener->on([pLevels](bfc::events::DroppedFiles const & e) {
+    m_pViewportListener->on([=](bfc::events::DroppedFiles const & e) {
       for (Filename const & file : e.files) {
-        pLevels->Import(pLevels->getActiveLevel().get(), URI::File(file));
+        m_pLevels->Import(m_pLevels->getActiveLevel().get(), URI::File(file));
       }
     });
 
@@ -52,11 +75,13 @@ namespace engine {
     });
 
     // Render the editor viewport to the main window.
-    pRendering->setMainViewport(m_pEditorViewport);
+    m_pRendering->setMainViewport(m_pEditorViewport);
 
     // Init ui context rendering.
-    m_uiContext.init(pRendering->getDevice());
-    m_uiContext.getEvents()->listenTo(pRendering->getMainWindow()->getEvents());
+    m_uiContext.init(m_pRendering->getDevice());
+    m_uiContext.getEvents()->listenTo(m_pRendering->getMainWindow()->getEvents());
+
+    registerComponentEditors();
 
     return true;
   }
@@ -90,7 +115,7 @@ namespace engine {
 
     if (kbd.isDown(KeyCode_Control)) {
       if (kbd.isPressed(KeyCode_S)) {
-        URI levelPath = m_pLevels->settings.startupLevel.get();
+        URI levelPath = settings.startupLevel.get();
 
         BFC_LOG_INFO("LevelEditor", "Saving level to %s", levelPath);
         LevelSerializer(m_pAssets.get()).serialize(levelPath, *m_pLevels->getActiveLevel());
@@ -98,9 +123,43 @@ namespace engine {
     }
   }
 
+  bool LevelEditor::drawEntitySelector(bfc::StringView const & name, EntityID * pEntityID, Level * pLevel) {
+    bfc::String selectedName = "";
+    if (*pEntityID != InvalidEntity) {
+      if (components::Name * pName = pLevel->tryGet<components::Name>(*pEntityID))
+        selectedName = pName->name;
+      else
+        selectedName = "[ unnamed ]";
+    }
+
+    ui::Input(name, &selectedName);
+    if (ImGui::IsItemClicked())
+      ImGui::OpenPopup("Select Entity");
+
+    if (ImGui::BeginPopup("Select Entity")) {
+      for (EntityID entity : pLevel->entities()) {
+        ImGui::PushID((int)(entity & 0x00000000FFFFFFFF));
+        ImGui::PushID((int)((entity >> 32) & 0x00000000FFFFFFFF));
+
+        bfc::String optionName = "[ unnamed ]";
+        if (components::Name * pName = pLevel->tryGet<components::Name>(entity))
+          optionName = pName->name;
+
+        if (ImGui::Selectable(optionName.c_str(), entity == *pEntityID))
+          *pEntityID = entity;
+
+        ImGui::PopID();
+        ImGui::PopID();
+      }
+
+      ImGui::EndPopup();
+    }
+
+    return false;
+  }
+
   void LevelEditor::drawUI(Ref<LevelManager> const & pLevels) {
     Ref<Level> pLevel = pLevels->getActiveLevel();
-
     ImGui::Begin("Editor UI", 0, ImGuiWindowFlags_MenuBar);
     ImGui::BeginMenuBar();
 
@@ -148,6 +207,24 @@ namespace engine {
       }
     }
 
+    if (ImGui::BeginMenu("File")) {
+      if (ImGui::Selectable("Load Startup Level")) {
+        BFC_LOG_INFO("LevelManager", "Reloading level");
+
+        Ref<Level> pLoaded = pLevels->load(settings.startupLevel.get());
+        if (pLoaded != nullptr) {
+          pLevel->clear();
+          pLoaded->copyTo(pLevel.get(), true);
+        }
+      }
+
+      // if (ImGui::Selectable("Save Level")) {
+      // 
+      // }
+
+      ImGui::EndMenu();
+    }
+
     if (ImGui::BeginMenu("Edit")) {
       if (ImGui::BeginMenu("Create")) {
         EntityID newEntity;
@@ -163,6 +240,13 @@ namespace engine {
 
         ImGui::EndMenu();
       }
+
+      ImGui::BeginDisabled(m_selected == InvalidEntity);
+      if (ImGui::Selectable("Copy Selected")) {
+        m_selected = pLevel->copy(m_selected);
+      }
+      ImGui::EndDisabled();
+
       ImGui::EndMenu();
     }
     ImGui::EndMenuBar();
@@ -173,6 +257,8 @@ namespace engine {
       }
 
       auto * pName = pLevel->tryGet<components::Name>(entityID);
+      ImGui::PushID((int)(entityID & 0x00000000FFFFFFFF));
+      ImGui::PushID((int)((entityID >> 32) & 0x00000000FFFFFFFF));
 
       if (ImGui::Selectable(pName ? pName->name.c_str() : "[ Unnamed ]", m_selected == entityID, ImGuiSelectableFlags_SpanAvailWidth)) {
         if (m_selected == entityID)
@@ -180,7 +266,9 @@ namespace engine {
         else
           m_selected = entityID;
       }
-      
+
+      ImGui ::PopID();
+      ImGui ::PopID();
     }
 
     ImGui::Separator();
@@ -203,10 +291,14 @@ namespace engine {
         drawAddComponentMenu(pLevel, m_selected);
         ImGui::EndMenu();
       }
-      drawComponentProperties(pLevel, m_selected);
+      drawEntityComponentProperties(pLevel, m_selected);
       ImGui::End();
     }
   }
+
+  struct DnDEntityID {
+    EntityID id;
+  };
 
   void LevelEditor::drawTransformTree(Ref<Level> const & pLevel, EntityID entityID) {
     auto & transform = pLevel->get<components::Transform>(entityID);
@@ -229,6 +321,20 @@ namespace engine {
         m_selected = entityID;
     }
 
+
+    if (ui::BeginDragDropSource()) {
+      ui::SetDragDropPayload(DnDEntityID{ entityID });
+      ui::EndDragDropSource();
+    }
+
+    if (ui::BeginDragDropTarget()) {
+      std::optional<DnDEntityID> dnd = ui::AcceptDragDropPayload<DnDEntityID>();
+      if (dnd.has_value() && dnd->id != entityID) {
+        transform.addChild(pLevel.get(), dnd->id);
+      }
+      ui::EndDragDropTarget();
+    }
+
     if (open) {
       for (EntityID child : transform.children()) {
         drawTransformTree(pLevel, child);
@@ -240,96 +346,107 @@ namespace engine {
     ImGui::PopID();
   }
 
-  void LevelEditor::drawComponentProperties(bfc::Ref<Level> const & pLevel, EntityID entityID) {
-    tryDrawComponentProperties<components::Name>(pLevel, entityID);
-    tryDrawComponentProperties<components::Transform>(pLevel, entityID);
-    tryDrawComponentProperties<components::Camera>(pLevel, entityID);
-    tryDrawComponentProperties<components::StaticMesh>(pLevel, entityID);
-    tryDrawComponentProperties<components::Light>(pLevel, entityID);
-    tryDrawComponentProperties<components::Skybox>(pLevel, entityID);
-    tryDrawComponentProperties<components::PostProcessVolume>(pLevel, entityID);
-    tryDrawComponentProperties<components::PostProcess_Tonemap>(pLevel, entityID);
-    tryDrawComponentProperties<components::PostProcess_SSAO>(pLevel, entityID);
-    tryDrawComponentProperties<components::PostProcess_SSR>(pLevel, entityID);
-    tryDrawComponentProperties<components::PostProcess_Bloom>(pLevel, entityID);
+  void LevelEditor::drawEntityComponentProperties(bfc::Ref<Level> const & pLevel, EntityID entityID) {
+    for (auto& [type, pStorage] : pLevel->components()) {
+      void * pComponent = pStorage->getOpaque(entityID);
+
+      Ref<IComponentEditor> pEditor = m_componentEditors.getOr(type, nullptr);
+
+      if (pComponent == nullptr)
+        continue;
+
+      String typeName = ILevelComponentType::findName(type);
+      if (typeName.length() == 0) {
+        continue;
+      }
+
+      ImGui::PushID(typeName.c_str());
+
+      bool visible = true;
+      if (ImGui::CollapsingHeader(typeName.c_str(), &visible)) {
+        ImGui::Indent();
+        if (pEditor != nullptr)
+          pEditor->_draw(this, pLevel, entityID, pComponent);
+        else
+          ImGui::Text("No editor implemented");
+
+        ImGui::Unindent();
+      }
+
+      if (!visible)
+        ImGui::OpenPopup("Confirm Remove Component?");
+
+      if (ImGui::BeginPopupModal("Confirm Remove Component?")) {
+        ImGui::Text("Are you sure you want to remove this component");
+        if (ImGui::Button("Cancel"))
+          ImGui::CloseCurrentPopup();
+
+        if (ImGui::Button("Yes")) {
+          pStorage->erase(entityID);
+          ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+      }
+
+      ImGui::PopID();
+    }
   }
 
   void LevelEditor::drawAddComponentMenu(bfc::Ref<Level> const & pLevel, EntityID targetEntityID) {
     for (auto & name : ILevelComponentType::names()) {
       Ref<ILevelComponentType>    pInterface  = ILevelComponentType::find(name);
       Ref<ILevelComponentStorage> pComponents = pLevel->components().getOr(pInterface->type(), nullptr);
-
       if (pComponents != nullptr && pComponents->exists(targetEntityID))
         continue;
 
       if (ImGui::Selectable(name.c_str())) {
-        LevelSerializer serializer(m_pAssets.get());
-        pInterface->read(&serializer, SerializedObject::Empty(), *pLevel, targetEntityID);
+        pInterface->addComponent(pLevel.get(), targetEntityID);
       }
     }
   }
 
-  void drawComponentProperties(bfc::Ref<Level> const & pLevel, EntityID entityID, const void * pComponent) {
-    ImGui::Text("Not implemented");
-  }
-
-  template<typename T>
-  void tryDrawComponentProperties(bfc::Ref<Level> const & pLevel, EntityID entityID) {
-    String typeName = ILevelComponentType::findName(bfc::TypeID<T>());
-
-    ImGui::PushID(typeName.c_str());
-    if (auto * pComponent = pLevel->tryGet<T>(entityID)) {
-      bool visible = true;
-      if (ImGui::CollapsingHeader(typeName.c_str(), &visible)) {
-        drawComponentProperties(pLevel, entityID, pComponent);
-      }
-
-      if (!visible)
-        ImGui::OpenPopup("Confirm Remove Component?");
+  class NameEditor : public LevelEditor::ComponentEditor<components::Name> {
+  public:
+    virtual void draw(LevelEditor * pEditor, bfc::Ref<Level> const & pLevel, EntityID entityID, components::Name * pComponent) override {
+      bfc::ui::Input("Name", &pComponent->name);
     }
+  };
 
-    if (ImGui::BeginPopupModal("Confirm Remove Component?")) {
-      ImGui::Text("Are you sure you want to remove this component");
-      if (ImGui::Button("Cancel"))
-        ImGui::CloseCurrentPopup();
+  class TransformEditor : public LevelEditor::ComponentEditor<components::Transform> {
+  public:
+    virtual void draw(LevelEditor * pEditor, bfc::Ref<Level> const & pLevel, EntityID entityID, components::Transform * pTransform) override {
+      Vec3d translation = pTransform->translation();
+      Vec3d scale       = pTransform->scale();
+      Vec3d ypr         = pTransform->ypr();
 
-      if (ImGui::Button("Yes")) {
-        pLevel->erase<T>(entityID);
-        ImGui::CloseCurrentPopup();
-      }
-      ImGui::EndPopup();
+      bfc::ui::Input("Translation", &translation);
+      bfc::ui::Input("Scale", &scale);
+      bfc::ui::Input("Yaw/Pitch/Roll", &ypr);
+
+      pTransform->setTranslation(translation);
+      pTransform->setScale(scale);
+      pTransform->setYpr(ypr);
     }
+  };
 
-    ImGui::PopID();
-  }
+  class CameraEditor : public LevelEditor::ComponentEditor<components::Camera> {
+  public:
+    virtual void draw(LevelEditor * pEditor, bfc::Ref<Level> const & pLevel, EntityID entityID, components::Camera * pCamera) override {
+      bfc::ui::Input("Near Plane", &pCamera->nearPlane);
+      bfc::ui::Input("Far Plane", &pCamera->farPlane);
 
-  void drawComponentProperties(bfc::Ref<Level> const & pLevel, EntityID entityID, components::Name * pComponent) {
-    bfc::ui::Input("Name", &pComponent->name);
-  }
+      float fovDegs = glm::degrees(pCamera->fov);
+      bfc::ui::Input("Field of View", &fovDegs);
+      pCamera->fov = glm::radians(fovDegs);
 
-  void drawComponentProperties(bfc::Ref<Level> const & pLevel, EntityID entityID, components::Transform * pTransform) {
-    Vec3d translation = pTransform->translation();
-    Vec3d scale       = pTransform->scale();
-    Vec3d ypr         = pTransform->ypr();
+      bfc::ui::Input("Viewport Position", &pCamera->viewportPosition);
+      bfc::ui::Input("Viewport Size", &pCamera->viewportSize);
+    }
+  };
 
-    bfc::ui::Input("Translation", &translation);
-    bfc::ui::Input("Scale", &scale);
-    bfc::ui::Input("Yaw/Pitch/Roll", &ypr);
-
-    pTransform->setTranslation(translation);
-    pTransform->setScale(scale);
-    pTransform->setYpr(ypr);
-  }
-
-  void drawComponentProperties(bfc::Ref<Level> const & pLevel, EntityID entityID, components::Camera * pCamera) {
-    bfc::ui::Input("Near Plane", &pCamera->nearPlane);
-    bfc::ui::Input("Far Plane", &pCamera->farPlane);
-
-    float fovDegs = glm::degrees(pCamera->fov);
-    bfc::ui::Input("Field of View", &fovDegs);
-    pCamera->fov = glm::radians(fovDegs);
-
-    bfc::ui::Input("Viewport Position", &pCamera->viewportPosition);
-    bfc::ui::Input("Viewport Size", &pCamera->viewportSize);
+  void LevelEditor::registerComponentEditors() {
+    addComponentEditor<TransformEditor>();
+    addComponentEditor<CameraEditor>();
+    addComponentEditor<NameEditor>();
   }
 } // namespace engine

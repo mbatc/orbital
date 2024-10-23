@@ -15,6 +15,7 @@ namespace engine {
 
 }
 
+class OrbitalEditor;
 class OrbitalGameSystems;
 
 class Orbital : public engine::Application
@@ -35,4 +36,5 @@ private:
 
   // Game systems
   bfc::Ref<OrbitalGameSystems> m_pOrbitalLevels;
+  bfc::Ref<OrbitalEditor> m_pOrbitalEditor;
 };

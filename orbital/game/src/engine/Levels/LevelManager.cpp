@@ -24,48 +24,12 @@ namespace engine {
     : Subsystem(TypeID<LevelManager>(), "LevelManager") {}
 
   bool LevelManager::init(Application * pApp) {
-    settings.startupLevel = pApp->addSetting("level-manager/startup-level", URI::File("game:levels/main.level"));
-
     registerCoreComponentTypes();
 
     m_pAssets = pApp->findSubsystem<AssetManager>();
 
     m_pRendering   = pApp->findSubsystem<Rendering>();
     m_pActiveLevel = NewRef<Level>();
-
-    m_pInputs      = pApp->addListener();
-    m_pInputs->on([=](bfc::events::KeyDown const & kd) {
-      if (kd.code == KeyCode_L) {
-        BFC_LOG_INFO("LevelManager", "Reloading level");
-
-        Level loaded;
-        LevelSerializer(m_pAssets.get()).deserialize(settings.startupLevel.get(), loaded);
-        m_pActiveLevel->clear();
-        loaded.copyTo(m_pActiveLevel.get(), true);
-      }
-    });
-
-    // Load the startup level
-    URI levelPath = settings.startupLevel.get();
-    if (m_pAssets->getFileSystem()->exists(levelPath)) {
-      setActiveLevel(load(settings.startupLevel.get()));
-    } else {
-      Filename skyboxPath = "game:skybox/nebula.skybox";
-      EntityID testEntity = m_pActiveLevel->create();
-
-      m_pActiveLevel->add<components::Name>(testEntity).name       = "Environment";
-      m_pActiveLevel->add<components::Skybox>(testEntity).pTexture = m_pAssets->load<bfc::Texture>(URI::File(skyboxPath));
-
-      components::Transform & sunTransform = m_pActiveLevel->add<components::Transform>(testEntity);
-      sunTransform.lookAt(bfc::Vec3d(1, 1, -1));
-
-      components::Light & sun = m_pActiveLevel->add<components::Light>(testEntity);
-      sun.ambient             = {0.7f, 0.7f, 0.7f};
-      sun.colour              = {0.7f, 0.7f, 0.7f};
-      sun.castShadows         = true;
-
-      save(levelPath, *m_pActiveLevel);
-    }
 
     return true;
   }

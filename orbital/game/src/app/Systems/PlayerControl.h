@@ -9,15 +9,13 @@ namespace engine {
 
 /// Camera controls for a "vehicle" camera rig.
 /// Inputs are applied to the entity this component is attached to.
-struct VehicleCameraControls {
-
+struct VehicleCameraController {
+  engine::EntityID follow; ///< The target entity to follow
 };
 
-/// Inputs for a "vehicle" entity.
+/// Camera controls for a "vehicle" camera rig.
 /// Inputs are applied to the entity this component is attached to.
-struct VehicleControls {
-
-};
+struct VehicleController {};
 
 struct VehicleVelocity {
   bfc::Vec3d velocity;
@@ -41,26 +39,39 @@ private:
   bfc::Ref<engine::Input> m_pInput = nullptr;
 };
 
-namespace bfc {
+namespace engine {
   template<>
-  struct Serializer<VehicleCameraControls> {
-    inline static SerializedObject write(VehicleCameraControls const & o) {
-      return SerializedObject::Empty();
+  struct LevelComponentSerializer<VehicleCameraController> {
+    inline static bfc::SerializedObject write(LevelSerializer * pSerializer, Level const & level, VehicleCameraController const & o) {
+      auto ret = bfc::SerializedObject::MakeMap();
+
+      if (level.contains(o.follow)) {
+        ret.add("follow", bfc::serialize(level.uuidOf(o.follow)));
+      }
+
+      return ret;
     }
 
-    inline static bool read(SerializedObject const & s, VehicleCameraControls & o) {
+    inline static bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & s, Level & level, EntityID entity, VehicleCameraController & o) {
+      bfc::SerializedObject const & followGuid = s.get("follow");
+      bfc::mem::construct(&o);
+      o.follow = InvalidEntity;
+      if (followGuid.isText()) {
+        o.follow = level.find(bfc::UUID(followGuid.asText()));
+      }
+
       return true;
     }
   };
 
   template<>
-  struct Serializer<VehicleControls> {
-    inline static SerializedObject write(VehicleControls const & o) {
-      return SerializedObject::Empty();
+  struct LevelComponentSerializer<VehicleController> {
+    inline static bfc::SerializedObject write(LevelSerializer * pSerializer, Level const & level, VehicleController const & o) {
+      return bfc::SerializedObject::Empty();
     }
 
-    inline static bool read(SerializedObject const & s, VehicleControls & o) {
+    inline static bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & s, Level & level, EntityID entity, VehicleController & o) {
       return true;
     }
   };
-}
+} // namespace engine

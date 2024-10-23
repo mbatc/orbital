@@ -11,8 +11,15 @@ using namespace bfc;
 
 PlayerControlSystem::PlayerControlSystem(bfc::Ref<engine::Input> const & pInput)
   : m_pInput(pInput) {
-  pInput->channel("look.x").mapAnalog({"mouse", MouseAxis_X});
-  pInput->channel("look.y").mapAnalog({"mouse", MouseAxis_Y});
+  pInput->channel("look").mapButton({"mouse", MouseButton_Right});
+
+  pInput->channel("look.x")
+    .setRange({-std::numeric_limits<float>::max(), std::numeric_limits<float>::max()})
+    .mapAnalog({"mouse", MouseAxis_X});
+
+  pInput->channel("look.y")
+    .setRange({-std::numeric_limits<float>::max(), std::numeric_limits<float>::max()})
+    .mapAnalog({"mouse", MouseAxis_Y});
 
   pInput->channel("thrust.increase").mapButton({"keyboard", KeyCode_Space});
   pInput->channel("thrust.decrease").mapButton({"keyboard", KeyCode_Shift});
@@ -24,11 +31,12 @@ PlayerControlSystem::PlayerControlSystem(bfc::Ref<engine::Input> const & pInput)
 
 void PlayerControlSystem::update(engine::Level * pLevel, Timestamp dt) {
   float dtS = (float)dt.secs();
-  for (auto & [transform, controller] : pLevel->getView<components::Transform, VehicleControls>()) {
+  for (auto & [transform, controller] : pLevel->getView<components::Transform, VehicleController>()) {
     EntityID id = pLevel->toEntity(&transform);
 
     if (!pLevel->has<VehicleVelocity>(id))
       pLevel->add<VehicleVelocity>(id);
+
     VehicleVelocity & vel = pLevel->get<VehicleVelocity>(id);
 
     Vec3 up = glm::normalize(transform.up());
@@ -52,6 +60,27 @@ void PlayerControlSystem::update(engine::Level * pLevel, Timestamp dt) {
       auto translation    = transform.translation();
       translation.y       = 0;
       transform.setTranslation(translation);
+    }
+  }
+
+  for (auto & [transform, controller] : pLevel->getView<components::Transform, VehicleCameraController>()) {
+    components::Transform * pTargetTransform = pLevel->tryGet<components::Transform>(controller.follow);
+    if (pTargetTransform == nullptr) {
+      continue;
+    }
+
+    bfc::Vec3d targetPosition = pTargetTransform->globalTranslation(pLevel);
+    transform.setGlobalTranslation(pLevel, targetPosition);
+
+    if (m_pInput->down("look")) {
+      float yawRads   = glm::radians(m_pInput->change("look.x"));
+      float pitchRads = glm::radians(m_pInput->change("look.y"));
+
+      Quatd pitch = glm::angleAxis(pitchRads, math::right<float>);
+      Quatd yaw   = glm::angleAxis(yawRads, math::up<float>);
+
+      transform.rotate(pitch);
+      transform.rotate(yaw);
     }
   }
 }

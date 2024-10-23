@@ -6,6 +6,7 @@
 #include "Rendering/Rendering.h"
 #include "Editor/LevelEditor.h"
 #include "OrbitalLevelSystems.h"
+#include "OrbitalEditor.h"
 
 Orbital::Orbital()
   : Application({"Archive", "Orbital"}) {
@@ -20,8 +21,8 @@ Orbital::Orbital()
   m_pRendering     = addSubsystem<engine::Rendering>();
   m_pAssets        = addSubsystem<engine::AssetManager>();
   m_pLevels        = addSubsystem<engine::LevelManager>();
-  m_pLevelEditor   = addSubsystem<engine::LevelEditor>();
   m_pOrbitalLevels = addSubsystem<OrbitalGameSystems>();
-
+  m_pLevelEditor   = addSubsystem<engine::LevelEditor>();
+  m_pOrbitalEditor = addSubsystem<OrbitalEditor>();
   // m_pLevelPlayer = addSubsystem<engine::LevelPlayer>(&m_game);
 }

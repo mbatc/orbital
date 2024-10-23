@@ -1,5 +1,5 @@
 entities:
-  - uuid: 43bfbcf6-3a0b-4835-9972-757b4d6a32d3
+  - uuid: c3278f00-7079-41b3-8223-d87881bce7d0
     components:
       name: Environment
       skybox:
@@ -36,7 +36,7 @@ entities:
         innerConeAngle: 30.000001907348633
         outerConeAngle: 35
         castShadows: 1
-  - uuid: 957a9b3a-642c-4ac9-a35d-3078bc30233f
+  - uuid: 7dffda28-7bff-410b-a009-cb3d4bce4ccb
     components:
       name: The Launchpad
       transform:
@@ -60,7 +60,7 @@ entities:
           - uri: file:game:models/launchpad/launchpad.obj#material.2
         mesh:
           uri: file:game:models/launchpad/launchpad.obj
-  - uuid: fe4e6b6b-89cd-447d-bbeb-b272d4aa06e0
+  - uuid: 26d66b8e-378f-480b-8043-d623bb821cd0
     components:
       name: The Dohey
       transform:
@@ -76,7 +76,7 @@ entities:
           - 10
           - 10
           - 10
-        parent: 957a9b3a-642c-4ac9-a35d-3078bc30233f
+        parent: 7dffda28-7bff-410b-a009-cb3d4bce4ccb
       static-mesh:
         castShadows: 1
         materials:
@@ -85,13 +85,13 @@ entities:
           - uri: file:game:models/donut/dohey.obj#material.2
         mesh:
           uri: file:game:models/donut/dohey.obj
-  - uuid: e91b12e5-4b24-4f72-b179-481899e25188
+  - uuid: 0ae29b5c-19b1-4437-87a4-c9ab08975d4b
     components:
       name: shuttle
       transform:
         translation:
           - 0
-          - 0
+          - -500
           - 0
         ypr:
           - -0
@@ -101,6 +101,7 @@ entities:
           - 100
           - 100
           - 100
+        parent: ee3ee283-2255-45fc-ae2b-f2bf4bda9ca0
       static-mesh:
         castShadows: 1
         materials:
@@ -124,15 +125,14 @@ entities:
           - uri: file:game:models/shuttle/shuttle.obj#material.17
         mesh:
           uri: file:game:models/shuttle/shuttle.obj
-      vehical-controls: ~
-  - uuid: 5e378eb3-1e10-4e33-a3b9-7ec418a7ce29
+  - uuid: 9e28e2b4-ea95-416e-a961-2e0f68cf56d3
     components:
-      name: vehicle-camera
+      name: camera
       transform:
         translation:
           - 0
-          - 5
-          - 15
+          - 0
+          - 1500
         ypr:
           - -0
           - 0
@@ -141,10 +141,10 @@ entities:
           - 1
           - 1
           - 1
-        parent: e91b12e5-4b24-4f72-b179-481899e25188
+        parent: faa40acd-185a-4ebe-81f4-3dc8b6903f2f
       camera:
-        farPlane: 1000
-        nearPlane: 0.0099999997764825821
+        farPlane: 100000
+        nearPlane: 0.10000000149011612
         viewportSize:
           - 1
           - 1
@@ -152,3 +152,38 @@ entities:
           - 0
           - 0
         fov: 60.000003814697266
+  - uuid: ee3ee283-2255-45fc-ae2b-f2bf4bda9ca0
+    components:
+      name: PlayerVehicle
+      transform:
+        translation:
+          - 0
+          - 500
+          - 0
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 1
+          - 1
+          - 1
+      vehicle-controller: ~
+  - uuid: faa40acd-185a-4ebe-81f4-3dc8b6903f2f
+    components:
+      name: PlayerVehicleCamera
+      transform:
+        translation:
+          - 0
+          - 0
+          - 0
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 1
+          - 1
+          - 1
+      vehicle-camera-controller:
+        follow: ee3ee283-2255-45fc-ae2b-f2bf4bda9ca0

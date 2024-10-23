@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/SerializedObject.h"
+#include "core/Serialize.h"
 #include "core/typeindex.h"
 
 namespace engine {
