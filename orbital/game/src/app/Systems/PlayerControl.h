@@ -51,11 +51,12 @@ namespace engine {
   template<>
   struct LevelComponentSerializer<VehicleCameraController> {
     inline static bfc::SerializedObject write(LevelSerializer * pSerializer, Level const & level, VehicleCameraController const & o) {
-      return bfc::SerializedObject::MakeMap({{"target", LevelSerializer::writeEntityID(o.target, level)}});
+      return bfc::SerializedObject::MakeMap({{"target", LevelSerializer::writeEntityID(o.target, level)}, { "up", bfc::serialize(o.up) }});
     }
 
     inline static bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & s, Level & level, EntityID entity, VehicleCameraController & o) {
       bfc::mem::construct(&o);
+      bfc::deserialize(s.get("up"), o.up);
       o.target = LevelSerializer::readEntityID(s.get("target"), level);
       return true;
     }
