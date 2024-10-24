@@ -12,6 +12,8 @@ includedirs {
   "src/app",
   "src/engine",
   "src",
+
+  ORBITAL_ROOT .. "vendor/glm/"
 }
 
 dependson {

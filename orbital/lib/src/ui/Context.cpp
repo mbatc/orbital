@@ -236,7 +236,7 @@ namespace bfc {
         int64_t indexOffset  = 0;
         int64_t vertexOffset = 0;
         for (int64_t i = 0; i < pDrawData->CmdListsCount; ++i) {
-          ImDrawList * pCmd = pDrawData->CmdLists[i];
+          ImDrawList * pCmd = pDrawData->CmdLists[(int)i];
           memcpy(pVertData + vertexOffset, pCmd->VtxBuffer.Data, pCmd->VtxBuffer.Size * sizeof(ImDrawVert));
 
           for (int64_t j = 0; j < pCmd->IdxBuffer.Size; ++j) {

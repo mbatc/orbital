@@ -7,16 +7,23 @@ language     "C++"
 cppdialect   "C++17"
 characterset "MBCS"
 
-dependson { "yaml-cpp" }
+dependson {
+  "yaml-cpp",
+  "bullet3"
+}
+
 defines   { "BFC_EXPORT_SYMBOLS" }
 
 includedirs {
   "include/",
-  BFC_ROOT .. "vendor/yaml-cpp/include"
+  ORBITAL_ROOT .. "vendor/imguizmo/",
+  ORBITAL_ROOT .. "vendor/imgui/",
+  ORBITAL_ROOT .. "vendor/yaml-cpp/include",
+  ORBITAL_ROOT .. "vendor/glm/"
 }
 
 libdirs {
-  BFC_ROOT .. "vendor/glew/lib/Release/x64"
+  ORBITAL_ROOT .. "vendor/glew/lib/Release/x64"
 }
 
 links {
@@ -43,10 +50,19 @@ files {
   "shaders/**",
 
   -- imgui source
-  BFC_ROOT .. "vendor/imgui/*.h",
-  BFC_ROOT .. "vendor/imgui/*.cpp",
-  BFC_ROOT .. "vendor/imguizmo/*.h",
-  BFC_ROOT .. "vendor/imguizmo/*.cpp",
+  ORBITAL_ROOT .. "vendor/imgui/*.h",
+  ORBITAL_ROOT .. "vendor/imgui/*.cpp",
+  ORBITAL_ROOT .. "vendor/imguizmo/*.h",
+  ORBITAL_ROOT .. "vendor/imguizmo/*.cpp",
+
+  -- glm source
+  ORBITAL_ROOT .. "vendor/glm/*.h",
+  ORBITAL_ROOT .. "vendor/glm/*.hpp",
+  ORBITAL_ROOT .. "vendor/glm/*.inl"
+}
+
+defines {
+  "IMGUI_USER_CONFIG=\"ui/ImGuiConfig.h\"",
 }
 
 -- Find the FBX-SDK

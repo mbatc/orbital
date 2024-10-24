@@ -15,3 +15,4 @@ workspace "Orbital"
 
   group "Vendor"
     dofile "orbital/vendor/yaml-cpp.lua"
+    dofile "orbital/vendor/bullet3.lua"

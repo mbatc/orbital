@@ -11,8 +11,8 @@ end
 
 location (_ACTION)
 
-if BFC_ROOT == nil then
-  BFC_ROOT=_OPTIONS["bfc-root"] or getScriptDir()
+if ORBITAL_ROOT == nil then
+  ORBITAL_ROOT=_OPTIONS["bfc-root"] or getScriptDir()
 end
 
 targetdir  "%{wks.location}/../build/bin/%{cfg.buildcfg}/%{cfg.system}/%{cfg.architecture}"

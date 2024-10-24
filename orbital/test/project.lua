@@ -9,7 +9,9 @@ characterset "MBCS"
 
 includedirs {
   "../lib/include",
-  "src/"
+  "src/",
+
+  ORBITAL_ROOT .. "vendor/glm/"
 }
 
 dependson {
