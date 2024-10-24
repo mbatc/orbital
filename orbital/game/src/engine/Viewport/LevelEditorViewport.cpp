@@ -73,7 +73,7 @@ namespace engine {
     m_position  = m_position + mv * (double)finalMutlipler;
   }
 
-  void EditorCamera::setFOV(double fov) {
+  void EditorCamera::setFOV(float fov) {
     m_fov = fov;
   }
 
@@ -83,6 +83,18 @@ namespace engine {
 
   void EditorCamera::setFarPlane(float farPlane) {
     m_farPlane = farPlane;
+  }
+
+  float EditorCamera::fov() const {
+    return m_fov;
+  }
+
+  float EditorCamera::nearPlane() const {
+    return m_nearPlane;
+  }
+
+  float EditorCamera::farPlane() const {
+    return m_farPlane;
   }
 
   Mat4d EditorCamera::transformMat() const {

@@ -149,4 +149,20 @@ namespace engine {
 
     return nullptr;
   }
+
+  EntityID LevelSerializer::readEntityID(bfc::SerializedObject const & serialized, Level const & level) {
+    if (serialized.isText()) {
+      return level.find(bfc::UUID(serialized.asText()));
+    } else {
+      return InvalidEntity;
+    }
+  }
+
+  SerializedObject LevelSerializer::writeEntityID(EntityID const & entityID, Level const & level) {
+    if (level.contains(entityID)) {
+      return level.uuidOf(entityID).toString();
+    } else {
+      return SerializedObject::Empty();
+    }
+  }
 } // namespace engine

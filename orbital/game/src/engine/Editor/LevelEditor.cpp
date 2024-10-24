@@ -27,8 +27,10 @@ namespace engine {
 
     Ref<Input> pInputs = pApp->findSubsystem<Input>();
 
-    settings.startupLevel = pApp->addSetting("level-manager/startup-level", URI::File("game:levels/main.level"));
-
+    settings.startupLevel     = pApp->addSetting("level-editor/startup-level",     URI::File("game:levels/main.level"));
+    settings.camera.fov       = pApp->addSetting("level-editor/camera/fov",        glm::radians(60.0f));
+    settings.camera.farPlane  = pApp->addSetting("level-editor/camera/far-plane",  0.1f);
+    settings.camera.nearPlane = pApp->addSetting("level-editor/camera/near-plane", 100000.0f);
 
     // Load the startup level
     URI levelPath = settings.startupLevel.get();
@@ -38,7 +40,7 @@ namespace engine {
       Filename skyboxPath = "game:skybox/nebula.skybox";
       EntityID testEntity = pNewLevel->create();
 
-      pNewLevel->add<components::Name>(testEntity).name       = "Environment";
+      pNewLevel->add<components::Name>  (testEntity).name     = "Environment";
       pNewLevel->add<components::Skybox>(testEntity).pTexture = m_pAssets->load<bfc::Texture>(URI::File(skyboxPath));
 
       components::Transform & sunTransform = pNewLevel->add<components::Transform>(testEntity);
@@ -160,7 +162,14 @@ namespace engine {
 
   void LevelEditor::drawUI(Ref<LevelManager> const & pLevels) {
     Ref<Level> pLevel = pLevels->getActiveLevel();
-    ImGui::Begin("Editor UI", 0, ImGuiWindowFlags_MenuBar);
+
+    drawLevelPanel(pLevels, pLevel);
+    drawEntityProperties(pLevel, m_selected);
+    drawEditorSettings();
+  }
+
+  void LevelEditor::drawLevelPanel(Ref<LevelManager> const & pLevels, Ref<Level> const & pLevel) {
+    ImGui::Begin("Level", 0, ImGuiWindowFlags_MenuBar);
     ImGui::BeginMenuBar();
 
     auto desiredState = pLevels->getSimulateState();
@@ -184,7 +193,7 @@ namespace engine {
     }
 
     if (desiredState != pLevels->getSimulateState()) {
-      bool activateGameViewport = pLevels->getSimulateState() == SimulateState_Stopped;
+      bool activateGameViewport   = pLevels->getSimulateState() == SimulateState_Stopped;
       bool activateEditorViewport = desiredState == SimulateState_Stopped;
 
       pLevels->setSimulateState(desiredState);
@@ -219,7 +228,7 @@ namespace engine {
       }
 
       // if (ImGui::Selectable("Save Level")) {
-      // 
+      //
       // }
 
       ImGui::EndMenu();
@@ -284,16 +293,61 @@ namespace engine {
     }
 
     ImGui::End();
+  }
 
-    if (m_selected != InvalidEntity) {
-      ImGui::Begin("Properties");
+  void LevelEditor::drawEntityProperties(bfc::Ref<Level> const & pLevel, EntityID entityID) {
+    ImGui::Begin("Properties", 0, ImGuiWindowFlags_MenuBar);
+    if (entityID != InvalidEntity) {
+      ImGui::BeginMenuBar();
+
       if (ImGui::BeginMenu("Add Component")) {
-        drawAddComponentMenu(pLevel, m_selected);
+        drawAddComponentMenu(pLevel, entityID);
         ImGui::EndMenu();
       }
-      drawEntityComponentProperties(pLevel, m_selected);
-      ImGui::End();
+
+      ImGui::EndMenuBar();
+
+      drawEntityComponentProperties(pLevel, entityID);
+    } else {
+    
     }
+    ImGui::End();
+  }
+
+  void LevelEditor::drawEditorSettings() {
+    ImGui::Begin("Editor");
+
+    if (ImGui::BeginTabBar("EditorTabs")) {
+      if (ImGui::BeginTabItem("Camera")) {
+        drawCameraProperties(&m_pEditorViewport->camera);
+
+        m_pEditorViewport->camera.setFOV(settings.camera.fov.get());
+        m_pEditorViewport->camera.setFarPlane(settings.camera.nearPlane.get());
+        m_pEditorViewport->camera.setNearPlane(settings.camera.farPlane.get());
+
+        ImGui::EndTabItem();
+      }
+
+      ImGui::EndTabBar();
+    }
+
+    ImGui::End();
+  }
+
+  void LevelEditor::drawCameraProperties(EditorCamera * pCamera) {
+    float fov       = glm::degrees(settings.camera.fov.get());
+    float nearPlane = settings.camera.nearPlane.get();
+    float farPlane  = settings.camera.farPlane.get();
+
+    ui::Input("Field of View", &fov);
+    ui::Input("Near Plane",    &nearPlane);
+    ui::Input("Far Plane",     &farPlane);
+
+    ui::Input("Speed", &pCamera->speedMultiplier);
+
+    settings.camera.fov.set(glm::radians(fov));
+    settings.camera.farPlane.set(farPlane);
+    settings.camera.nearPlane.set(nearPlane);
   }
 
   struct DnDEntityID {

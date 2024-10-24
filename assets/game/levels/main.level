@@ -18,6 +18,7 @@ entities:
           - 1
           - 1
           - 1
+        parent: ~
       light:
         type: sun
         colour:
@@ -52,6 +53,7 @@ entities:
           - 100
           - 100
           - 100
+        parent: ~
       static-mesh:
         castShadows: 1
         materials:
@@ -154,7 +156,7 @@ entities:
         fov: 60.000003814697266
   - uuid: ee3ee283-2255-45fc-ae2b-f2bf4bda9ca0
     components:
-      name: PlayerVehicle
+      name: Vehicle
       transform:
         translation:
           - 0
@@ -168,10 +170,10 @@ entities:
           - 1
           - 1
           - 1
-      vehicle-controller: ~
+        parent: ~
   - uuid: faa40acd-185a-4ebe-81f4-3dc8b6903f2f
     components:
-      name: PlayerVehicleCamera
+      name: Player
       transform:
         translation:
           - 0
@@ -185,5 +187,8 @@ entities:
           - 1
           - 1
           - 1
+        parent: ~
+      vehicle-controller:
+        target: ee3ee283-2255-45fc-ae2b-f2bf4bda9ca0
       vehicle-camera-controller:
-        follow: ee3ee283-2255-45fc-ae2b-f2bf4bda9ca0
+        target: ee3ee283-2255-45fc-ae2b-f2bf4bda9ca0

@@ -16,11 +16,17 @@ namespace engine {
 
     void update(bfc::Timestamp dt);
 
-    void setFOV(double fov);
+    void setFOV(float fov);
 
     void setNearPlane(float nearPlane);
 
     void setFarPlane(float farPlane);
+
+    float fov() const;
+
+    float nearPlane() const;
+
+    float farPlane() const;
 
     bfc::Mat4d transformMat() const;
 
@@ -33,9 +39,9 @@ namespace engine {
     float speedMultiplier = 1.0f;
 
   private:
-    double m_fov       = glm::radians(60.0);
-    float  m_nearPlane = 0.01f;
-    float  m_farPlane  = 1000.0f;
+    float m_fov       = glm::radians(60.0f);
+    float m_nearPlane = 0.01f;
+    float m_farPlane  = 1000.0f;
 
     bfc::Vec3d m_position = bfc::Vec3d(0);
     bfc::Vec3d m_ypr      = bfc::Vec3d(0);

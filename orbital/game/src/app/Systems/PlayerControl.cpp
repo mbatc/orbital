@@ -11,44 +11,63 @@ using namespace bfc;
 
 PlayerControlSystem::PlayerControlSystem(bfc::Ref<engine::Input> const & pInput)
   : m_pInput(pInput) {
-  pInput->channel("look").mapButton({"mouse", MouseButton_Right});
+  pInput->channel("camera.look").mapButton({"mouse", MouseButton_Right});
 
-  pInput->channel("look.x")
+  pInput->channel("camera.look.x")
     .setRange({-std::numeric_limits<float>::max(), std::numeric_limits<float>::max()})
-    .mapAnalog({"mouse", MouseAxis_X});
+    .mapAnalog({"mouse", MouseAxis_X, -1});
 
-  pInput->channel("look.y")
+  pInput->channel("camera.look.y")
     .setRange({-std::numeric_limits<float>::max(), std::numeric_limits<float>::max()})
-    .mapAnalog({"mouse", MouseAxis_Y});
+    .mapAnalog({"mouse", MouseAxis_Y, -1});
 
-  pInput->channel("thrust.increase").mapButton({"keyboard", KeyCode_Space});
-  pInput->channel("thrust.decrease").mapButton({"keyboard", KeyCode_Shift});
+  pInput->channel("vehicle.thrust")
+    .mapButton({"keyboard", KeyCode_Space, 1})
+    .mapButton({"keyboard", KeyCode_Shift, -1});
 
-  pInput->channel("control.roll").mapButton({"keyboard", KeyCode_Q, 1}).mapButton({"keyboard", KeyCode_E, -1});
-  pInput->channel("control.yaw").mapButton({"keyboard", KeyCode_A, 1}).mapButton({"keyboard", KeyCode_D, -1});
-  pInput->channel("control.pitch").mapButton({"keyboard", KeyCode_W, 1}).mapButton({"keyboard", KeyCode_S, -1});
+  pInput->channel("vehicle.stop-engines").mapButton({"keyboard", KeyCode_X});
+
+  pInput->channel("vehicle.roll")
+    .mapButton({"keyboard", KeyCode_Q, -1})
+    .mapButton({"keyboard", KeyCode_E, 1});
+
+  pInput->channel("vehicle.yaw")
+    .mapButton({"keyboard", KeyCode_A, -1})
+    .mapButton({"keyboard", KeyCode_D, 1});
+
+  pInput->channel("vehicle.pitch")
+    .mapButton({"keyboard", KeyCode_W, -1})
+    .mapButton({"keyboard", KeyCode_S, 1});
 }
 
 void PlayerControlSystem::update(engine::Level * pLevel, Timestamp dt) {
   float dtS = (float)dt.secs();
-  for (auto & [transform, controller] : pLevel->getView<components::Transform, VehicleController>()) {
-    EntityID id = pLevel->toEntity(&transform);
+  for (auto & [controller] : pLevel->getView<VehicleController>()) {
+    components::Transform * pTargetTransform = pLevel->tryGet<components::Transform>(controller.target);
+    if (pTargetTransform == nullptr)
+      continue;
 
-    if (!pLevel->has<VehicleVelocity>(id))
-      pLevel->add<VehicleVelocity>(id);
+    if (!pLevel->has<VehicleVelocity>(controller.target))
+      pLevel->add<VehicleVelocity>(controller.target);
 
-    VehicleVelocity & vel = pLevel->get<VehicleVelocity>(id);
+    VehicleVelocity & vel = pLevel->get<VehicleVelocity>(controller.target);
 
-    Vec3 up = glm::normalize(transform.up());
-    vel.velocity += dtS * up * (m_pInput->value("thrust.increase") - m_pInput->value("thrust.decrease")) * 9.8 * 2;
+    controller.thrust += dtS * m_pInput->value("vehicle.thrust") * 5;
+    controller.thrust  = bfc::math::max(0.0f, controller.thrust);
+    if (m_pInput->pressed("vehicle.stop-engines")) {
+      controller.thrust = 0.0f;
+    }
 
-    Quatd roll  = glm::angleAxis(dtS * m_pInput->value("control.roll"), (Vec3)math::up<float>);
-    Quatd yaw   = glm::angleAxis(dtS * m_pInput->value("control.yaw"), (Vec3)math::forward<float>);
-    Quatd pitch = glm::angleAxis(dtS * m_pInput->value("control.pitch"), (Vec3)math::right<float>);
+    Vec3 up = glm::normalize(pTargetTransform->up());
+    vel.velocity += dtS * up * controller.thrust;
 
-    transform.rotate(roll);
-    transform.rotate(pitch);
-    transform.rotate(yaw);
+    Quatd roll  = glm::angleAxis(dtS * m_pInput->value("vehicle.roll"), (Vec3)math::up<float>);
+    Quatd yaw   = glm::angleAxis(dtS * m_pInput->value("vehicle.yaw"), (Vec3)math::forward<float>);
+    Quatd pitch = glm::angleAxis(dtS * m_pInput->value("vehicle.pitch"), (Vec3)math::right<float>);
+
+    pTargetTransform->rotate(roll);
+    pTargetTransform->rotate(pitch);
+    pTargetTransform->rotate(yaw);
   }
 
   for (auto & [transform, velocity] : pLevel->getView<components::Transform, VehicleVelocity>()) {
@@ -64,7 +83,7 @@ void PlayerControlSystem::update(engine::Level * pLevel, Timestamp dt) {
   }
 
   for (auto & [transform, controller] : pLevel->getView<components::Transform, VehicleCameraController>()) {
-    components::Transform * pTargetTransform = pLevel->tryGet<components::Transform>(controller.follow);
+    components::Transform * pTargetTransform = pLevel->tryGet<components::Transform>(controller.target);
     if (pTargetTransform == nullptr) {
       continue;
     }
@@ -72,9 +91,9 @@ void PlayerControlSystem::update(engine::Level * pLevel, Timestamp dt) {
     bfc::Vec3d targetPosition = pTargetTransform->globalTranslation(pLevel);
     transform.setGlobalTranslation(pLevel, targetPosition);
 
-    if (m_pInput->down("look")) {
-      float yawRads   = glm::radians(m_pInput->change("look.x"));
-      float pitchRads = glm::radians(m_pInput->change("look.y"));
+    if (m_pInput->down("camera.look")) {
+      float yawRads   = glm::radians(m_pInput->change("camera.look.x"));
+      float pitchRads = glm::radians(m_pInput->change("camera.look.y"));
 
       Quatd pitch = glm::angleAxis(pitchRads, math::right<float>);
       Quatd yaw   = glm::angleAxis(yawRads, math::up<float>);
@@ -82,6 +101,9 @@ void PlayerControlSystem::update(engine::Level * pLevel, Timestamp dt) {
       transform.rotate(pitch);
       transform.rotate(yaw);
     }
+
+    // Maybe need to do this globally?
+    transform.lookAt(transform.forward(), controller.up);
   }
 }
 

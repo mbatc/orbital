@@ -6,11 +6,13 @@ using namespace engine;
 
 void VehicleCameraControllerEditor::draw(LevelEditor * pEditor, Ref<Level> const & pLevel, EntityID entityID,
                                          VehicleCameraController * pComponent) {
-  pEditor->drawEntitySelector("Follow", &pComponent->follow, pLevel.get());
+  pEditor->drawEntitySelector("Target", &pComponent->target, pLevel.get());
 }
 
 void VehicleControllerEditor::draw(LevelEditor * pEditor, Ref<Level> const & pLevel, EntityID entityID,
-                                   VehicleController * pComponent) {}
+                                   VehicleController * pComponent) {
+  pEditor->drawEntitySelector("Target", &pComponent->target, pLevel.get());
+}
 
 void VehicleVelocityEditor::draw(LevelEditor * pEditor, Ref<Level> const & pLevel, EntityID entityID,
                                  VehicleVelocity * pComponent) {

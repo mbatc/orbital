@@ -173,11 +173,10 @@ namespace engine {
   template<>
   struct engine::LevelComponentSerializer<components::Transform> {
     inline static bfc::SerializedObject write(LevelSerializer * pSerializer, Level const & level, components::Transform const & o) {
-      auto ret = bfc::SerializedObject::MakeMap({
-        {"translation", bfc::serialize(o.translation())},
-        {"ypr", bfc::serialize(glm::degrees(o.ypr()))},
-        {"scale", bfc::serialize(o.scale())},
-      });
+      auto ret = bfc::SerializedObject::MakeMap({{"translation", bfc::serialize(o.translation())},
+                                                 {"ypr", bfc::serialize(glm::degrees(o.ypr()))},
+                                                 {"scale", bfc::serialize(o.scale())},
+                                                 {"parent", LevelSerializer::writeEntityID(o.parent(), level)}});
 
       if (level.contains(o.parent())) {
         ret.add("parent", bfc::serialize(level.uuidOf(o.parent())));
@@ -197,10 +196,8 @@ namespace engine {
       o.setYpr(glm::radians(ypr));
       o.setScale(scale);
 
-      bfc::SerializedObject const & parentGuid = s.get("parent");
-      if (parentGuid.isText()) {
-        bfc::UUID id       = parentGuid.asText();
-        EntityID  parentID = level.find(id);
+      EntityID parentID = LevelSerializer::readEntityID(s.get("parent"), level);
+      if (parentID != InvalidEntity) {
         pSerializer->deferRead([entity, parentID](Level & level) {
           components::Transform * pTransform = level.tryGet<components::Transform>(entity);
           if (pTransform != nullptr) {
@@ -230,6 +227,7 @@ namespace engine {
       });
     }
   };
+
   // A Specific serializer type that should be specialized for more control over entity component serialization.
   template<>
   struct engine::LevelComponentSerializer<components::StaticMesh> {

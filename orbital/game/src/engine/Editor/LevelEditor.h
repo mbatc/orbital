@@ -10,6 +10,7 @@ namespace bfc {
 }
 
 namespace engine {
+  class EditorCamera;
   class Rendering;
   class Level;
   class LevelEditorViewport;
@@ -18,6 +19,12 @@ namespace engine {
   public:
     struct {
       bfc::Setting<bfc::URI> startupLevel;
+
+      struct {
+        bfc::Setting<float> fov;
+        bfc::Setting<float> nearPlane;
+        bfc::Setting<float> farPlane;
+      } camera;
     } settings;
 
     LevelEditor();
@@ -58,6 +65,12 @@ namespace engine {
 
   private:
     void drawUI(bfc::Ref<LevelManager> const & pLevels);
+
+    void drawLevelPanel(bfc::Ref<LevelManager> const & pLevels, bfc::Ref<Level> const & pLevel);
+    void drawEntityProperties(bfc::Ref<Level> const & pLevel, EntityID entityID);
+    void drawEditorSettings();
+    void drawCameraProperties(EditorCamera * pCamera);
+
     void drawTransformTree(bfc::Ref<Level> const & pLevel, EntityID entityID);
     void drawEntityComponentProperties(bfc::Ref<Level> const & pLevel, EntityID entityID);
     void drawAddComponentMenu(bfc::Ref<Level> const & pLevel, EntityID targetEntityID);

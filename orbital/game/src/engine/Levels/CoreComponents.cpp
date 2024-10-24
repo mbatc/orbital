@@ -149,7 +149,7 @@ namespace components {
   }
 
   void Transform::lookAt(bfc::Vec3d const & direction, bfc::Vec3d const & up) {
-    setOrientation(glm::quatLookAt(direction, up));
+    setOrientation(glm::normalize(glm::quatLookAt(direction, up)));
   }
 
   void Transform::translate(bfc::Vec3d const & amount) {
