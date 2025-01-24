@@ -14,6 +14,7 @@ includedirs {
 }
 
 files {
+  "bullet3.lua",
   ORBITAL_ROOT .. "/vendor/bullet3/src/**.h",
   ORBITAL_ROOT .. "/vendor/bullet3/src/btBulletCollisionAll.cpp",
   ORBITAL_ROOT .. "/vendor/bullet3/src/btLinearMathAll.cpp",

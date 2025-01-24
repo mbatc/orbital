@@ -19,7 +19,7 @@ namespace engine {
       StructuredHardwareBuffer<renderer::ModelBuffer> * pModelBuffer)
       : m_pGBuffer(pGBuffer)
       , m_pModelData(pModelBuffer)
-      , m_shader(pAssets->load<bfc::Shader>(URI::File("engine:shaders/gbuffer/base.shader"))) {
+      , m_shader(pAssets, URI::File("engine:shaders/gbuffer/base.shader")) {
     }
 
     virtual void onAdded(Renderer * pRenderer) override {}
@@ -75,7 +75,7 @@ namespace engine {
     }
 
     GBuffer * m_pGBuffer = nullptr;
-    Ref<Shader> m_shader;
+    Asset<Shader> m_shader;
 
     StructuredHardwareBuffer<renderer::ModelBuffer> * m_pModelData = nullptr;
   };
@@ -105,8 +105,8 @@ namespace engine {
       , m_shadowAtlas(pDevice)
       , m_lightData(BufferUsageHint_Storage | BufferUsageHint_Dynamic)
       , m_shadowMaps(BufferUsageHint_Dynamic)
-      , m_depthPass(pAssets->load<bfc::Shader>(URI::File("engine:shaders/general/depth-pass.shader")))
-      , m_shader(pAssets->load<bfc::Shader>(URI::File("engine:shaders/pbr/lighting.shader"))) {}
+      , m_depthPass(pAssets, URI::File("engine:shaders/general/depth-pass.shader"))
+      , m_shader(pAssets, URI::File("engine:shaders/pbr/lighting.shader")) {}
 
     virtual void onAdded(Renderer * pRenderer) override {
       // Setup shadow map render target
@@ -393,7 +393,7 @@ namespace engine {
     ManagedGraphicsResource m_shadowMapTarget;
     ShadowAtlas             m_shadowAtlas;
 
-    Ref<Shader> m_depthPass;
+    Asset<Shader> m_depthPass;
 
     Vector<ShadowMapData>                                    m_shadowMapData; // Data rendered per shadow map
     StructuredHardwareArrayBuffer<renderer::ShadowMapBuffer> m_shadowMaps;
@@ -401,7 +401,7 @@ namespace engine {
 
     // Lighting pass
     GBuffer *          m_pGBuffer = nullptr;
-    Ref<Shader>        m_shader;
+    Asset<Shader>      m_shader;
     GraphicsResource * m_pColourTarget = nullptr;
 
     StructuredHardwareArrayBuffer<renderer::LightBuffer> m_lightData;
@@ -410,7 +410,7 @@ namespace engine {
   class Feature_Skybox : public FeatureRenderer {
   public:
     Feature_Skybox(AssetManager * pAssets, GraphicsResource * pColourTarget)
-      : m_shader(pAssets->load<bfc::Shader>(URI::File("engine:shaders/general/cubemap.shader")))
+      : m_shader(pAssets, URI::File("engine:shaders/general/cubemap.shader"))
       , m_pColourTarget(pColourTarget) {}
 
     virtual void renderView(Renderer * pRenderer, RenderView const & view) override {
@@ -446,15 +446,15 @@ namespace engine {
       pState->setDepthFunction(ComparisonFunction_Less);
     }
 
-    Ref<Shader> m_shader;
+    Asset<Shader>      m_shader;
     GraphicsResource * m_pColourTarget = nullptr;
   };
 
   class Feature_SSAO : public FeatureRenderer {
   public:
     Feature_SSAO(AssetManager * pAssets, PostProcessingStack * pPPS)
-      : m_pPPS(pPPS) {
-      m_ssaoShader = pAssets->load<Shader>(URI::File("engine:shaders/ssao/ssao.shader"));
+      : m_pPPS(pPPS)
+      , m_ssaoShader(pAssets, URI::File("engine:shaders/ssao/ssao.shader")) {
     }
 
     virtual void onAdded(Renderer * pRenderer) override {
@@ -482,6 +482,7 @@ namespace engine {
       auto & ssaoOpts = view.pRenderData->renderables<PostProcessRenderable_SSAO>();
       if (ssaoOpts.size() == 0)
         return;
+
       PostProcessRenderable_SSAO & ssao = ssaoOpts.front();
 
       float bias     = ssao.bias;
@@ -509,7 +510,7 @@ namespace engine {
       });
     }
 
-    Ref<Shader>           m_ssaoShader;
+    Asset<Shader>         m_ssaoShader;
     Texture               m_randomTex;
     Vector<Vec3>          m_sampleKernel;
     int64_t               m_kernelSize = 32;
@@ -521,10 +522,10 @@ namespace engine {
   public:
     Feature_SSR(AssetManager * pAssets, PostProcessingStack * pPPS)
       : m_pPPS(pPPS) {
-      programs.calculateReflections = pAssets->load<Shader>(URI::File("engine:shaders/ssr/calculate"));
-      programs.blendReflections     = pAssets->load<Shader>(URI::File("engine:shaders/ssr/blend"));
-      programs.upsampler            = pAssets->load<Shader>(URI::File("engine:shaders/bloom/upsample"));
-      programs.downsampler          = pAssets->load<Shader>(URI::File("engine:shaders/bloom/downsample"));
+      programs.calculateReflections.assign(pAssets, URI::File("engine:shaders/ssr/calculate"));
+      programs.blendReflections.assign(pAssets, URI::File("engine:shaders/ssr/blend"));
+      programs.upsampler.assign(pAssets, URI::File("engine:shaders/bloom/upsample"));
+      programs.downsampler.assign(pAssets, URI::File("engine:shaders/bloom/downsample"));
     }
 
     virtual void onAdded(Renderer * pRenderer) override {
@@ -616,10 +617,10 @@ namespace engine {
     ManagedGraphicsResource m_clampSampler;
 
     struct {
-      Ref<Shader> calculateReflections;
-      Ref<Shader> blendReflections;
-      Ref<Shader> upsampler;
-      Ref<Shader> downsampler;
+      Asset<Shader> calculateReflections;
+      Asset<Shader> blendReflections;
+      Asset<Shader> upsampler;
+      Asset<Shader> downsampler;
     } programs;
 
     int64_t m_mipChainSize = 7;
@@ -640,10 +641,10 @@ namespace engine {
   public:
     Feature_Bloom(AssetManager * pAssets, PostProcessingStack * pPPS, int64_t mipChainSize = 5)
       : m_pPPS(pPPS)
-      , m_upsampler(pAssets->load<Shader>(URI::File("engine:shaders/bloom/upsample")))
-      , m_downsampler(pAssets->load<Shader>(URI::File("engine:shaders/bloom/downsample")))
-      , m_blendBloom(pAssets->load<Shader>(URI::File("engine:shaders/bloom/mix")))
-      , m_prefilter(pAssets->load<Shader>(URI::File("engine:shaders/bloom/prefilter"))) {
+      , m_upsampler(pAssets, URI::File("engine:shaders/bloom/upsample"))
+      , m_downsampler(pAssets, URI::File("engine:shaders/bloom/downsample"))
+      , m_blendBloom(pAssets, URI::File("engine:shaders/bloom/mix"))
+      , m_prefilter(pAssets, URI::File("engine:shaders/bloom/prefilter")) {
       m_mipChain.resize(mipChainSize);
       m_mipChainSize = mipChainSize;
     }
@@ -755,10 +756,10 @@ namespace engine {
 
     PostProcessingStack * m_pPPS = nullptr;
 
-    Ref<Shader> m_upsampler;
-    Ref<Shader> m_downsampler;
-    Ref<Shader> m_blendBloom;
-    Ref<Shader> m_prefilter;
+    Asset<Shader> m_upsampler;
+    Asset<Shader> m_downsampler;
+    Asset<Shader> m_blendBloom;
+    Asset<Shader> m_prefilter;
 
     ManagedGraphicsResource m_clampSampler;
 
@@ -775,9 +776,8 @@ namespace engine {
   class Feature_Exposure : public FeatureRenderer {
   public:
     Feature_Exposure(AssetManager * pAssets, PostProcessingStack * pPPS)
-      : m_pPPS(pPPS) {
-      m_shader = pAssets->load<Shader>(URI::File ("engine:shaders/simple-tonemapper.shader"));
-    }
+      : m_pPPS(pPPS)
+      , m_shader(pAssets, URI::File("engine:shaders/simple-tonemapper.shader")) {}
 
     virtual void beginView(Renderer * pRenderer, RenderView const & view) override {
       GraphicsDevice * pDevice = pRenderer->getGraphicsDevice();
@@ -802,7 +802,7 @@ namespace engine {
       });
     }
 
-    Ref<Shader>           m_shader;
+    Asset<Shader>         m_shader;
     PostProcessingStack * m_pPPS = nullptr;
   };
 

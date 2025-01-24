@@ -151,7 +151,6 @@ namespace engine {
 
   private:
     bfc::GraphicsDevice * m_pDevice  = nullptr;
-    bfc::ShaderPool *     m_pShaders = nullptr;
 
     bfc::Vector<FeatureRenderer *> m_features;
 

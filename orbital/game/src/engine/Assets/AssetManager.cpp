@@ -87,6 +87,10 @@ namespace engine {
     if (uri.path().empty()) {
       return {};
     }
+    
+    std::unique_lock loaderGuard {m_loaderLock};
+    bfc::Ref<IAssetLoader> pLoader = findLoader_unlocked(loaderID);
+    loaderGuard.unlock();
 
     std::scoped_lock guard{m_assetLock};
     for (int64_t index = 0; index < m_assetPool.capacity(); ++index) {
@@ -100,9 +104,11 @@ namespace engine {
     }
 
     Asset newAsset;
-    newAsset.loader = loaderID;
-    newAsset.uri    = uri;
-    newAsset.uuid   = UUID::New();
+    newAsset.loader  = loaderID;
+    newAsset.uri     = uri;
+    newAsset.uuid    = UUID::New();
+    newAsset.version = bfc::NewRef<uint64_t>(1);
+    newAsset.type    = pLoader->assetType();
 
     int64_t index = m_assetPool.emplace(newAsset);
     return {(uint64_t)index};
@@ -125,7 +131,7 @@ namespace engine {
     return m_assetPool[handle].uri;
   }
 
-  Ref<void> AssetManager::load(AssetHandle const & handle, std::optional<type_index> const & type) {
+  Ref<void> AssetManager::load(AssetHandle const & handle, std::optional<type_index> const & type, uint64_t * pLoadedVersion) {
     Asset asset;
 
     bool     load    = false;
@@ -138,6 +144,7 @@ namespace engine {
       if (!m_assetPool.isUsed(handle)) {
         return nullptr;
       }
+
       Asset & stored = m_assetPool[handle];
 
       {
@@ -150,6 +157,9 @@ namespace engine {
       }
 
       if (stored.pInstance != nullptr) {
+        if (pLoadedVersion != nullptr)
+          *pLoadedVersion = stored.lastVersionLoaded;
+
         return stored.pInstance;
       }
 
@@ -158,20 +168,20 @@ namespace engine {
       case AssetStatus_Loading: wait = true; break;
       case AssetStatus_Failed:
         // only load if there is a new version of the asset.
-        load = stored.lastVersionLoaded != stored.version;
+        load = stored.lastVersionLoaded != *stored.version;
         break;
       }
 
       if (load) {
         stored.status = AssetStatus_Loading;
-        version       = stored.version;
       } else if (wait) {
+        m_assetNotifier.wait(assetGuard, [&]() { return m_assetPool[handle].status != AssetStatus_Loading; });
       } else {
         return nullptr;
       }
-
-      asset = stored;
     }
+
+    asset = m_assetPool[handle];
 
     Ref<void> pInstance;
     if (load) {
@@ -203,22 +213,33 @@ namespace engine {
                         pLoader->assetType().name(),
                         stored.loader);
       }
+
+      if (pLoadedVersion != nullptr)
+        *pLoadedVersion = version;
+
       assetGuard.unlock();
 
       m_assetNotifier.notify_all();
     } else if (wait) {
       // Another thread started loading this asset.
       // Wait for loading to finish.
-      m_assetNotifier.wait(assetGuard, [=, &pInstance]() {
+      m_assetNotifier.wait(assetGuard, [=, &pInstance, &version]() {
         if (m_assetPool[handle].status == AssetStatus_Loading)
           return false;
 
         pInstance = m_assetPool[handle].pInstance;
+        version   = m_assetPool[handle].lastVersionLoaded;
         return true;
       });
     }
 
     return pInstance;
+  }
+
+  bfc::Ref<uint64_t> AssetManager::getVersionReference(AssetHandle const & handle) const {
+    std::unique_lock assetGuard{m_assetLock};
+
+    return m_assetPool.isUsed(handle) ? m_assetPool[handle].version : nullptr;
   }
 
   std::optional<String> AssetManager::findLoaderID(URI const & uri, type_index const & type) const {
@@ -246,6 +267,24 @@ namespace engine {
     return m_pFileSystem.get();
   }
 
+  bfc::Vector<AssetHandle>
+  AssetManager::findHandles(std::function<bool(bfc::URI const & uri, bfc::type_index const & type, bfc::StringView const & loaderID)> const & filter) const {
+    std::unique_lock assetGuard{m_assetLock};
+    bfc::Vector<AssetHandle> ret;
+    for (int64_t handle = 0; handle < m_assetPool.capacity(); ++handle) {
+      if (!m_assetPool.isUsed(handle)) {
+        continue;
+      }
+
+      Asset const & asset = m_assetPool[handle];
+
+      if (filter == nullptr || filter(asset.uri, asset.type, asset.loader))
+        ret.pushBack(AssetHandle{ (uint64_t)handle });
+    }
+
+    return ret;
+  }
+
   Ref<IAssetLoader> AssetManager::findLoader_unlocked(StringView const & loaderID) const {
     for (int64_t i = 0; i < m_loaders.size(); ++i) {
       if (m_loaders[i].loaderID == loaderID) {
@@ -262,17 +301,21 @@ namespace engine {
       return false;
     }
 
+    m_ptrToHandle.erase(m_assetPool[handle].pInstance.get());
     m_assetPool[handle].pInstance = nullptr;
-    m_assetPool[handle].status    = AssetStatus_Loading;
-    ++m_assetPool[handle].version;
+    m_assetPool[handle].status    = AssetStatus_Unloaded;
+
+    ++(*m_assetPool[handle].version);
 
     Vector<AssetHandle> invalid;
-    for (AssetHandle const & dependent : m_assetPool[handle].dependent)
+    for (AssetHandle const & dependent : m_assetPool[handle].dependent) {
       if (!reload(dependent, lock))
         invalid.pushBack(dependent);
+    }
 
-    for (AssetHandle const & dependent : invalid)
+    for (AssetHandle const & dependent : invalid) {
       m_assetPool[handle].dependent.erase(dependent);
+    }
 
     return true;
   }

@@ -185,19 +185,19 @@ namespace engine {
 
     /// Get level data.
     template<typename T>
-    bfc::Ref<T> getData() const {
-      const bfc::type_index type = bfc::TypeID<T>();
-      bfc::Ref<void>        val;
-      m_data.tryGet(type, val);
-      return std::static_pointer_cast<T>(val);
-    }
-
-    template<typename T>
-    bfc::Ref<const T> getData() {
+    bfc::Ref<const T> getData() const {
       const bfc::type_index type = bfc::TypeID<T>();
       bfc::Ref<void>        val;
       m_data.tryGet(type, val);
       return std::static_pointer_cast<const T>(val);
+    }
+
+    template<typename T>
+    bfc::Ref<T> getData() {
+      const bfc::type_index type = bfc::TypeID<T>();
+      bfc::Ref<void>        val;
+      m_data.tryGet(type, &val);
+      return std::static_pointer_cast<T>(val);
     }
 
     /// Unpack the index from an entity ID.

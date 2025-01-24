@@ -8,8 +8,7 @@ cppdialect   "C++17"
 characterset "MBCS"
 
 dependson {
-  "yaml-cpp",
-  "bullet3"
+  "yaml-cpp"
 }
 
 defines   { "BFC_EXPORT_SYMBOLS" }
@@ -19,7 +18,8 @@ includedirs {
   ORBITAL_ROOT .. "vendor/imguizmo/",
   ORBITAL_ROOT .. "vendor/imgui/",
   ORBITAL_ROOT .. "vendor/yaml-cpp/include",
-  ORBITAL_ROOT .. "vendor/glm/"
+  ORBITAL_ROOT .. "vendor/glm/",
+  ORBITAL_ROOT .. "/vendor/bullet3/src/"
 }
 
 libdirs {

@@ -12,6 +12,7 @@ namespace engine {
   class LevelPlayer;
   class LevelEditor;
   class Input;
+  class Physics;
 
 }
 
@@ -31,6 +32,7 @@ private:
   bfc::Ref<engine::Rendering> m_pRendering;
   bfc::Ref<engine::AssetManager> m_pAssets;
   bfc::Ref<engine::LevelManager> m_pLevels;
+  bfc::Ref<engine::Physics>      m_pPhysics;
   // bfc::Ref<engine::LevelPlayer> m_pLevelPlayer;
   bfc::Ref<engine::LevelEditor> m_pLevelEditor;
 

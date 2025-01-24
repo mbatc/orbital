@@ -192,3 +192,55 @@ entities:
         target: ee3ee283-2255-45fc-ae2b-f2bf4bda9ca0
       vehicle-camera-controller:
         target: ee3ee283-2255-45fc-ae2b-f2bf4bda9ca0
+        up:
+          - 0
+          - 1
+          - 0
+  - uuid: d9d56d1b-69d1-4a0f-9a97-3fc3e47e7ad8
+    components:
+      name: Physics-Cube
+      transform:
+        translation:
+          - 0
+          - 0
+          - 0
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 1
+          - 1
+          - 1
+        parent: ~
+      physics.collider.cube:
+        size:
+          - 1
+          - 1
+          - 1
+      physics.rigidbody:
+        mass: 1
+  - uuid: 8019f411-62e3-4012-91d7-d01d7617229d
+    components:
+      name: Physics-Floor
+      transform:
+        translation:
+          - 0
+          - -10
+          - 0
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 1
+          - 1
+          - 1
+        parent: ~
+      physics.collider.cube:
+        size:
+          - 1
+          - 1
+          - 1
+      physics.rigidbody:
+        mass: 0

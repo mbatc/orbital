@@ -38,7 +38,7 @@ void main()
   normal = normal * 2.0 - 1.0;   
   normal = normalize(vsout_tbnMat0 * normal); 
 
-  fragOut[OUT_COLOUR] = texture2D(baseColourMap, vsout_uv0) * albedo;
+  fragOut[OUT_COLOUR]  = texture2D(baseColourMap, vsout_uv0) * albedo;
   fragOut[OUT_AMBIENT] = texture2D(ambientMap, vsout_uv0) * ambient;
   fragOut[OUT_POSITION] = vec4(vsout_position0, 1);
   fragOut[OUT_NORMAL] = vec4(normal / 2 + vec3(0.5), 1);

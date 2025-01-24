@@ -109,6 +109,12 @@ namespace bfc {
   inline char const * getStringFormatValue(URI const & o) {
     return o.c_str();
   }
+
+  // URI iterator
+  class URITree {
+  public:
+  };
+
 } // namespace bfc
 
 namespace std {

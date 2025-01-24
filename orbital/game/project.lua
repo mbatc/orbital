@@ -13,15 +13,18 @@ includedirs {
   "src/engine",
   "src",
 
-  ORBITAL_ROOT .. "vendor/glm/"
+  ORBITAL_ROOT .. "vendor/glm/",
+  ORBITAL_ROOT .. "vendor/bullet3/src/"
 }
 
 dependson {
   "lib",
+  "bullet3"
 }
 
 links {
   "lib",
+  "bullet3"
 }
 
 files {
