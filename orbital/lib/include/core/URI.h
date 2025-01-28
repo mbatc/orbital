@@ -110,11 +110,7 @@ namespace bfc {
     return o.c_str();
   }
 
-  // URI iterator
-  class URITree {
-  public:
-  };
-
+  BFC_API Vector<URI> walk(URI const & uri, bool recursive);
 } // namespace bfc
 
 namespace std {

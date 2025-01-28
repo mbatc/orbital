@@ -26,11 +26,11 @@ namespace bfc {
     bool setUniform(StringView const & name, Vec4i value);
     bool setUniform(StringView const & name, int32_t value);
 
-    bool setTextureBinding(StringView const& name, int64_t bindPoint);
-    bool setBufferBinding(StringView const& name, int64_t bindPoint);
+    bool setTextureBinding(StringView const & name, int64_t bindPoint);
+    bool setBufferBinding(StringView const & name, int64_t bindPoint);
 
   private:
     bool setUniform(StringView const& name, void const* value);
-    bool compileAndLink(GraphicsDevice* pDevice, Vector<GraphicsResource> const & shaders);
+    bool compileAndLink(GraphicsDevice * pDevice, Vector<GraphicsResource> const & shaders);
   };
 }

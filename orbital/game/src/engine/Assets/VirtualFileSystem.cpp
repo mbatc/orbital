@@ -31,6 +31,12 @@ namespace engine {
     return true;
   }
 
+  bfc::Vector<bfc::String> VirtualFileSystem::drives() const {
+    std::scoped_lock guard{m_lock};
+
+    return m_drives.getKeys();
+  }
+
   Ref<Stream> VirtualFileSystem::open(URI const & uri, FileMode mode) const {
     URI resolved = resolveUri(uri);
 

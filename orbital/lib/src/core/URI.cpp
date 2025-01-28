@@ -1,5 +1,6 @@
 #include "core/URI.h"
 #include "core/File.h"
+#include <filesystem>
 
 namespace bfc {
 
@@ -369,5 +370,19 @@ namespace bfc {
       ret = ret + "#" + fragment;
 
     return ret;
+  }
+
+  BFC_API Vector<URI> walk(URI const & uri, bool recursive) {
+    if (uri.scheme() == "file") {
+      Vector<URI> ret;
+      for (auto& it : std::filesystem::directory_iterator(uri.path().c_str())) {
+        ret.pushBack(URI::File(it.path().string().c_str()));
+      }
+      return ret;
+    } else {
+      BFC_ASSERT(false, "URI scheme (%*.s) is not supported", uri.scheme().length(), uri.scheme().data());
+    }
+    
+    return BFC_API Vector<URI>();
   }
 } // namespace bfc

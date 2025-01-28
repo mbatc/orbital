@@ -29,6 +29,9 @@ namespace engine {
     /// @retval false If the drive name was not found.
     bool unmountDrive(bfc::StringView const & name);
 
+    /// Get a list of drives mounted in the virtual file system.
+    bfc::Vector<bfc::String> drives() const;
+
     /// Open a stream to the URI specified.
     bfc::Ref<bfc::Stream> open(bfc::URI const & uri, bfc::FileMode mode) const;
 

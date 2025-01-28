@@ -245,7 +245,7 @@ namespace engine {
   }
 
   void LevelEditor::drawAssetsPanel(Ref<VirtualFileSystem> const & pFileSystem) {
-    
+
   }
 
   void LevelEditor::drawLevelPanel(Ref<LevelManager> const & pLevels, Ref<AssetManager> const & pAssets, Ref<Rendering> const & pRendering,
