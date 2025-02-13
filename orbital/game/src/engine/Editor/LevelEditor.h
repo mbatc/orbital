@@ -100,6 +100,8 @@ namespace engine {
 
     bfc::Map<bfc::type_index, bfc::Ref<IComponentEditor>> m_componentEditors;
 
+    bfc::URI m_selectedAssetPath;
+
     EntityID m_selected = InvalidEntity;
 
     bfc::ui::Context m_uiContext;

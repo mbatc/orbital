@@ -57,6 +57,14 @@ namespace bfc {
     return m_exists;
   }
 
+  bool FileInfo::isFile() const {
+    return m_exists && (m_stat.st_mode & _S_IFREG) != 0;
+  }
+
+  bool FileInfo::isDirectory() const {
+    return m_exists && (m_stat.st_mode & _S_IFDIR) != 0;
+  }
+
   File::File(File && o) {
     std::swap(m_pInfo, o.m_pInfo);
     std::swap(m_length, o.m_length);
@@ -247,7 +255,7 @@ namespace bfc {
     return os::access(path.c_str(), os::AccessFlag_Exists) == 0;
   }
 
-  Filename findFile(Filename const& path, Vector<Filename> const& searchDirectories, bool* pResult) {
+  Filename findFile(Filename const & path, Vector<Filename> const & searchDirectories, bool * pResult) {
     if (pResult)
       *pResult = true;
 

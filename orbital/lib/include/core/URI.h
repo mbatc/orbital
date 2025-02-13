@@ -7,7 +7,7 @@ namespace bfc {
   class BFC_API URI {
   public:
     static URI File(Filename const & path);
-    
+
     struct Components {
       Components() = default;
       Components(URI const & uri)
@@ -61,6 +61,8 @@ namespace bfc {
 
     Filename path() const;
 
+    bool empty() const;
+
     char * begin();
     char * end();
 
@@ -111,6 +113,8 @@ namespace bfc {
   }
 
   BFC_API Vector<URI> walk(URI const & uri, bool recursive);
+
+  BFC_API bool isLeaf(URI const & uri);
 } // namespace bfc
 
 namespace std {

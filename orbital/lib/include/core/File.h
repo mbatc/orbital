@@ -27,6 +27,10 @@ namespace bfc {
 
     bool exists() const;
 
+    bool isFile() const;
+
+    bool isDirectory() const;
+
   private:
     bool m_exists = true;
     struct _stat64 m_stat = { 0 };

@@ -245,7 +245,29 @@ namespace engine {
   }
 
   void LevelEditor::drawAssetsPanel(Ref<VirtualFileSystem> const & pFileSystem) {
+    ImGui::Begin("Assets");
+    for (String const & drive : pFileSystem->drives()) {
+      if (ImGui::Selectable(drive.c_str())) {
+        m_selectedAssetPath = URI::File(String::format("%s:/", drive));
+      }
+    }
 
+    ImGui::Separator();
+
+    if (!m_selectedAssetPath.pathView().empty() && m_selectedAssetPath.pathView() != "/") {
+      if (ImGui::Selectable("..")) {
+        m_selectedAssetPath = m_selectedAssetPath.resolveRelativeReference("../");
+        m_selectedAssetPath = m_selectedAssetPath.withPath(m_selectedAssetPath.path().getDirect());
+      }
+    }
+
+    for (URI const & item : pFileSystem->walk(m_selectedAssetPath)) {
+      if (ImGui::Selectable(String(item.path().name()).c_str())) {
+        m_selectedAssetPath = item;
+      }
+    }
+
+    ImGui::End();
   }
 
   void LevelEditor::drawLevelPanel(Ref<LevelManager> const & pLevels, Ref<AssetManager> const & pAssets, Ref<Rendering> const & pRendering,

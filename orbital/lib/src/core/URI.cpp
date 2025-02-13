@@ -3,7 +3,6 @@
 #include <filesystem>
 
 namespace bfc {
-
   static bool isReserved(char c) {
     static StringView const genericDelimiters = ":/?#[]@";
     static StringView const subDelimiters     = "!$&'()*+,;=";
@@ -188,6 +187,10 @@ namespace bfc {
     return pathView();
   }
 
+  bool URI::empty() const {
+    return m_uri.empty();
+  }
+
   char * URI::begin() {
     return m_uri.begin();
   }
@@ -345,7 +348,7 @@ namespace bfc {
         ret = ret + "/";
       }
 
-      if (path.startsWith("/")) {
+      if (path.startsWith("/") && !Filename::drive(path).empty()) {
         // On windows strip the leading '/' for an absolute path as we only need the drive letter.
         ret = ret + path.substr(1);
       } else {
@@ -373,6 +376,10 @@ namespace bfc {
   }
 
   BFC_API Vector<URI> walk(URI const & uri, bool recursive) {
+    if (uri.empty() || isLeaf(uri)) {
+      return {};
+    }
+
     if (uri.scheme() == "file") {
       Vector<URI> ret;
       for (auto& it : std::filesystem::directory_iterator(uri.path().c_str())) {
@@ -384,5 +391,19 @@ namespace bfc {
     }
     
     return BFC_API Vector<URI>();
+  }
+
+  BFC_API bool isLeaf(URI const & uri) {
+    if (uri.empty()) {
+      return false;
+    }
+
+    if (uri.scheme() == "file") {
+      return FileInfo(uri.pathView()).isFile();
+    } else {
+      BFC_ASSERT(false, "URI scheme (%*.s) is not supported", uri.scheme().length(), uri.scheme().data());
+    }
+
+    return false;
   }
 } // namespace bfc

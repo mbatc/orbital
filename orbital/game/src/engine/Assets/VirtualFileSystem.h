@@ -42,36 +42,42 @@ namespace engine {
     bfc::URI resolveUri(bfc::URI const & uri) const;
 
     /// Read a binary file.
-    bool read(bfc::URI const & resource, bfc::Vector<uint8_t> * pContent, bool binary = true);
+    bool read(bfc::URI const & resource, bfc::Vector<uint8_t> * pContent, bool binary = true) const;
 
     /// Read a text file.
-    bool readText(bfc::URI const & resource, bfc::String * pContent);
+    bool readText(bfc::URI const & resource, bfc::String * pContent) const;
 
     /// Write a binary file.
-    bool write(bfc::URI const & resource, bfc::Span<uint8_t> const & content);
+    bool write(bfc::URI const & resource, bfc::Span<uint8_t> const & content) const;
 
     /// Write a text file.
-    bool writeText(bfc::URI const & resource, bfc::StringView const & content);
+    bool writeText(bfc::URI const & resource, bfc::StringView const & content) const;
 
     /// Remove a file.
     /// @retval true  The resource was deleted.
     /// @retval false The resource could not be deleted.
-    bool remove(bfc::URI const & resource);
+    bool remove(bfc::URI const & resource) const;
 
     /// Test if a path is writable.
     /// @retval true  The resource is writable.
     /// @retval false The resource is not writable.
-    bool isWritable(bfc::URI const & resource);
+    bool isWritable(bfc::URI const & resource) const;
 
     /// Test if a path is readble.
     /// @retval true  The resource is readable.
     /// @retval false The resource is not readable.
-    bool isReadable(bfc::URI const & resource);
+    bool isReadable(bfc::URI const & resource) const;
 
     /// Find a resource in the searchPaths provided.
     /// @retval true  The resource is readable.
     /// @retval false The resource is not readable.
-    bfc::URI find(bfc::URI const & resource, bfc::Vector<bfc::URI> const & basePaths, bool * pResult = nullptr);
+    bfc::URI find(bfc::URI const & resource, bfc::Vector<bfc::URI> const & basePaths, bool * pResult = nullptr) const;
+
+    /// Test if a path has sub-resources.
+    bool isLeaf(bfc::URI const & resource) const;
+
+    /// Walk any subresources of the URI provided.
+    bfc::Vector<bfc::URI> walk(bfc::URI const & resource, bool recursive = false) const;
 
     template<typename T>
     bool write(bfc::URI const & resource, T const & o) {
@@ -117,7 +123,7 @@ namespace engine {
     std::optional<bfc::SerializedObject> deserialize(bfc::URI const & resource, bfc::DataFormat format = bfc::DataFormat_YAML);
 
   private:
-    std::mutex                      m_lock;
+    mutable std::mutex m_lock;
     bfc::Map<bfc::String, bfc::URI> m_drives;
     bfc::Map<bfc::URI, bfc::UUID>   m_virtualFiles;
   };
