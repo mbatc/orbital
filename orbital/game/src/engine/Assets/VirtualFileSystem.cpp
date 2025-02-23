@@ -128,7 +128,7 @@ namespace engine {
   }
 
   bool VirtualFileSystem::isLeaf(bfc::URI const & resource) const {
-    return bfc::isLeaf(resource);
+    return bfc::isLeaf(resolveUri(resource));
   }
 
   bfc::Vector<bfc::URI> VirtualFileSystem::walk(bfc::URI const & resource, bool recursive) const {

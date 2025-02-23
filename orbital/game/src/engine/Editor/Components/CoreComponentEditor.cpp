@@ -38,12 +38,12 @@ namespace engine {
 
   void LightEditor::draw(LevelEditor * pEditor, Ref<Level> const& pLevel, EntityID entityID, components::Light * pComponent) {
     ui::Input("Strength", &pComponent->strength);
-    ImGui::ColorPicker3("Colour", &pComponent->colour.x);
+    ImGui::ColorEdit3("Colour", &pComponent->colour.x);
     ImGui::Checkbox("Cast Shadows", &pComponent->castShadows);
 
     switch (pComponent->type) {
     case components::LightType_Sun:
-      ImGui::ColorPicker3("Ambient", &pComponent->ambient.x);
+      ImGui::ColorEdit3("Ambient", &pComponent->ambient.x);
       break;
     case components::LightType_Spot:
       ImGui::SliderAngle("Inner Angle", &pComponent->innerConeAngle, 0.0f, pComponent->innerConeAngle);
@@ -96,6 +96,7 @@ namespace engine {
 
   void PostProcess_BloomEditor::draw(LevelEditor * pEditor, Ref<Level> const & pLevel, EntityID entityID, components::PostProcess_Bloom * pComponent) {
     AssetManager * pAssets = pEditor->getApp()->findSubsystem<AssetManager>().get();
+
     ui::Input("Filter Radius", &pComponent->filterRadius);
     ui::Input("Strength", &pComponent->strength);
     ui::Input("Threshold", &pComponent->threshold);

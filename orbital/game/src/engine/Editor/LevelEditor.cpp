@@ -1,6 +1,7 @@
 #include "LevelEditor.h"
 #include "Application.h"
 #include "Input.h"
+#include "platform/FileDialog.h"
 #include "Assets/AssetManager.h"
 #include "Levels/CoreComponents.h"
 #include "Editor/Components/CoreComponentEditor.h"
@@ -75,6 +76,12 @@ namespace engine {
         m_uiContext.renderDrawData(m_pDrawData);
         m_pDrawData = nullptr;
       }
+    });
+
+    m_pAppListener->on([=](events::OnLevelActivated const & e) {
+      // TODO: May not want to always sync the editor level with the active level.
+      //       e.g. editing a sub-level in an external window?
+      m_pEditorViewport->setLevel(e.pLevel);
     });
 
     // Render the editor viewport to the main window.
@@ -241,10 +248,10 @@ namespace engine {
     drawLevelPanel(pLevels, pAssets, pRendering, pLevel);
     drawEntityProperties(pLevel, m_selected);
     drawEditorSettings();
-    drawAssetsPanel(pFileSystem);
+    drawAssetsPanel(pFileSystem, pLevels);
   }
 
-  void LevelEditor::drawAssetsPanel(Ref<VirtualFileSystem> const & pFileSystem) {
+  void LevelEditor::drawAssetsPanel(Ref<VirtualFileSystem> const & pFileSystem, Ref<LevelManager> const & pLevels) {
     ImGui::Begin("Assets");
     for (String const & drive : pFileSystem->drives()) {
       if (ImGui::Selectable(drive.c_str())) {
@@ -262,8 +269,20 @@ namespace engine {
     }
 
     for (URI const & item : pFileSystem->walk(m_selectedAssetPath)) {
-      if (ImGui::Selectable(String(item.path().name()).c_str())) {
+      bool isLeaf          = pFileSystem->isLeaf(item);
+      bool isClicked       = ImGui::Selectable(String(item.path().name()).c_str());
+      bool isDoubleClicked = isClicked && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
+
+      if (!isLeaf && isClicked) {
         m_selectedAssetPath = item;
+      }
+
+      if (isLeaf && isDoubleClicked) {
+        if (item.path().extension() == "level") {
+          pLevels->setActiveLevel(pLevels->load(item));
+        } else {
+          pLevels->Import(pLevels->getActiveLevel().get(), item);
+        }
       }
     }
 
@@ -325,14 +344,37 @@ namespace engine {
 
         Ref<Level> pLoaded = pLevels->load(settings.startupLevel.get());
         if (pLoaded != nullptr) {
-          pLevel->clear();
-          pLoaded->copyTo(pLevel.get(), true);
+          // TODO: pLevel should be modified? Or this menu item should not be in the "level panel" if it is supposed to be 
+          //       used with any arbitrary Level
+          pLevels->setActiveLevel(pLoaded);
         }
       }
 
-      // if (ImGui::Selectable("Save Level")) {
-      //
-      // }
+      if (ImGui::Selectable("New Level")) {
+        pLevels->setActiveLevel(bfc::NewRef<Level>());
+      }
+
+      {
+        ImGui::BeginDisabled(!pLevel->sourceUri.has_value());
+        if (ImGui::Selectable("Save Level")) {
+          pLevels->save(pLevel->sourceUri.value(), *pLevel);
+        }
+        ImGui::EndDisabled();
+      }
+
+      if (ImGui::Selectable("Save Level As")) {
+        FileDialog dialog;
+        dialog.setFilter({".level"}, {"Orbital Game Level"});
+        if (pLevel->sourceUri.has_value())
+          dialog.setFile(pLevel->sourceUri.value().path());
+
+        if (dialog.save()) {
+          auto paths = dialog.getSelected();
+
+          pLevels->save(URI::File(paths.front()), *pLevel);
+          pLevel->sourceUri = URI::File(paths.front());
+        }
+      }
 
       ImGui::EndMenu();
     }

@@ -215,6 +215,8 @@ namespace engine {
       return ((uint64_t)index | ((uint64_t)version << 32ll));
     }
 
+    std::optional<bfc::URI> sourceUri; ///< Where was the level loaded from
+
   private:
     bool contains(int64_t const & index, int64_t const & version) const;
 
