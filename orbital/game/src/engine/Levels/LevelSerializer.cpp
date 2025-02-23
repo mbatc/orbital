@@ -14,6 +14,8 @@ namespace engine {
   }
 
   bool LevelSerializer::deserialize(URI const & uri, Level & level) {
+    level.sourceUri = uri;
+
     std::optional<SerializedObject> serialized = m_pManager->getFileSystem()->deserialize(uri, DataFormat_YAML);
     if (!serialized.has_value()) {
       return false;

@@ -19,8 +19,13 @@ namespace bfc {
       pShaders->setSource(id, src);
       shaderIDs.pushBack(id);
     }
+    
+    bool result = compileAndLink(pDevice, shaderIDs);
 
-    return compileAndLink(pDevice, shaderIDs);
+    for (GraphicsResource &shader : shaderIDs)
+      pShaders->releaseShader(&shader);
+
+    return result;
   }
 
   bool Shader::loadFiles(GraphicsDevice * pDevice, Map<ShaderType, Filename> const & files) {
@@ -33,24 +38,12 @@ namespace bfc {
       shaderIDs.pushBack(id);
     }
 
-    return compileAndLink(pDevice, shaderIDs);
-  }
+    bool result = compileAndLink(pDevice, shaderIDs);
 
-  bool Shader::reload() {
-    if (getDevice() == nullptr) {
-      return false;
-    }
+    for (GraphicsResource &shader : shaderIDs)
+      pShaders->releaseShader(&shader);
 
-    Vector<GraphicsResource>  shaderIDs;
-    graphics::ShaderManager * pShaders = getDevice()->getShaderManager();
-    for (int64_t shaderType = 0; shaderType < ShaderType_Count; ++shaderType) {
-      GraphicsResource shaderResource = pShaders->getShader(getResource(), (ShaderType)shaderType);
-      if (shaderResource != InvalidGraphicsResource) {
-        shaderIDs.pushBack(shaderResource);
-      }
-    }
-
-    return compileAndLink(getDevice(), shaderIDs);
+    return result;
   }
 
   bool Shader::setUniform(StringView const & name, Mat4 value) {
@@ -166,10 +159,6 @@ namespace bfc {
       }
     }
 
-    for (GraphicsResource id : shaderIDs) {
-      pManager->releaseShader(&id);
-    }
-
     if (!linked) {
       if (programID != InvalidGraphicsResource) {
         pManager->releaseProgram(&programID);
@@ -180,96 +169,8 @@ namespace bfc {
 
     set(pDevice, programID);
 
+    pManager->releaseProgram(&programID);
+
     return true;
-  }
-
-  ShaderPool::ShaderPool(GraphicsDevice * pDevice)
-    : m_pDevice(pDevice) {}
-
-  void ShaderPool::setPath(Vector<Filename> const & directories) {
-    m_searchDirectories = directories;
-  }
-
-  Vector<Filename> const & ShaderPool::getPath() const {
-    return m_searchDirectories;
-  }
-
-  bool ShaderPool::add(StringView name, Map<ShaderType, String> const & sources) {
-    ShaderDef def;
-    def.sources   = sources;
-    def.loadFiles = false;
-
-    std::scoped_lock guard(m_lock);
-    return m_shaders.tryAdd(name, def);
-  }
-
-  bool ShaderPool::addFiles(StringView name, Map<ShaderType, Filename> const & files) {
-    ShaderDef def;
-    def.files     = files;
-    def.loadFiles = true;
-
-    std::scoped_lock guard(m_lock);
-    return m_shaders.tryAdd(name, def);
-  }
-
-  bool ShaderPool::isLoaded(StringView name) {
-    std::scoped_lock guard(m_lock);
-    return m_loaded.contains(name);
-  }
-
-  bool ShaderPool::isRegistered(StringView name) {
-    std::scoped_lock guard(m_lock);
-    return m_shaders.contains(name);
-  }
-
-  void ShaderPool::reload() {
-    for (auto & [name, shader] : m_loaded) {
-      shader.reload();
-    }
-  }
-
-  Shader ShaderPool::load(StringView name) {
-    std::scoped_lock guard(m_lock);
-    Shader *         pLoaded = m_loaded.tryGet(name);
-    if (pLoaded != nullptr)
-      return *pLoaded;
-
-    ShaderDef * pDef = m_shaders.tryGet(name);
-    if (pDef == nullptr)
-      return Shader(); // Not registered
-
-    Shader newShader;
-    if (pDef->loadFiles) {
-      Map<ShaderType, Filename> files = pDef->files;
-      for (auto & [type, path] : files) {
-        path = findFile(path, m_searchDirectories);
-      }
-
-      if (!newShader.loadFiles(m_pDevice, files)) {
-        return Shader();
-      }
-    } else {
-      if (!newShader.load(m_pDevice, pDef->sources)) {
-        return Shader();
-      }
-    }
-
-    m_loaded.add(name, newShader);
-
-    return newShader;
-  }
-
-  void ShaderPool::tryUnload() {
-    std::scoped_lock guard(m_lock);
-    Vector<String>   toUnload;
-    for (auto & [name, pShader] : m_loaded) {
-      if (pShader.getReferences() == 1) {
-        toUnload.pushBack(name);
-      }
-    }
-
-    for (String const & name : toUnload) {
-      m_loaded.erase(name);
-    }
   }
 } // namespace bfc

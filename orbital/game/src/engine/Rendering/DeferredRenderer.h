@@ -58,6 +58,5 @@ namespace engine {
     bfc::Texture m_defaultMaterialTextures[bfc::Material::TextureSlot_Count]; // Default textures used if missing
 
     bfc::GraphicsDevice * m_pDevice  = nullptr;
-    bfc::ShaderPool *     m_pShaders = nullptr;
   };
 } // namespace engine

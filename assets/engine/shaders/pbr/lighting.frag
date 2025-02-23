@@ -293,7 +293,7 @@ vec3 CalcSpotLight(vec3 colour, vec3 lightPosition, vec3 lightDirection, vec3 at
 }
 
 float CalcShadowing(vec3 lightDir, uvec2 shadowMapRange, vec3 fragPos, vec3 fragNormal) {
-  float bias = max(0.005 * (1.0 - dot(fragNormal, lightDir)), 0.001);  
+  float bias = max(0.005 * (1.0 - dot(fragNormal, lightDir)), 0.001);
   if (shadowMapRange.y - shadowMapRange.x == 6) {
     // Cube-map shadow
     vec3 cubeCoord = SampleCube(lightDir);
@@ -311,12 +311,21 @@ float CalcShadowing(vec3 lightDir, uvec2 shadowMapRange, vec3 fragPos, vec3 frag
       vec3 projectedCoord = projectedPixel.xyz / projectedPixel.w;
       projectedCoord = projectedCoord * 0.5 + 0.5;
 
-      float shadowDepth = textureLod(ShadowAtlas, vec3(projectedCoord.xy, shadowData[i].layer), shadowData[i].level).r;
-
-      if (projectedCoord.z - bias > shadowDepth) {
-        return 0;
+      if (projectedCoord.x >= 0 && projectedCoord.x <= 1 && projectedCoord.y >= 0 && projectedCoord.y <= 1)
+      {
+        float shadowDepth = textureLod(ShadowAtlas, vec3(projectedCoord.xy, shadowData[i].layer), shadowData[i].level).r;
+        if (projectedCoord.z < 0 || projectedCoord.z > 1)
+        {
+          if (shadowDepth != 1)
+            return 0;
+        } 
+        else if (projectedCoord.z - bias > shadowDepth)
+          return 0;
+        // if (projectedCoord.z - bias > shadowDepth || ) {
+        //   return shadowDepth;
+        // }
       }
     }
   }
-  return 1.0f;
+  return 1;
 }

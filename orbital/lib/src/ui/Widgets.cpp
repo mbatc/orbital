@@ -42,6 +42,14 @@ namespace bfc {
       return ImGui::Checkbox(name.c_str(), pValue);
     }
 
+    bool Input(String const& name, Colour<RGBf32>* pValue) {
+      return ImGui::ColorEdit3(name.c_str(), (float *)&pValue);
+    }
+
+    bool Input(String const & name, Colour<RGBAf32> * pValue) {
+      return ImGui::ColorEdit4(name.c_str(), (float *)&pValue);
+    }
+
     bool Input(String const & name, ImGuiDataType dataType, void * pValue, char const * format, int64_t count) {
       return ImGui::InputScalarN(name.c_str(), dataType, pValue, (int)count, 0, 0, format, 0);
     }
@@ -59,7 +67,7 @@ namespace bfc {
     }
 
     bool Slider(String const & name, ImGuiDataType dataType, void * pValue, void const * pMin, void const * pMax, char const * format, int64_t count) {
-      return ImGui::SliderScalarN(name.c_str(), dataType, pValue, (int)count, pMin, pMax, format, 1.0f);
+      return ImGui::SliderScalarN(name.c_str(), dataType, pValue, (int)count, pMin, pMax, format, ImGuiSliderFlags_None);
     }
 
     bool FilterInput(String const& name, String* pFilter, FilterSettings* pSettings) {

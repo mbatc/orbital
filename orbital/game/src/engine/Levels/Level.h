@@ -185,19 +185,19 @@ namespace engine {
 
     /// Get level data.
     template<typename T>
-    bfc::Ref<T> getData() const {
-      const bfc::type_index type = bfc::TypeID<T>();
-      bfc::Ref<void>        val;
-      m_data.tryGet(type, val);
-      return std::static_pointer_cast<T>(val);
-    }
-
-    template<typename T>
-    bfc::Ref<const T> getData() {
+    bfc::Ref<const T> getData() const {
       const bfc::type_index type = bfc::TypeID<T>();
       bfc::Ref<void>        val;
       m_data.tryGet(type, val);
       return std::static_pointer_cast<const T>(val);
+    }
+
+    template<typename T>
+    bfc::Ref<T> getData() {
+      const bfc::type_index type = bfc::TypeID<T>();
+      bfc::Ref<void>        val;
+      m_data.tryGet(type, &val);
+      return std::static_pointer_cast<T>(val);
     }
 
     /// Unpack the index from an entity ID.
@@ -214,6 +214,8 @@ namespace engine {
     inline static constexpr EntityID toEntityID(uint32_t const & index, uint32_t const & version) {
       return ((uint64_t)index | ((uint64_t)version << 32ll));
     }
+
+    std::optional<bfc::URI> sourceUri; ///< Where was the level loaded from
 
   private:
     bool contains(int64_t const & index, int64_t const & version) const;

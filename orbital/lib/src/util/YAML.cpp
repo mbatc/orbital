@@ -1,5 +1,10 @@
 #include "util/YAML.h"
 #include "util/Scan.h"
+
+#ifndef YAML_CPP_STATIC_DEFINE
+#define YAML_CPP_STATIC_DEFINE
+#endif
+
 #include "../../../../vendor/yaml-cpp/include/yaml-cpp/eventhandler.h"
 #include "../../../../vendor/yaml-cpp/include/yaml-cpp/yaml.h"
 

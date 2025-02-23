@@ -295,7 +295,7 @@ namespace bfc {
 
     Vec3i TextureManager_OpenGL::getSize(GraphicsResource textureID, int64_t mipLevel) {
       Vec3i size = getTexture(textureID).size;
-      size /= (1ll << mipLevel);
+      size /= (1 << (int32_t)mipLevel);
       return {std::max(1, size.x), std::max(1, size.y), std::max(1, size.z)};
     }
 

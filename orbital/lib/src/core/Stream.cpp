@@ -180,6 +180,10 @@ namespace bfc {
   }
 
   Ref<Stream> openURI(URI const & uri, FileMode mode) {
+    if (uri.empty()) {
+      return nullptr;
+    }
+
     if (uri.scheme() == "file") {
       Ref<File> pFile = NewRef<File>();
       if (pFile->open(uri.path(), mode)) {

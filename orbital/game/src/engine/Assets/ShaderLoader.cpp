@@ -22,6 +22,7 @@ namespace engine {
     }
 
     Ref<Shader> shader = NewRef<Shader>();
+
     // TODO: Use URI to load shader source and customize reading files.
     if (!shader->loadFiles(m_pGraphicsDevice, sources)) {
       return nullptr;
