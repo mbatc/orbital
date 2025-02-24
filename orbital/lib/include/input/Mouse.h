@@ -61,11 +61,18 @@ namespace bfc {
     std::shared_ptr<EventListener> m_pListener;
   };
 
+  /// Get the position of the cursor on the desktop.
   BFC_API bfc::Vec2i getCursorPosition();
 
+  /// Set the position of the cursor on the deskop.
   BFC_API void setCursorPosition(bfc::Vec2i position);
 
+  /// Set the active cursor icon.
   BFC_API void setCursorIcon(CursorIcon icon);
 
+  /// Get the active cursor icon.
+  BFC_API CursorIcon getCursorIcon();
+
+  /// Set cursor visibility.
   BFC_API void setCursorVisible(bool visible);
 }

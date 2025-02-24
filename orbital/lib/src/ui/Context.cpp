@@ -49,10 +49,10 @@ namespace bfc {
     Context::~Context() {}
 
     void Context::init(GraphicsDevice * pDevice) {
-      m_pDevice    = pDevice;
-      m_pAtlas     = new TextureAtlas(pDevice, Vec2i(32), Vec2i(16));
+      m_pDevice = pDevice;
+      m_pAtlas  = new TextureAtlas(pDevice, Vec2i(32), Vec2i(16));
 
-      m_pImContext = ImGui::CreateContext();
+      m_pImContext              = ImGui::CreateContext();
       m_pImContext->IO.UserData = this;
 
       ImGui::SetCurrentContext(m_pImContext);
@@ -76,7 +76,7 @@ namespace bfc {
 
       graphics::BufferManager * pBuffers = pDevice->getBufferManager();
       m_vertexBuffer                     = pBuffers->createBuffer(BufferUsageHint_Vertices | BufferUsageHint_Dynamic);
-      m_indexBuffer                      = pBuffers->createBuffer(BufferUsageHint_Indices  | BufferUsageHint_Dynamic);
+      m_indexBuffer                      = pBuffers->createBuffer(BufferUsageHint_Indices | BufferUsageHint_Dynamic);
       m_vertexArray                      = pBuffers->createVertexArray();
 
       // Setup backend capabilities flags
@@ -174,7 +174,7 @@ namespace bfc {
     void Context::beginFrame(Vec2 size) {
       bind();
 
-      ImGuiIO & io = ImGui::GetIO();
+      ImGuiIO &         io         = ImGui::GetIO();
       ImGuiPlatformIO & platformIO = ImGui::GetPlatformIO();
 
       if (m_updateMonitors) {
@@ -196,17 +196,10 @@ namespace bfc {
       float dpiScale             = platformIO.Viewports[0]->DpiScale;
       io.DisplayFramebufferScale = ImVec2(1, 1);
       // Scale display size using the primary monitors DPI scale.
-      io.DisplaySize             = size / dpiScale;
+      io.DisplaySize = size / dpiScale;
 
       // Update OS mouse position
       updateMouseData();
-
-      // Update OS mouse cursor with the cursor requested by imgui
-      ImGuiMouseCursor mouseCursor = io.MouseDrawCursor ? ImGuiMouseCursor_None : ImGui::GetMouseCursor();
-      if (m_lastMouseCursor != mouseCursor) {
-        m_lastMouseCursor = mouseCursor;
-        setCursorIcon(getCursorIcon(mouseCursor));
-      }
 
       ImGui::NewFrame();
       ImGuizmo::BeginFrame();
@@ -216,8 +209,8 @@ namespace bfc {
       graphics::StateManager *  pState   = m_pDevice->getStateManager();
       graphics::ShaderManager * pShaders = m_pDevice->getShaderManager();
       graphics::BufferManager * pBuffers = m_pDevice->getBufferManager();
-      int fbWidth  = (int)(pDrawData->DisplaySize.x * pDrawData->FramebufferScale.x);
-      int fbHeight = (int)(pDrawData->DisplaySize.y * pDrawData->FramebufferScale.y);
+      int                       fbWidth  = (int)(pDrawData->DisplaySize.x * pDrawData->FramebufferScale.x);
+      int                       fbHeight = (int)(pDrawData->DisplaySize.y * pDrawData->FramebufferScale.y);
       if (fbWidth <= 0 || fbHeight <= 0)
         return;
 
@@ -348,6 +341,13 @@ namespace bfc {
       if (pHovered != nullptr) {
         if (ImGuiViewport * viewport = ImGui::FindViewportByPlatformHandle(pHovered)) {
           hoveredViewportID = viewport->ID;
+        }
+
+        Vec2i clientPosition = pHovered->screenToClient(mousePos);
+
+        if (clientPosition.x >= 0 && clientPosition.y >= 0 && clientPosition.x < pHovered->getSize().x && clientPosition.y < pHovered->getSize().y) {
+          ImGuiMouseCursor mouseCursor = io.MouseDrawCursor ? ImGuiMouseCursor_None : ImGui::GetMouseCursor();
+          setCursorIcon(getCursorIcon(mouseCursor));
         }
       }
 
