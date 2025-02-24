@@ -1,8 +1,10 @@
 #include "LevelEditor.h"
 #include "Application.h"
 #include "Input.h"
+#include "platform/FileDialog.h"
 #include "Assets/AssetManager.h"
 #include "Levels/CoreComponents.h"
+#include "Editor/Components/CoreComponentEditor.h"
 #include "Levels/Level.h"
 #include "Levels/LevelManager.h"
 #include "Levels/LevelSerializer.h"
@@ -21,9 +23,9 @@ namespace engine {
     : Subsystem(TypeID<LevelEditor>(), "LevelEditor") {}
 
   bool LevelEditor::init(Application * pApp) {
-    m_pAssets    = pApp->findSubsystem<AssetManager>();
-    m_pRendering = pApp->findSubsystem<Rendering>();
-    m_pLevels    = pApp->findSubsystem<LevelManager>();
+    auto pAssets    = pApp->findSubsystem<AssetManager>();
+    auto pRendering = pApp->findSubsystem<Rendering>();
+    auto pLevels    = pApp->findSubsystem<LevelManager>();
 
     Ref<Input> pInputs = pApp->findSubsystem<Input>();
 
@@ -34,14 +36,14 @@ namespace engine {
 
     // Load the startup level
     URI levelPath = settings.startupLevel.get();
-    if (!m_pAssets->getFileSystem()->exists(levelPath)) {
-      auto pNewLevel = m_pLevels->getActiveLevel();
+    if (!pAssets->getFileSystem()->exists(levelPath)) {
+      auto pNewLevel = pLevels->getActiveLevel();
 
       Filename skyboxPath = "game:skybox/nebula.skybox";
       EntityID testEntity = pNewLevel->create();
 
       pNewLevel->add<components::Name>  (testEntity).name     = "Environment";
-      pNewLevel->add<components::Skybox>(testEntity).pTexture = m_pAssets->load<bfc::Texture>(URI::File(skyboxPath));
+      pNewLevel->add<components::Skybox>(testEntity).pTexture = pAssets->load<bfc::Texture>(URI::File(skyboxPath));
 
       components::Transform & sunTransform = pNewLevel->add<components::Transform>(testEntity);
       sunTransform.lookAt(bfc::Vec3d(1, 1, -1));
@@ -51,19 +53,19 @@ namespace engine {
       sun.colour              = {0.7f, 0.7f, 0.7f};
       sun.castShadows         = true;
 
-      m_pLevels->save(levelPath, *pNewLevel);
+      pLevels->save(levelPath, *pNewLevel);
     }
 
-    m_pLevels->setActiveLevel(m_pLevels->load(settings.startupLevel.get()));
+    pLevels->setActiveLevel(pLevels->load(settings.startupLevel.get()));
     
     // Create an editor viewport and render the active level.
-    m_pEditorViewport = NewRef<LevelEditorViewport>(m_pRendering->getDevice(), m_pAssets.get());
-    m_pEditorViewport->setLevel(m_pLevels->getActiveLevel());
+    m_pEditorViewport = NewRef<LevelEditorViewport>(pRendering->getDevice(), pAssets.get());
+    m_pEditorViewport->setLevel(pLevels->getActiveLevel());
 
     m_pViewportListener = m_pEditorViewport->getEvents()->addListener();
     m_pViewportListener->on([=](bfc::events::DroppedFiles const & e) {
       for (Filename const & file : e.files) {
-        m_pLevels->Import(m_pLevels->getActiveLevel().get(), URI::File(file));
+        pLevels->Import(pLevels->getActiveLevel().get(), URI::File(file));
       }
     });
 
@@ -76,14 +78,30 @@ namespace engine {
       }
     });
 
+    m_pAppListener->on([=](events::OnLevelActivated const & e) {
+      // TODO: May not want to always sync the editor level with the active level.
+      //       e.g. editing a sub-level in an external window?
+      m_pEditorViewport->setLevel(e.pLevel);
+    });
+
     // Render the editor viewport to the main window.
-    m_pRendering->setMainViewport(m_pEditorViewport);
+    pRendering->setMainViewport(m_pEditorViewport);
 
     // Init ui context rendering.
-    m_uiContext.init(m_pRendering->getDevice());
-    m_uiContext.getEvents()->listenTo(m_pRendering->getMainWindow()->getEvents());
+    m_uiContext.init(pRendering->getDevice());
+    m_uiContext.getEvents()->listenTo(pRendering->getMainWindow()->getEvents());
 
-    registerComponentEditors();
+    addComponentEditor<NameEditor>();
+    addComponentEditor<TransformEditor>();
+    addComponentEditor<CameraEditor>();
+    addComponentEditor<LightEditor>();
+    addComponentEditor<SkyboxEditor>();
+    addComponentEditor<StaticMeshEditor>();
+    addComponentEditor<PostProcessVolumeEditor>();
+    addComponentEditor<PostProcess_TonemapEditor>();
+    addComponentEditor<PostProcess_BloomEditor>();
+    addComponentEditor<PostProcess_SSAOEditor>();
+    addComponentEditor<PostProcess_SSREditor>();
 
     return true;
   }
@@ -93,21 +111,22 @@ namespace engine {
   }
 
   void LevelEditor::loop(Application * pApp) {
-    m_pRendering = pApp->findSubsystem<Rendering>();
-    m_pAssets    = pApp->findSubsystem<AssetManager>();
-    m_pLevels    = pApp->findSubsystem<LevelManager>();
+    auto pRendering  = pApp->findSubsystem<Rendering>();
+    auto pAssets     = pApp->findSubsystem<AssetManager>();
+    auto pLevels     = pApp->findSubsystem<LevelManager>();
+    auto pFileSystem = pApp->findSubsystem<VirtualFileSystem>();
 
-    m_uiContext.beginFrame(m_pRendering->getMainWindow()->getSize());
+    m_uiContext.beginFrame(pRendering->getMainWindow()->getSize());
 
-    drawUI(m_pLevels);
+    drawUI(pLevels, pAssets, pRendering, pFileSystem);
 
     ImGui::Render();
     m_pDrawData = ImGui::GetDrawData();
 
     if (ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard) {
-      m_pEditorViewport->getEvents()->stopListening(m_pRendering->getMainWindow()->getEvents());
+      m_pEditorViewport->getEvents()->stopListening(pRendering->getMainWindow()->getEvents());
     } else {
-      m_pEditorViewport->getEvents()->listenTo(m_pRendering->getMainWindow()->getEvents());
+      m_pEditorViewport->getEvents()->listenTo(pRendering->getMainWindow()->getEvents());
     }
 
     // Apply camera controls
@@ -120,12 +139,21 @@ namespace engine {
         URI levelPath = settings.startupLevel.get();
 
         BFC_LOG_INFO("LevelEditor", "Saving level to %s", levelPath);
-        LevelSerializer(m_pAssets.get()).serialize(levelPath, *m_pLevels->getActiveLevel());
+        LevelSerializer(pAssets.get()).serialize(levelPath, *pLevels->getActiveLevel());
+      }
+
+      if (kbd.isPressed(KeyCode_1)) {
+        // Reload all the shaders
+        BFC_LOG_INFO("LevelEditor", "Reloading shaders");
+        for (AssetHandle handle : pAssets->findHandles<bfc::Shader>()) {
+          pAssets->reload(handle);
+        }
       }
     }
   }
 
   bool LevelEditor::drawEntitySelector(bfc::StringView const & name, EntityID * pEntityID, Level * pLevel) {
+    bool        changed      = false;
     bfc::String selectedName = "";
     if (*pEntityID != InvalidEntity) {
       if (components::Name * pName = pLevel->tryGet<components::Name>(*pEntityID))
@@ -135,6 +163,7 @@ namespace engine {
     }
 
     ui::Input(name, &selectedName);
+    ImGui::PushID(name.begin(), name.end());
     if (ImGui::IsItemClicked())
       ImGui::OpenPopup("Select Entity");
 
@@ -147,8 +176,54 @@ namespace engine {
         if (components::Name * pName = pLevel->tryGet<components::Name>(entity))
           optionName = pName->name;
 
-        if (ImGui::Selectable(optionName.c_str(), entity == *pEntityID))
+        if (ImGui::Selectable(optionName.c_str(), entity == *pEntityID)) {
           *pEntityID = entity;
+          changed    = true;
+        }
+
+        ImGui::PopID();
+        ImGui::PopID();
+      }
+
+      ImGui::EndPopup();
+    }
+    ImGui::PopID();
+
+    return changed;
+  }
+
+  bool LevelEditor::drawAssetSelector(StringView const & name, Ref<void> * ppAsset, type_index const & assetType, AssetManager * pManager) {
+    bool        changed      = false;
+    bfc::String selectedName = "[ None ]";
+
+    AssetHandle handle = pManager->find(*ppAsset);
+
+    if (handle != InvalidAssetHandle) {
+      selectedName = pManager->uriOf(handle).str();
+    }
+
+    ui::Input(name, &selectedName);
+
+    ImGui::PushID(name.begin(), name.end());
+    if (ImGui::IsItemClicked())
+      ImGui::OpenPopup("Select Asset");
+
+    if (ImGui::BeginPopup("Select Asset")) {
+      auto handles = pManager->findHandles([assetType](URI const & uri, type_index const & type, StringView const & loaderID) {
+        return type == assetType;
+      });
+
+      for (AssetHandle option : handles) {
+        ImGui::PushID((int)(handle & 0x00000000FFFFFFFF));
+        ImGui::PushID((int)((handle >> 32) & 0x00000000FFFFFFFF));
+
+        bfc::String optionName = "[ unnamed ]";
+        URI uri = pManager->uriOf(handle);
+
+        if (ImGui::Selectable(uri.c_str(), option == handle)) {
+          handle  = option;
+          changed = true;
+        }
 
         ImGui::PopID();
         ImGui::PopID();
@@ -157,18 +232,65 @@ namespace engine {
       ImGui::EndPopup();
     }
 
-    return false;
+    ImGui::PopID();
+
+    if (changed) {
+      *ppAsset = pManager->load(handle, assetType);
+    }
+
+    return changed;
   }
 
-  void LevelEditor::drawUI(Ref<LevelManager> const & pLevels) {
+  void LevelEditor::drawUI(bfc::Ref<LevelManager> const & pLevels, bfc::Ref<AssetManager> const & pAssets, bfc::Ref<Rendering> const & pRendering,
+                           bfc::Ref<VirtualFileSystem> const & pFileSystem) {
     Ref<Level> pLevel = pLevels->getActiveLevel();
 
-    drawLevelPanel(pLevels, pLevel);
+    drawLevelPanel(pLevels, pAssets, pRendering, pLevel);
     drawEntityProperties(pLevel, m_selected);
     drawEditorSettings();
+    drawAssetsPanel(pFileSystem, pLevels);
   }
 
-  void LevelEditor::drawLevelPanel(Ref<LevelManager> const & pLevels, Ref<Level> const & pLevel) {
+  void LevelEditor::drawAssetsPanel(Ref<VirtualFileSystem> const & pFileSystem, Ref<LevelManager> const & pLevels) {
+    ImGui::Begin("Assets");
+    for (String const & drive : pFileSystem->drives()) {
+      if (ImGui::Selectable(drive.c_str())) {
+        m_selectedAssetPath = URI::File(String::format("%s:/", drive));
+      }
+    }
+
+    ImGui::Separator();
+
+    if (!m_selectedAssetPath.pathView().empty() && m_selectedAssetPath.pathView() != "/") {
+      if (ImGui::Selectable("..")) {
+        m_selectedAssetPath = m_selectedAssetPath.resolveRelativeReference("../");
+        m_selectedAssetPath = m_selectedAssetPath.withPath(m_selectedAssetPath.path().getDirect());
+      }
+    }
+
+    for (URI const & item : pFileSystem->walk(m_selectedAssetPath)) {
+      bool isLeaf          = pFileSystem->isLeaf(item);
+      bool isClicked       = ImGui::Selectable(String(item.path().name()).c_str());
+      bool isDoubleClicked = isClicked && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
+
+      if (!isLeaf && isClicked) {
+        m_selectedAssetPath = item;
+      }
+
+      if (isLeaf && isDoubleClicked) {
+        if (item.path().extension() == "level") {
+          pLevels->setActiveLevel(pLevels->load(item));
+        } else {
+          pLevels->Import(pLevels->getActiveLevel().get(), item);
+        }
+      }
+    }
+
+    ImGui::End();
+  }
+
+  void LevelEditor::drawLevelPanel(Ref<LevelManager> const & pLevels, Ref<AssetManager> const & pAssets, Ref<Rendering> const & pRendering,
+                                   Ref<Level> const & pLevel) {
     ImGui::Begin("Level", 0, ImGuiWindowFlags_MenuBar);
     ImGui::BeginMenuBar();
 
@@ -198,20 +320,20 @@ namespace engine {
 
       pLevels->setSimulateState(desiredState);
 
-      for (auto [name, pDevice] : m_pRendering->getMainViewport()->getInputDevices()) {
+      for (auto [name, pDevice] : pRendering->getMainViewport()->getInputDevices()) {
         pLevels->getApp()->findSubsystem<Input>()->setInputDevice(name, nullptr);
       }
 
       if (activateEditorViewport) {
         m_pEditorViewport->setLevel(pLevels->getActiveLevel());
-        m_pRendering->setMainViewport(m_pEditorViewport);
+        pRendering->setMainViewport(m_pEditorViewport);
       } else if (activateGameViewport) {
-        auto pGameViewport = NewRef<GameViewport>(m_pRendering->getDevice(), m_pAssets.get());
+        auto pGameViewport = NewRef<GameViewport>(pRendering->getDevice(), pAssets.get());
         pGameViewport->setLevel(pLevels->getActiveLevel());
-        m_pRendering->setMainViewport(pGameViewport);
+        pRendering->setMainViewport(pGameViewport);
       }
 
-      for (auto [name, pDevice] : m_pRendering->getMainViewport()->getInputDevices()) {
+      for (auto [name, pDevice] : pRendering->getMainViewport()->getInputDevices()) {
         pLevels->getApp()->findSubsystem<Input>()->setInputDevice(name, pDevice);
       }
     }
@@ -222,14 +344,37 @@ namespace engine {
 
         Ref<Level> pLoaded = pLevels->load(settings.startupLevel.get());
         if (pLoaded != nullptr) {
-          pLevel->clear();
-          pLoaded->copyTo(pLevel.get(), true);
+          // TODO: pLevel should be modified? Or this menu item should not be in the "level panel" if it is supposed to be 
+          //       used with any arbitrary Level
+          pLevels->setActiveLevel(pLoaded);
         }
       }
 
-      // if (ImGui::Selectable("Save Level")) {
-      //
-      // }
+      if (ImGui::Selectable("New Level")) {
+        pLevels->setActiveLevel(bfc::NewRef<Level>());
+      }
+
+      {
+        ImGui::BeginDisabled(!pLevel->sourceUri.has_value());
+        if (ImGui::Selectable("Save Level")) {
+          pLevels->save(pLevel->sourceUri.value(), *pLevel);
+        }
+        ImGui::EndDisabled();
+      }
+
+      if (ImGui::Selectable("Save Level As")) {
+        FileDialog dialog;
+        dialog.setFilter({".level"}, {"Orbital Game Level"});
+        if (pLevel->sourceUri.has_value())
+          dialog.setFile(pLevel->sourceUri.value().path());
+
+        if (dialog.save()) {
+          auto paths = dialog.getSelected();
+
+          pLevels->save(URI::File(paths.front()), *pLevel);
+          pLevel->sourceUri = URI::File(paths.front());
+        }
+      }
 
       ImGui::EndMenu();
     }
@@ -251,8 +396,15 @@ namespace engine {
       }
 
       ImGui::BeginDisabled(m_selected == InvalidEntity);
-      if (ImGui::Selectable("Copy Selected")) {
-        m_selected = pLevel->copy(m_selected);
+      if (ImGui::BeginMenu("Selection")) {
+        if (ImGui::Selectable("Copy")) {
+          m_selected = pLevel->copy(m_selected);
+        }
+
+        if (ImGui::Selectable("Delete")) {
+          pLevel->remove(m_selected);
+        }
+        ImGui::EndMenu();
       }
       ImGui::EndDisabled();
 
@@ -283,7 +435,7 @@ namespace engine {
     ImGui::Separator();
     bfc::Vector<EntityID> rootEntities;
     for (auto & [component] : pLevel->getView<components::Transform>()) {
-      if (component.parent() == InvalidEntity) {
+      if (!pLevel->contains(component.parent())) {
         rootEntities.pushBack(pLevel->toEntity(&component));
       }
     }
@@ -457,50 +609,5 @@ namespace engine {
         pInterface->addComponent(pLevel.get(), targetEntityID);
       }
     }
-  }
-
-  class NameEditor : public LevelEditor::ComponentEditor<components::Name> {
-  public:
-    virtual void draw(LevelEditor * pEditor, bfc::Ref<Level> const & pLevel, EntityID entityID, components::Name * pComponent) override {
-      bfc::ui::Input("Name", &pComponent->name);
-    }
-  };
-
-  class TransformEditor : public LevelEditor::ComponentEditor<components::Transform> {
-  public:
-    virtual void draw(LevelEditor * pEditor, bfc::Ref<Level> const & pLevel, EntityID entityID, components::Transform * pTransform) override {
-      Vec3d translation = pTransform->translation();
-      Vec3d scale       = pTransform->scale();
-      Vec3d ypr         = pTransform->ypr();
-
-      bfc::ui::Input("Translation", &translation);
-      bfc::ui::Input("Scale", &scale);
-      bfc::ui::Input("Yaw/Pitch/Roll", &ypr);
-
-      pTransform->setTranslation(translation);
-      pTransform->setScale(scale);
-      pTransform->setYpr(ypr);
-    }
-  };
-
-  class CameraEditor : public LevelEditor::ComponentEditor<components::Camera> {
-  public:
-    virtual void draw(LevelEditor * pEditor, bfc::Ref<Level> const & pLevel, EntityID entityID, components::Camera * pCamera) override {
-      bfc::ui::Input("Near Plane", &pCamera->nearPlane);
-      bfc::ui::Input("Far Plane", &pCamera->farPlane);
-
-      float fovDegs = glm::degrees(pCamera->fov);
-      bfc::ui::Input("Field of View", &fovDegs);
-      pCamera->fov = glm::radians(fovDegs);
-
-      bfc::ui::Input("Viewport Position", &pCamera->viewportPosition);
-      bfc::ui::Input("Viewport Size", &pCamera->viewportSize);
-    }
-  };
-
-  void LevelEditor::registerComponentEditors() {
-    addComponentEditor<TransformEditor>();
-    addComponentEditor<CameraEditor>();
-    addComponentEditor<NameEditor>();
   }
 } // namespace engine

@@ -15,6 +15,7 @@ namespace engine {
   class Level;
   class LevelEditorViewport;
   class LevelManager;
+  class VirtualFileSystem;
   class LevelEditor : public Subsystem {
   public:
     struct {
@@ -61,12 +62,25 @@ namespace engine {
       m_componentEditors.add(pEditor->type(), pEditor);
     }
 
-    static bool drawEntitySelector(bfc::StringView const & name, EntityID *pEntityID, Level *pLevel);
+    static bool drawEntitySelector(bfc::StringView const & name, EntityID * pEntityID, Level * pLevel);
+
+    template<typename T>
+    static bool drawAssetSelector(bfc::StringView const & name, bfc::Ref<T> * ppAsset, AssetManager * pManager) {
+      bfc::Ref<void> pOpaque = *ppAsset;
+      bool           result  = drawAssetSelector(name, &pOpaque, bfc::TypeID<T>(), pManager);
+      *ppAsset           = std::static_pointer_cast<T>(pOpaque);
+      return result;
+    }
+
+    static bool drawAssetSelector(bfc::StringView const & name, bfc::Ref<void> * ppAsset, bfc::type_index const & assetType, AssetManager * pManager);
 
   private:
-    void drawUI(bfc::Ref<LevelManager> const & pLevels);
+    void drawUI(bfc::Ref<LevelManager> const & pLevels, bfc::Ref<AssetManager> const & pAssets, bfc::Ref<Rendering> const & pRendering,
+                bfc::Ref<VirtualFileSystem> const & pFileSystem);
 
-    void drawLevelPanel(bfc::Ref<LevelManager> const & pLevels, bfc::Ref<Level> const & pLevel);
+    void drawAssetsPanel(bfc::Ref<VirtualFileSystem> const & pFileSystem, bfc::Ref<LevelManager> const & pLevels);
+    void drawLevelPanel(bfc::Ref<LevelManager> const & pLevels, bfc::Ref<AssetManager> const & pAssets, bfc::Ref<Rendering> const & pRendering,
+                        bfc::Ref<Level> const & pLevel);
     void drawEntityProperties(bfc::Ref<Level> const & pLevel, EntityID entityID);
     void drawEditorSettings();
     void drawCameraProperties(EditorCamera * pCamera);
@@ -75,17 +89,14 @@ namespace engine {
     void drawEntityComponentProperties(bfc::Ref<Level> const & pLevel, EntityID entityID);
     void drawAddComponentMenu(bfc::Ref<Level> const & pLevel, EntityID targetEntityID);
 
-    void registerComponentEditors();
-
     bfc::Ref<bfc::EventListener>  m_pViewportListener;
     bfc::Ref<bfc::EventListener>  m_pAppListener;
 
     bfc::Ref<LevelEditorViewport> m_pEditorViewport;
-    bfc::Ref<LevelManager>        m_pLevels    = nullptr;
-    bfc::Ref<AssetManager>        m_pAssets    = nullptr;
-    bfc::Ref<Rendering>           m_pRendering = nullptr;
 
     bfc::Map<bfc::type_index, bfc::Ref<IComponentEditor>> m_componentEditors;
+
+    bfc::URI m_selectedAssetPath;
 
     EntityID m_selected = InvalidEntity;
 
