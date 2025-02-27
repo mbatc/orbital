@@ -71,7 +71,7 @@ namespace engine {
 
     m_pAppListener = pApp->addListener();
 
-    m_pAppListener->on([=](events::OnRenderViewport e) {
+    m_pAppListener->on([=](events::OnRenderViewport const & e) {
       if (m_pDrawData != nullptr && e.isMainViewport) {
         m_uiContext.renderDrawData(m_pDrawData);
         m_pDrawData = nullptr;

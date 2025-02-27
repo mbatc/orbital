@@ -11,7 +11,7 @@ namespace bfc {
   namespace platform {
     class Window;
   }
-}
+} // namespace bfc
 
 namespace engine {
   class Viewport;
@@ -19,10 +19,10 @@ namespace engine {
   namespace events {
     struct OnRenderViewport {
       bool                  isMainViewport = false;
-      bfc::GraphicsDevice * pDevice   = nullptr;
-      Viewport *            pViewport = nullptr;
+      bfc::GraphicsDevice * pDevice        = nullptr;
+      Viewport *            pViewport      = nullptr;
     };
-  }
+  } // namespace events
 
   class Rendering : public Subsystem {
   public:
@@ -30,7 +30,7 @@ namespace engine {
 
     bfc::GraphicsDevice * getDevice() const;
 
-    bfc::platform::Window* getMainWindow() const;
+    bfc::platform::Window * getMainWindow() const;
 
     virtual bool init(Application * pApp) override;
 
@@ -49,6 +49,6 @@ namespace engine {
     bfc::Ref<bfc::platform::Window> m_pWindow       = nullptr;
     bfc::Ref<bfc::EventListener>    m_pListener     = nullptr;
     bfc::Ref<Viewport>              m_pMainViewport = nullptr;
-    bfc::Setting<bfc::String> m_api;
+    bfc::Setting<bfc::String>       m_api;
   };
-}
+} // namespace engine

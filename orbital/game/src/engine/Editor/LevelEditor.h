@@ -1,9 +1,9 @@
 #pragma once
 
-#include "util/Settings.h"
-#include "ui/Context.h"
-#include "Subsystem.h"
 #include "Levels/LevelComponents.h"
+#include "Subsystem.h"
+#include "ui/Context.h"
+#include "util/Settings.h"
 
 namespace bfc {
   // class EventListener;
@@ -16,6 +16,7 @@ namespace engine {
   class LevelEditorViewport;
   class LevelManager;
   class VirtualFileSystem;
+
   class LevelEditor : public Subsystem {
   public:
     struct {
@@ -57,7 +58,7 @@ namespace engine {
     };
 
     template<typename Editor, typename... Args>
-    void addComponentEditor(Args&&... args) {
+    void addComponentEditor(Args &&... args) {
       bfc::Ref<IComponentEditor> pEditor = bfc::NewRef<Editor>(std::forward<Args>(args)...);
       m_componentEditors.add(pEditor->type(), pEditor);
     }
@@ -68,7 +69,7 @@ namespace engine {
     static bool drawAssetSelector(bfc::StringView const & name, bfc::Ref<T> * ppAsset, AssetManager * pManager) {
       bfc::Ref<void> pOpaque = *ppAsset;
       bool           result  = drawAssetSelector(name, &pOpaque, bfc::TypeID<T>(), pManager);
-      *ppAsset           = std::static_pointer_cast<T>(pOpaque);
+      *ppAsset               = std::static_pointer_cast<T>(pOpaque);
       return result;
     }
 
@@ -89,8 +90,8 @@ namespace engine {
     void drawEntityComponentProperties(bfc::Ref<Level> const & pLevel, EntityID entityID);
     void drawAddComponentMenu(bfc::Ref<Level> const & pLevel, EntityID targetEntityID);
 
-    bfc::Ref<bfc::EventListener>  m_pViewportListener;
-    bfc::Ref<bfc::EventListener>  m_pAppListener;
+    bfc::Ref<bfc::EventListener> m_pViewportListener;
+    bfc::Ref<bfc::EventListener> m_pAppListener;
 
     bfc::Ref<LevelEditorViewport> m_pEditorViewport;
 
@@ -103,4 +104,4 @@ namespace engine {
     bfc::ui::Context m_uiContext;
     ImDrawData *     m_pDrawData = nullptr;
   };
-}
+} // namespace engine

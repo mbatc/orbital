@@ -368,6 +368,27 @@ namespace bfc {
     using type = arg_list<Inner...>;
   };
 
+  namespace impl {
+    template<typename Functor, typename... Args, size_t... Indices>
+    auto unpackAndInvoke(Functor && cb, std::tuple<Args...> && args, std::index_sequence<Indices...>) {
+      return cb(std::forward<Args>(std::get<Indices>(args))...);
+    }
+  } // namespace impl
+  
+  template<typename Functor, typename... Args>
+  using return_value_of_t = decltype(std::declval<Functor>()(std::declval<Args>()...));
+
+  /// Invoke a function using arguments unpacked from a tuple.
+  template<typename Functor, typename... Args>
+  auto invoke(Functor && cb, std::tuple<Args...> && args) -> return_value_of_t<Functor, Args...> {
+    return impl::unpackAndInvoke(
+      std::forward<Functor>(cb),
+      std::forward<std::tuple<Args...>>(args),
+      std::index_sequence_for<Args...>{}
+    );
+  }
+
+
   BFC_API bool assertion(char const * file, char const * function, int64_t line, bool condition, char const * expression, char const * message, ...);
   BFC_API void fail(char const * file, char const * function, int64_t line, char const * message, ...);
 }

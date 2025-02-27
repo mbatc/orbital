@@ -213,7 +213,7 @@ namespace bfc {
     }
 
     void insert(int64_t index, T&& value) {
-      insert(index, &value, &value + 1);
+      insertMove(index, &value, &value + 1);
     }
 
     void insert(int64_t index, T const& value) {
