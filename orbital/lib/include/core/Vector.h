@@ -380,6 +380,18 @@ namespace bfc {
       return ret;
     }
 
+    template<typename Callable>
+    auto map(Callable const & callback) {
+      using Item = decltype(callback(std::declval<T>()));
+
+      Vector<Item> ret;
+      ret.reserve(size());
+      for (T & item : *this) {
+        ret.pushBack(callback(item));
+      }
+      return ret;
+    }
+
     bool operator!=(Vector const &rhs) const {
       if (size() != rhs.size()) {
         return false;

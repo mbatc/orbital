@@ -44,160 +44,75 @@ namespace bfc {
   static PFNWGLCREATECONTEXTATTRIBSARBPROC glCreateContextAttribsARB = nullptr;
 
   namespace graphics {
-    GraphicsResource BufferManager_OpenGL::createBuffer(BufferUsageHint usageHint) {
-      GLBuffer newBuffer;
+    GraphicsResourceRef BufferManager_OpenGL::createBuffer(BufferUsageHint usageHint) {
+      // TODO: Custom allocator?
+      bfc::Ref<GLBuffer> newBuffer(new GLBuffer, [this](GLBuffer * pBuffer) {
+        // TODO: Queue the glID for deletion.
+        glDeleteBuffers(1, &pBuffer->glID);
+        delete pBuffer;
+      });
 
-      glGenBuffers(1, &newBuffer.glID);
-      if (newBuffer.glID == 0) {
+      glGenBuffers(1, &newBuffer->glID);
+      if (newBuffer->glID == 0) {
         // failed to create buffer
         return InvalidGraphicsResource;
       }
 
       if ((usageHint & BufferUsageHint_Dynamic) > 0)
-        newBuffer.glUsage = GL_DYNAMIC_DRAW;
+        newBuffer->glUsage = GL_DYNAMIC_DRAW;
       else
-        newBuffer.glUsage = GL_STATIC_DRAW;
+        newBuffer->glUsage = GL_STATIC_DRAW;
 
       if ((usageHint & BufferUsageHint_Uniform) > 0)
-        newBuffer.defaultTarget = GL_UNIFORM_BUFFER;
+        newBuffer->defaultTarget = GL_UNIFORM_BUFFER;
       else if ((usageHint & BufferUsageHint_Storage) > 0)
-        newBuffer.defaultTarget = GL_SHADER_STORAGE_BUFFER;
+        newBuffer->defaultTarget = GL_SHADER_STORAGE_BUFFER;
       else if ((usageHint & BufferUsageHint_Vertices) > 0 || (usageHint & BufferUsageHint_Indices) > 0)
-        newBuffer.defaultTarget = GL_ARRAY_BUFFER;
+        newBuffer->defaultTarget = GL_ARRAY_BUFFER;
       else
-        newBuffer.defaultTarget = GL_NONE;
+        newBuffer->defaultTarget = GL_NONE;
 
-      return {(uint32_t)buffers.emplace(newBuffer), GraphicsResourceType_Buffer};
+      return newBuffer;
     }
 
-    GraphicsResource BufferManager_OpenGL::refBuffer(GraphicsResource bufferID) {
-      buffers.addRef(bufferID.id);
-      return bufferID;
+    int64_t BufferManager_OpenGL::getSize(GraphicsResourceRef bufferID) {
+      BFC_RELASSERT(bufferID != nullptr, "Cannot be null");
+      BFC_RELASSERT(bufferID->type != GraphicsResourceType_Buffer, "Resource is not a buffer");
+      return ((GLBuffer *)bufferID.get())->size;
     }
 
-    void BufferManager_OpenGL::releaseBuffer(GraphicsResource * pResource) {
-      if (buffers.release(pResource->id) == 0) {
-        GLBuffer & buf = getBuffer(*pResource);
-        glDeleteBuffers(1, &buf.glID);
-        buf.glID = 0;
-        buffers.erase(pResource->id);
-      }
+    GraphicsResourceRef BufferManager_OpenGL::createVertexArray() {
+      Ref<GLVertexArray> va(new GLVertexArray, [this](GLVertexArray * pPtr) {
+        glDeleteVertexArrays(1, &pPtr->glID);
+        delete pPtr;
+      });
 
-      *pResource = InvalidGraphicsResource;
-    }
-
-    int64_t BufferManager_OpenGL::getBufferReferences(GraphicsResource bufferID) {
-      return buffers.getReferenceCount(bufferID.id);
-    }
-
-    int64_t BufferManager_OpenGL::getSize(GraphicsResource bufferID) {
-      return getBuffer(bufferID).size;
-    }
-
-    void * BufferManager_OpenGL::map(GraphicsResource bufferID, MapAccess access) {
-      GLBuffer & buf     = getBuffer(bufferID);
-      void *     pMapped = glMapNamedBuffer(buf.glID, ToGLAccess(access));
-      return pMapped;
-    }
-
-    void * BufferManager_OpenGL::map(GraphicsResource bufferID, int64_t offset, int64_t size, MapAccess access) {
-      GLBuffer & buf       = getBuffer(bufferID);
-      GLenum     bindPoint = buf.getBindTarget(false);
-      glBindBuffer(bindPoint, buf.glID);
-      void * pMapped = glMapBufferRange(bindPoint, offset, size, ToGLMapBits(access));
-      glBindBuffer(bindPoint, 0);
-      return pMapped;
-    }
-
-    void BufferManager_OpenGL::unmap(GraphicsResource bufferID) {
-      GLBuffer & buf       = getBuffer(bufferID);
-      GLenum     bindPoint = buf.getBindTarget(false);
-      glBindBuffer(bindPoint, buf.glID);
-      glUnmapBuffer(bindPoint);
-      glBindBuffer(bindPoint, 0);
-    }
-
-    bool BufferManager_OpenGL::upload(GraphicsResource bufferID, int64_t size, void const * pData) {
-      GLBuffer & buf = getBuffer(bufferID);
-      GLenum     bindPoint = buf.getBindTarget(false);
-      glBindBuffer(bindPoint, buf.glID);
-
-      if (buf.allocated < size) {
-        glBufferData(bindPoint, size, pData, buf.glUsage);
-        buf.allocated = size;
-      } else {
-        glBufferSubData(bindPoint, 0, size, pData);
-      }
-
-      buf.size = size;
-      glBindBuffer(bindPoint, 0);
-
-      return false;
-    }
-
-    int64_t BufferManager_OpenGL::download(GraphicsResource bufferID, void * pDst, int64_t offset, int64_t size) {
-      GLBuffer & buf       = getBuffer(bufferID);
-      GLenum     bindPoint = buf.getBindTarget(true);
-      glBindBuffer(bindPoint, buf.glID);
-
-      if (size == 0) {
-        size = buf.size;
-      }
-      int64_t start = offset;
-      int64_t end   = std::min(buf.size, offset + size);
-      glGetBufferSubData(bindPoint, (GLintptr)start, (GLsizeiptr)(end - start), pDst);
-      glBindBuffer(bindPoint, 0);
-      return false;
-    }
-
-    GraphicsResource BufferManager_OpenGL::createVertexArray() {
-      GLVertexArray va;
-      glGenVertexArrays(1, &va.glID);
-      if (va.glID == 0) {
+      glGenVertexArrays(1, &va->glID);
+      if (va->glID == 0) {
         // Failed to create vao
         return InvalidGraphicsResource;
       }
 
-      for (GraphicsResource & vb : va.vertexBuffers)
+      for (GraphicsResourceRef & vb : va->vertexBuffers)
         vb = InvalidGraphicsResource;
 
-      return {(uint32_t)vertexArrays.emplace(va), GraphicsResourceType_VertexArray};
+      return va;
     }
 
-    GraphicsResource BufferManager_OpenGL::refVertexArray(GraphicsResource vaID) {
-      vertexArrays.addRef(vaID.id);
-      return vaID;
-    }
-
-    void BufferManager_OpenGL::releaseVertexArray(GraphicsResource * pResource) {
-      if (vertexArrays.release(pResource->id) == 0) {
-        GLVertexArray & va = getVertexArray(*pResource);
-        glDeleteVertexArrays(1, &va.glID);
-        va.glID = 0;
-        vertexArrays.erase(pResource->id);
-      }
-
-      *pResource = InvalidGraphicsResource;
-    }
-
-    int64_t BufferManager_OpenGL::getVertexArrayReferences(GraphicsResource vaID) {
-      return vertexArrays.getReferenceCount(vaID.id);
-    }
-
-    void BufferManager_OpenGL::setLayout(GraphicsResource vaID, VertexInputLayout const & layout) {
+    void BufferManager_OpenGL::setLayout(GraphicsResourceRef vaID, VertexInputLayout const & layout) {
       GLVertexArray & va = getVertexArray(vaID);
       va.layout          = layout;
       va.rebind          = true;
     }
 
-    bool BufferManager_OpenGL::setVertexBuffer(GraphicsResource vaID, int64_t slot, GraphicsResource vertexBufferID) {
+    bool BufferManager_OpenGL::setVertexBuffer(GraphicsResourceRef vaID, int64_t slot, GraphicsResourceRef vertexBufferID) {
       GLVertexArray & va     = getVertexArray(vaID);
       va.vertexBuffers[slot] = vertexBufferID;
       va.rebind              = true;
       return true;
     }
 
-    bool BufferManager_OpenGL::setIndexBuffer(GraphicsResource vaID, GraphicsResource indexBufferID, DataType indexType) {
+    bool BufferManager_OpenGL::setIndexBuffer(GraphicsResourceRef vaID, GraphicsResourceRef indexBufferID, DataType indexType) {
       GLVertexArray & va = getVertexArray(vaID);
       va.indexBufferType = indexType;
       va.indexBuffer     = indexBufferID;
@@ -205,32 +120,36 @@ namespace bfc {
       return true;
     }
 
-    VertexInputLayout BufferManager_OpenGL::getLayout(GraphicsResource vaID) {
+    VertexInputLayout BufferManager_OpenGL::getLayout(GraphicsResourceRef vaID) {
       return getVertexArray(vaID).layout;
     }
 
-    GraphicsResource BufferManager_OpenGL::getVertexBuffer(GraphicsResource vaID, int64_t slot) {
+    GraphicsResourceRef BufferManager_OpenGL::getVertexBuffer(GraphicsResourceRef vaID, int64_t slot) {
       return getVertexArray(vaID).vertexBuffers[slot];
     }
 
-    GraphicsResource BufferManager_OpenGL::getIndexBuffer(GraphicsResource vaID) {
+    GraphicsResourceRef BufferManager_OpenGL::getIndexBuffer(GraphicsResourceRef vaID) {
       return getVertexArray(vaID).indexBuffer;
     }
 
-    DataType BufferManager_OpenGL::getIndexType(GraphicsResource vaID) {
+    DataType BufferManager_OpenGL::getIndexType(GraphicsResourceRef vaID) {
       return getVertexArray(vaID).indexBufferType;
     }
 
-    BufferManager_OpenGL::GLBuffer & BufferManager_OpenGL::getBuffer(GraphicsResource bufferID) {
-      return buffers[bufferID.id];
+    BufferManager_OpenGL::GLBuffer & BufferManager_OpenGL::getBuffer(GraphicsResourceRef bufferID) {
+      return *(BufferManager_OpenGL::GLBuffer *)bufferID.get();
     }
-    BufferManager_OpenGL::GLVertexArray & BufferManager_OpenGL::getVertexArray(GraphicsResource bufferID) {
-      return vertexArrays[bufferID.id];
+    BufferManager_OpenGL::GLVertexArray & BufferManager_OpenGL::getVertexArray(GraphicsResourceRef bufferID) {
+      return *(BufferManager_OpenGL::GLVertexArray *)bufferID.get();
     }
 
-    GraphicsResource TextureManager_OpenGL::createTexture(TextureType type) {
-      GLTexture newTexture;
-      newTexture.type = type;
+    GraphicsResourceRef TextureManager_OpenGL::createTexture(TextureType type) {
+      Ref<GLTexture> newTexture(new GLTexture, [](GLTexture * pPtr) {
+        glDeleteTextures(1, &pPtr->glID);
+        delete pPtr;
+      });
+
+      newTexture->type = type;
       GLenum target   = ToGLTextureType(type);
 
       if (target == GL_NONE) {
@@ -238,14 +157,14 @@ namespace bfc {
         return InvalidGraphicsResource;
       }
 
-      glGenTextures(1, &newTexture.glID);
+      glGenTextures(1, &newTexture->glID);
 
-      if (newTexture.glID == 0) {
+      if (newTexture->glID == 0) {
         // Failed to create texture
         return InvalidGraphicsResource;
       }
 
-      glBindTexture(target, newTexture.glID);
+      glBindTexture(target, newTexture->glID);
 
       glTexParameteri(target, GL_TEXTURE_WRAP_S, GL_REPEAT);
       glTexParameteri(target, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -254,185 +173,50 @@ namespace bfc {
 
       glBindTexture(target, 0);
 
-      return {(uint32_t)textures.emplace(newTexture), GraphicsResourceType_Texture};
+      return newTexture;
     }
 
-    GraphicsResource TextureManager_OpenGL::refTexture(GraphicsResource textureID) {
-      textures.addRef(textureID.id);
-      return textureID;
-    }
-
-    void TextureManager_OpenGL::releaseTexture(GraphicsResource * pResource) {
-      if (textures.release(pResource->id) == 0) {
-        GLTexture & tex = getTexture(*pResource);
-        glDeleteTextures(1, &tex.glID);
-        tex.glID = 0;
-        textures.erase(pResource->id);
-      }
-
-      *pResource = InvalidGraphicsResource;
-    }
-
-    int64_t TextureManager_OpenGL::getTextureReferences(GraphicsResource textureID) {
-      return textures.getReferenceCount(textureID.id);
-    }
-
-    TextureType TextureManager_OpenGL::getType(GraphicsResource textureID) {
+    TextureType TextureManager_OpenGL::getType(GraphicsResourceRef textureID) {
       return getTexture(textureID).type;
     }
 
-    bool TextureManager_OpenGL::isDepthTexture(GraphicsResource textureID) {
+    bool TextureManager_OpenGL::isDepthTexture(GraphicsResourceRef textureID) {
       return getTexture(textureID).depthStencilFmt != DepthStencilFormat_None;
     }
 
-    DepthStencilFormat TextureManager_OpenGL::getDepthStencilFormat(GraphicsResource textureID) {
+    DepthStencilFormat TextureManager_OpenGL::getDepthStencilFormat(GraphicsResourceRef textureID) {
       return getTexture(textureID).depthStencilFmt;
     }
 
-    PixelFormat TextureManager_OpenGL::getColourFormat(GraphicsResource textureID) {
+    PixelFormat TextureManager_OpenGL::getColourFormat(GraphicsResourceRef textureID) {
       return getTexture(textureID).format;
     }
 
-    Vec3i TextureManager_OpenGL::getSize(GraphicsResource textureID, int64_t mipLevel) {
+    Vec3i TextureManager_OpenGL::getSize(GraphicsResourceRef textureID, int64_t mipLevel) {
       Vec3i size = getTexture(textureID).size;
       size /= (1 << (int32_t)mipLevel);
       return {std::max(1, size.x), std::max(1, size.y), std::max(1, size.z)};
     }
 
-    bool TextureManager_OpenGL::upload(GraphicsResource textureID, DepthStencilFormat format, Vec3i size) {
-      GLTexture & tex = getTexture(textureID);
+    GraphicsResourceRef TextureManager_OpenGL::createSampler() {
+      Ref<GLSampler> newSampler(new GLSampler, [](GLSampler * pPtr) {
+        glDeleteSamplers(1, &pPtr->glID);
+        delete pPtr;
+      });
 
-      GLenum glFormat         = ToGLFormat(format);
-      GLenum glType           = ToGLType(format);
-      GLenum glInternalFormat = ToGLInternalFormat(format);
-      GLenum glTarget         = ToGLTextureType(tex.type);
+      glCreateSamplers(1, &newSampler->glID);
+      glSamplerParameteri(newSampler->glID, GL_TEXTURE_MIN_FILTER, ToGLFilterMode(newSampler->minFilter, newSampler->minMipFilter));
+      glSamplerParameteri(newSampler->glID, GL_TEXTURE_MAG_FILTER, ToGLFilterMode(newSampler->magFilter, newSampler->magMipFilter));
+      glSamplerParameterf(newSampler->glID, GL_TEXTURE_MIN_LOD, newSampler->minLOD);
+      glSamplerParameterf(newSampler->glID, GL_TEXTURE_MAX_LOD, newSampler->maxLOD);
+      glSamplerParameteri(newSampler->glID, GL_TEXTURE_WRAP_S, ToGLWrapMode(newSampler->wrapMode.x));
+      glSamplerParameteri(newSampler->glID, GL_TEXTURE_WRAP_T, ToGLWrapMode(newSampler->wrapMode.y));
+      glSamplerParameteri(newSampler->glID, GL_TEXTURE_WRAP_R, ToGLWrapMode(newSampler->wrapMode.z));
 
-      glBindTexture(glTarget, tex.glID);
-
-      switch (tex.type) {
-      case TextureType_2D: glTexImage2D(glTarget, 0, glInternalFormat, size.x, size.y, GL_NONE, glFormat, glType, nullptr); break;
-      case TextureType_2DArray: // Fall-through
-      case TextureType_3D: glTexImage3D(glTarget, 0, glInternalFormat, size.x, size.y, size.z, GL_NONE, glFormat, glType, nullptr); break;
-      case TextureType_CubeMap:
-        BFC_ASSERT(size.z == 6, "A cubemap must have a depth of 6.");
-        break;
-      }
-
-      glBindTexture(glTarget, 0);
-
-      tex.depthStencilFmt = format;
-      tex.format          = PixelFormat_Unknown;
-      tex.size            = size;
-
-      return true;
+      return newSampler;
     }
 
-    bool TextureManager_OpenGL::upload(GraphicsResource textureID, media::Surface const & src) {
-      GLTexture & tex = getTexture(textureID);
-
-      GLenum glFormat         = ToGLFormat(src.format);
-      GLenum glType           = ToGLType(src.format);
-      GLenum glInternalFormat = ToGLInternalFormat(src.format);
-      GLenum glTarget         = ToGLTextureType(tex.type);
-      glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-      glBindTexture(glTarget, tex.glID);
-      switch (tex.type) {
-      case TextureType_2D:      glTexImage2D(glTarget, 0, glInternalFormat, src.size.x, src.size.y, GL_NONE, glFormat, glType, src.pBuffer); break;
-      case TextureType_2DArray: // Fall-through
-      case TextureType_3D:      glTexImage3D(glTarget, 0, glInternalFormat, src.size.x, src.size.y, src.size.z, GL_NONE, glFormat, glType, src.pBuffer); break;
-      case TextureType_CubeMap:
-        BFC_ASSERT(src.size.z == 6, "A cubemap must have a depth of 6.");
-        for (int64_t i = 0; i < src.size.z; ++i) {
-          void * pPixels = getSurfacePixel(src, {0, 0, i});
-          glTexImage2D(ToGLCubeMapFace((CubeMapFace)i), 0, glInternalFormat, src.size.x, src.size.y, GL_NONE, glFormat, glType, pPixels);
-        }
-        break;
-      }
-      glBindTexture(glTarget, 0);
-      
-      if (src.pBuffer != nullptr) {
-        generateMipMaps(textureID);
-      }
-
-      tex.depthStencilFmt = DepthStencilFormat_Unknown;
-      tex.format          = src.format;
-      tex.size            = src.size;
-
-      return true;
-    }
-
-    bool TextureManager_OpenGL::uploadSubData(GraphicsResource textureID, media::Surface const & src, Vec3i offset) {
-      GLTexture & tex = getTexture(textureID);
-
-      GLenum glFormat = ToGLFormat(src.format);
-      GLenum glType   = ToGLType(src.format);
-      GLenum glTarget = ToGLTextureType(tex.type);
-
-      glBindTexture(glTarget, tex.glID);
-      switch (tex.type) {
-      case TextureType_2D: glTexSubImage2D(glTarget, 0, offset.x, offset.y, src.size.x, src.size.y, glFormat, glType, src.pBuffer); break;
-      case TextureType_3D: glTexSubImage3D(glTarget, 0, offset.x, offset.y, offset.z, src.size.x, src.size.y, src.size.z, glFormat, glType, src.pBuffer); break;
-      case TextureType_CubeMap: break;
-      }
-      glBindTexture(glTarget, 0);
-      return true;
-    }
-
-    void TextureManager_OpenGL::generateMipMaps(GraphicsResource textureID) {
-      GLTexture & tex = getTexture(textureID);
-      if (glGenerateTextureMipmap != 0 && glTextureParameteri != 0) { // Use 'named' function if available
-        glGenerateTextureMipmap(tex.glID);
-        glTextureParameteri(tex.glID, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glTextureParameteri(tex.glID, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-      } else {
-        GLenum texTarget = ToGLTextureType(tex.type);
-        glBindTexture(texTarget, tex.glID);
-        glGenerateMipmap(texTarget);
-        glTexParameteri(texTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glTexParameteri(texTarget, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glBindTexture(texTarget, 0);
-      }
-    }
-
-    bool TextureManager_OpenGL::download(GraphicsResource textureID, media::Surface * pDest) {
-      return false;
-    }
-
-    GraphicsResource TextureManager_OpenGL::createSampler() {
-      GLSampler newSampler;
-
-      glCreateSamplers(1, &newSampler.glID);
-      glSamplerParameteri(newSampler.glID, GL_TEXTURE_MIN_FILTER, ToGLFilterMode(newSampler.minFilter, newSampler.minMipFilter));
-      glSamplerParameteri(newSampler.glID, GL_TEXTURE_MAG_FILTER, ToGLFilterMode(newSampler.magFilter, newSampler.magMipFilter));
-      glSamplerParameterf(newSampler.glID, GL_TEXTURE_MIN_LOD, newSampler.minLOD);
-      glSamplerParameterf(newSampler.glID, GL_TEXTURE_MAX_LOD, newSampler.maxLOD);
-      glSamplerParameteri(newSampler.glID, GL_TEXTURE_WRAP_S, ToGLWrapMode(newSampler.wrapMode.x));
-      glSamplerParameteri(newSampler.glID, GL_TEXTURE_WRAP_T, ToGLWrapMode(newSampler.wrapMode.y));
-      glSamplerParameteri(newSampler.glID, GL_TEXTURE_WRAP_R, ToGLWrapMode(newSampler.wrapMode.z));
-
-      return {(uint32_t)samplers.emplace(newSampler), GraphicsResourceType_Sampler};
-    }
-
-    GraphicsResource TextureManager_OpenGL::refSampler(GraphicsResource samplerID) {
-      samplers.addRef(samplerID.id);
-      return samplerID;
-    }
-
-    void TextureManager_OpenGL::releaseSampler(GraphicsResource * pResource) {
-      if (samplers.release(pResource->id) == 0) {
-        GLSampler & sampler = getSampler(*pResource);
-        glDeleteSamplers(1, &sampler.glID);
-        samplers.erase(pResource->id);
-      }
-
-      *pResource = InvalidGraphicsResource;
-    }
-
-    int64_t TextureManager_OpenGL::getSamplerReferences(GraphicsResource samplerID) {
-      return samplers.getReferenceCount(samplerID.id);
-    }
-
-    void TextureManager_OpenGL::setSamplerMinFilter(GraphicsResource samplerID, FilterMode filter, FilterMode mipFilter) {
+    void TextureManager_OpenGL::setSamplerMinFilter(GraphicsResourceRef samplerID, FilterMode filter, FilterMode mipFilter) {
       GLSampler & sampler = getSampler(samplerID);
       if (sampler.minFilter != filter || sampler.minMipFilter != mipFilter) {
         glSamplerParameteri(sampler.glID, GL_TEXTURE_MIN_FILTER, ToGLFilterMode(filter, mipFilter));
@@ -442,7 +226,7 @@ namespace bfc {
       sampler.minMipFilter = mipFilter;
     }
 
-    void TextureManager_OpenGL::setSamplerMagFilter(GraphicsResource samplerID, FilterMode filter, FilterMode mipFilter) {
+    void TextureManager_OpenGL::setSamplerMagFilter(GraphicsResourceRef samplerID, FilterMode filter, FilterMode mipFilter) {
       GLSampler & sampler = getSampler(samplerID);
       if (sampler.magFilter != filter || sampler.magMipFilter != mipFilter) {
         glSamplerParameteri(sampler.glID, GL_TEXTURE_MAG_FILTER, ToGLFilterMode(filter, mipFilter));
@@ -452,7 +236,7 @@ namespace bfc {
       sampler.magMipFilter = mipFilter;
     }
 
-    void TextureManager_OpenGL::setSamplerMinLOD(GraphicsResource samplerID, float level) {
+    void TextureManager_OpenGL::setSamplerMinLOD(GraphicsResourceRef samplerID, float level) {
       GLSampler & sampler = getSampler(samplerID);
       if (sampler.minLOD != level) {
         glSamplerParameterf(sampler.glID, GL_TEXTURE_MIN_LOD, level);
@@ -460,7 +244,7 @@ namespace bfc {
       sampler.minLOD = level;
     }
 
-    void TextureManager_OpenGL::setSamplerMaxLOD(GraphicsResource samplerID, float level) {
+    void TextureManager_OpenGL::setSamplerMaxLOD(GraphicsResourceRef samplerID, float level) {
       GLSampler & sampler = getSampler(samplerID);
       if (sampler.minLOD != level) {
         glSamplerParameterf(sampler.glID, GL_TEXTURE_MAX_LOD, level);
@@ -468,7 +252,7 @@ namespace bfc {
       sampler.minLOD = level;
     }
 
-    void TextureManager_OpenGL::setSamplerWrapU(GraphicsResource samplerID, WrapMode mode) {
+    void TextureManager_OpenGL::setSamplerWrapU(GraphicsResourceRef samplerID, WrapMode mode) {
       GLSampler & sampler = getSampler(samplerID);
       if (sampler.wrapMode.x != mode) {
         glSamplerParameteri(sampler.glID, GL_TEXTURE_WRAP_S, ToGLWrapMode(mode));
@@ -476,7 +260,7 @@ namespace bfc {
       sampler.wrapMode.x  = mode;
     }
 
-    void TextureManager_OpenGL::setSamplerWrapV(GraphicsResource samplerID, WrapMode mode) {
+    void TextureManager_OpenGL::setSamplerWrapV(GraphicsResourceRef samplerID, WrapMode mode) {
       GLSampler & sampler = getSampler(samplerID);
       if (sampler.wrapMode.y != mode) {
         glSamplerParameteri(sampler.glID, GL_TEXTURE_WRAP_T, ToGLWrapMode(mode));
@@ -484,7 +268,7 @@ namespace bfc {
       sampler.wrapMode.y  = mode;
     }
 
-    void TextureManager_OpenGL::setSamplerWrapW(GraphicsResource samplerID, WrapMode mode) {
+    void TextureManager_OpenGL::setSamplerWrapW(GraphicsResourceRef samplerID, WrapMode mode) {
       GLSampler & sampler = getSampler(samplerID);
       if (sampler.wrapMode.z != mode) {
         glSamplerParameteri(sampler.glID, GL_TEXTURE_WRAP_R, ToGLWrapMode(mode));
@@ -492,70 +276,54 @@ namespace bfc {
       sampler.wrapMode.z    = mode;
     }
 
-    TextureManager_OpenGL::GLTexture & TextureManager_OpenGL::getTexture(GraphicsResource textureID) {
-      return textures[textureID.id];
+    TextureManager_OpenGL::GLTexture & TextureManager_OpenGL::getTexture(GraphicsResourceRef textureID) {
+      return *(TextureManager_OpenGL::GLTexture*)textureID.get();
     }
 
-    TextureManager_OpenGL::GLSampler & TextureManager_OpenGL::getSampler(GraphicsResource samplerID) {
-      return samplers[samplerID.id];
+    TextureManager_OpenGL::GLSampler & TextureManager_OpenGL::getSampler(GraphicsResourceRef samplerID) {
+      return *(TextureManager_OpenGL::GLSampler *)samplerID.get();
     }
 
-    GraphicsResource ShaderManager_OpenGL::createShader(ShaderType type) {
-      GLShader newShader;
-      GLenum   glType = ToGLShaderType(type);
+    GraphicsResourceRef ShaderManager_OpenGL::createShader(ShaderType type) {
+      Ref<GLShader> newShader(new GLShader, [](GLShader * pPtr) {
+        glDeleteShader(pPtr->glID);
+        delete pPtr;
+      });
+
+      GLenum glType = ToGLShaderType(type);
 
       if (glType == GL_NONE) {
         // Invalid shader type
         return InvalidGraphicsResource;
       }
-      newShader.type = type;
-      newShader.glID = glCreateShader(glType);
+      newShader->type = type;
+      newShader->glID = glCreateShader(glType);
 
-      if (newShader.glID == 0) {
+      if (newShader->glID == 0) {
         // Failed to create shader, maybe invalid shader type
         return InvalidGraphicsResource;
       }
 
-      return {(uint32_t)shaders.emplace(newShader), GraphicsResourceType_Shader};
+      return newShader;
     }
 
-    GraphicsResource ShaderManager_OpenGL::refShader(GraphicsResource shaderID) {
-      shaders.addRef(shaderID.id);
-      return shaderID;
-    }
-
-    void ShaderManager_OpenGL::releaseShader(GraphicsResource * pShaderID) {
-      if (shaders.release(pShaderID->id) == 0) {
-        GLShader & shader = getShader(*pShaderID);
-        glDeleteShader(shader.glID);
-        shader.glID = 0;
-        shaders.erase(pShaderID->id);
-      }
-
-      *pShaderID = InvalidGraphicsResource;
-    }
-
-    int64_t ShaderManager_OpenGL::getShaderReferences(GraphicsResource shaderID) {
-      return shaders.getReferenceCount(shaderID.id);
-    }
-
-    ShaderType ShaderManager_OpenGL::getType(GraphicsResource shaderID) {
+    ShaderType ShaderManager_OpenGL::getType(GraphicsResourceRef shaderID) {
       return getShader(shaderID).type;
     }
 
-    void ShaderManager_OpenGL::setSource(GraphicsResource shaderID, StringView src) {
+    void ShaderManager_OpenGL::setSource(GraphicsResourceRef shaderID, StringView src) {
       GLShader & shader = getShader(shaderID);
       shader.source     = src;
       shader.file       = "";
     }
 
-    void ShaderManager_OpenGL::setFile(GraphicsResource shaderID, StringView path) {
+    void ShaderManager_OpenGL::setFile(GraphicsResourceRef shaderID, StringView path) {
       GLShader & shader = getShader(shaderID);
       shader.file       = path;
       shader.source     = "";
     }
 
-    bool ShaderManager_OpenGL::compile(GraphicsResource shaderID, String * pError) {
+    bool ShaderManager_OpenGL::compile(GraphicsResourceRef shaderID, String * pError) {
       GLShader & shader = getShader(shaderID);
 
       if (shader.file.length() > 0) {
@@ -596,63 +364,34 @@ namespace bfc {
       return true;
     }
 
-    GraphicsResource ShaderManager_OpenGL::createProgram() {
-      GLProgram newProgram;
-      newProgram.glID = glCreateProgram();
-      for (GraphicsResource & shaderID : newProgram.shaders) {
+    GraphicsResourceRef ShaderManager_OpenGL::createProgram() {
+      Ref<GLProgram> newProgram(new GLProgram, [](GLProgram * pPtr) {
+        glDeleteProgram(pPtr->glID);
+        delete pPtr;
+      });
+
+      newProgram->glID = glCreateProgram();
+      for (GraphicsResourceRef & shaderID : newProgram->shaders) {
         shaderID = InvalidGraphicsResource;
       }
 
-      return {(uint32_t)programs.emplace(newProgram), GraphicsResourceType_Program};
+      return newProgram;
     }
 
-    GraphicsResource ShaderManager_OpenGL::refProgram(GraphicsResource programID) {
-      programs.addRef(programID.id);
-      return programID;
-    }
-
-    void ShaderManager_OpenGL::releaseProgram(GraphicsResource * pResource) {
-      if (programs.release(pResource->id) == 0) {
-        GLProgram & prog = getProgram(*pResource);
-        glDeleteProgram(prog.glID);
-        prog.glID = 0;
-        for (GraphicsResource & resource : prog.shaders) {
-          if (resource != InvalidGraphicsResource) {
-            releaseShader(&resource);
-          }
-        }
-        programs.erase(pResource->id);
-      }
-
-      *pResource = InvalidGraphicsResource;
-    }
-
-    int64_t ShaderManager_OpenGL::getProgramReferences(GraphicsResource programID) {
-      return programs.getReferenceCount(programID.id);
-    }
-
-    void ShaderManager_OpenGL::addShader(GraphicsResource programID, GraphicsResource shaderID) {
+    void ShaderManager_OpenGL::addShader(GraphicsResourceRef programID, GraphicsResourceRef shaderID) {
       GLProgram & prog   = getProgram(programID);
       GLShader &  shader = getShader(shaderID);
-
-      if (shaderID != InvalidGraphicsResource) {
-        refShader(shaderID);
-      }
-
-      if (prog.shaders[shader.type] != InvalidGraphicsResource) {
-        releaseShader(&prog.shaders[shader.type]);
-      }
 
       prog.shaders[shader.type] = shaderID;
     }
 
-    GraphicsResource ShaderManager_OpenGL::getShader(GraphicsResource programID, ShaderType shaderType) {
+    GraphicsResourceRef ShaderManager_OpenGL::getShader(GraphicsResourceRef programID, ShaderType shaderType) {
       return getProgram(programID).shaders[shaderType];
     }
 
-    bool ShaderManager_OpenGL::linkProgram(GraphicsResource programID, String * pError) {
+    bool ShaderManager_OpenGL::linkProgram(GraphicsResourceRef programID, String * pError) {
       GLProgram & prog = getProgram(programID);
-      for (GraphicsResource & shaderID : prog.shaders) {
+      for (GraphicsResourceRef & shaderID : prog.shaders) {
         if (shaderID != InvalidGraphicsResource) {
           glAttachShader(prog.glID, getShader(shaderID).glID);
         }
@@ -675,7 +414,7 @@ namespace bfc {
         }
       }
 
-      for (GraphicsResource & shaderID : prog.shaders) {
+      for (GraphicsResourceRef & shaderID : prog.shaders) {
         if (shaderID != InvalidGraphicsResource) {
           glDetachShader(prog.glID, getShader(shaderID).glID);
         }
@@ -687,7 +426,7 @@ namespace bfc {
       return status == GL_TRUE;
     }
 
-    void ShaderManager_OpenGL::setUniform(GraphicsResource programID, int64_t uniformIndex, void const * pBuffer) {
+    void ShaderManager_OpenGL::setUniform(GraphicsResourceRef programID, int64_t uniformIndex, void const * pBuffer) {
       float *    f32  = (float *)pBuffer;
       int32_t *  i32  = (int32_t *)pBuffer;
       uint32_t * ui32 = (uint32_t *)pBuffer;
@@ -762,7 +501,7 @@ namespace bfc {
       }
     }
 
-    void ShaderManager_OpenGL::setBufferBinding(GraphicsResource programID, int64_t bufferIndex, int64_t bindPoint) {
+    void ShaderManager_OpenGL::setBufferBinding(GraphicsResourceRef programID, int64_t bufferIndex, int64_t bindPoint) {
       GLProgram & prog       = getProgram(programID);
       Buffer &    bufferDesc = prog.buffers[bufferIndex];
 
@@ -775,7 +514,7 @@ namespace bfc {
       }
     }
 
-    void ShaderManager_OpenGL::setTextureBinding(GraphicsResource programID, int64_t textureIndex, int64_t bindPoint) {
+    void ShaderManager_OpenGL::setTextureBinding(GraphicsResourceRef programID, int64_t textureIndex, int64_t bindPoint) {
       GLProgram & prog        = getProgram(programID);
       Texture &   textureDesc = prog.textures[textureIndex];
 
@@ -785,7 +524,7 @@ namespace bfc {
       }
     }
 
-    void ShaderManager_OpenGL::getUniform(GraphicsResource programID, int64_t uniformIndex, void * pBuffer, ProgramUniformDesc * pDesc) {
+    void ShaderManager_OpenGL::getUniform(GraphicsResourceRef programID, int64_t uniformIndex, void * pBuffer, ProgramUniformDesc * pDesc) {
       GLProgram & prog        = getProgram(programID);
       Uniform &   uniformDesc = prog.uniforms[uniformIndex];
 
@@ -802,31 +541,31 @@ namespace bfc {
       }
     }
 
-    int64_t ShaderManager_OpenGL::getBufferBinding(GraphicsResource programID, int64_t bufferIndex) {
+    int64_t ShaderManager_OpenGL::getBufferBinding(GraphicsResourceRef programID, int64_t bufferIndex) {
       return getProgram(programID).buffers[bufferIndex].bindPoint;
     }
 
-    int64_t ShaderManager_OpenGL::getTextureBinding(GraphicsResource programID, int64_t textureIndex) {
+    int64_t ShaderManager_OpenGL::getTextureBinding(GraphicsResourceRef programID, int64_t textureIndex) {
       return getProgram(programID).textures[textureIndex].bindPoint;
     }
 
-    int64_t ShaderManager_OpenGL::getAttributeCount(GraphicsResource programID) {
+    int64_t ShaderManager_OpenGL::getAttributeCount(GraphicsResourceRef programID) {
       return getProgram(programID).attributes.size();
     }
 
-    int64_t ShaderManager_OpenGL::getUniformCount(GraphicsResource programID) {
+    int64_t ShaderManager_OpenGL::getUniformCount(GraphicsResourceRef programID) {
       return getProgram(programID).uniforms.size();
     }
 
-    int64_t ShaderManager_OpenGL::getBufferCount(GraphicsResource programID) {
+    int64_t ShaderManager_OpenGL::getBufferCount(GraphicsResourceRef programID) {
       return getProgram(programID).buffers.size();
     }
 
-    int64_t ShaderManager_OpenGL::getTextureCount(GraphicsResource programID) {
+    int64_t ShaderManager_OpenGL::getTextureCount(GraphicsResourceRef programID) {
       return getProgram(programID).textures.size();
     }
 
-    void ShaderManager_OpenGL::getAttributeDesc(GraphicsResource programID, int64_t attributeIndex, ProgramAttributeDesc * pDesc) {
+    void ShaderManager_OpenGL::getAttributeDesc(GraphicsResourceRef programID, int64_t attributeIndex, ProgramAttributeDesc * pDesc) {
       Attribute & attributeDesc = getProgram(programID).attributes[attributeIndex];
       pDesc->name               = attributeDesc.name;
       pDesc->cls                = attributeDesc.cls;
@@ -835,7 +574,7 @@ namespace bfc {
       pDesc->height             = attributeDesc.height;
     }
 
-    void ShaderManager_OpenGL::getUniformDesc(GraphicsResource programID, int64_t uniformIndex, ProgramUniformDesc * pDesc) {
+    void ShaderManager_OpenGL::getUniformDesc(GraphicsResourceRef programID, int64_t uniformIndex, ProgramUniformDesc * pDesc) {
       Uniform & uniformDesc = getProgram(programID).uniforms[uniformIndex];
       pDesc->name           = uniformDesc.name;
       pDesc->cls            = uniformDesc.cls;
@@ -844,13 +583,13 @@ namespace bfc {
       pDesc->height         = uniformDesc.height;
     }
 
-    void ShaderManager_OpenGL::getTextureDesc(GraphicsResource programID, int64_t textureIndex, ProgramTextureDesc * pDesc) {
+    void ShaderManager_OpenGL::getTextureDesc(GraphicsResourceRef programID, int64_t textureIndex, ProgramTextureDesc * pDesc) {
       Texture & textureDesc = getProgram(programID).textures[textureIndex];
       pDesc->name           = textureDesc.name;
       pDesc->type           = textureDesc.type;
     }
 
-    void ShaderManager_OpenGL::getBufferDesc(GraphicsResource programID, int64_t bufferIndex, ProgramBufferDesc * pDesc) {
+    void ShaderManager_OpenGL::getBufferDesc(GraphicsResourceRef programID, int64_t bufferIndex, ProgramBufferDesc * pDesc) {
       Buffer & bufferDesc = getProgram(programID).buffers[bufferIndex];
       pDesc->name         = bufferDesc.name;
       pDesc->size         = bufferDesc.size;
@@ -963,48 +702,39 @@ namespace bfc {
       }
     }
 
-    ShaderManager_OpenGL::GLShader & ShaderManager_OpenGL::getShader(GraphicsResource shaderID) {
-      return shaders[shaderID.id];
+    ShaderManager_OpenGL::GLShader & ShaderManager_OpenGL::getShader(GraphicsResourceRef shaderID) {
+      return *(ShaderManager_OpenGL::GLShader *)shaderID.get();
     }
 
-    ShaderManager_OpenGL::GLProgram & ShaderManager_OpenGL::getProgram(GraphicsResource programID) {
-      return programs[programID.id];
+    ShaderManager_OpenGL::GLProgram & ShaderManager_OpenGL::getProgram(GraphicsResourceRef programID) {
+      return *(ShaderManager_OpenGL::GLProgram *)programID.get();
     }
 
     RenderTargetManager_OpenGL::RenderTargetManager_OpenGL(TextureManager * pTextures)
       : m_pTextures(pTextures) {}
 
-    GraphicsResource RenderTargetManager_OpenGL::createRenderTarget(RenderTargetType type) {
-      GLRenderTarget target;
+    GraphicsResourceRef RenderTargetManager_OpenGL::createRenderTarget(RenderTargetType type) {
+      Ref<GLRenderTarget> target(new GLRenderTarget, [this](GLRenderTarget * pPtr) {
+        if (pPtr->type == RenderTargetType_Texture) {
+          glDeleteFramebuffers(1, &pPtr->textures.glID);
+        }
+        delete pPtr;
+      });
 
       if (type == RenderTargetType_Texture) {
-        glGenFramebuffers(1, &target.textures.glID);
+        glGenFramebuffers(1, &target->textures.glID);
       }
 
-      target.type = type;
+      target->type = type;
 
-      return {(uint32_t)renderTargets.emplace(target), GraphicsResourceType_RenderTarget};
+      return target;
     }
 
-    GraphicsResource RenderTargetManager_OpenGL::refRenderTarget(GraphicsResource renderTargetID) {
-      renderTargets.addRef(renderTargetID.id);
-      return renderTargetID;
-    }
-
-    void RenderTargetManager_OpenGL::releaseRenderTarget(GraphicsResource * pResource) {
-      if (renderTargets.release(pResource->id) == 0) {
-        GLRenderTarget & rt = getRenderTarget(*pResource);
-        glDeleteFramebuffers(1, &rt.textures.glID);
-        renderTargets.erase(pResource->id);
-      }
-      *pResource = InvalidGraphicsResource;
-    }
-
-    RenderTargetType RenderTargetManager_OpenGL::getType(GraphicsResource renderTargetID) {
+    RenderTargetType RenderTargetManager_OpenGL::getType(GraphicsResourceRef renderTargetID) {
       return getRenderTarget(renderTargetID).type;
     }
 
-    Vec2i RenderTargetManager_OpenGL::getSize(GraphicsResource renderTargetID) {
+    Vec2i RenderTargetManager_OpenGL::getSize(GraphicsResourceRef renderTargetID) {
       GLRenderTarget & rt = getRenderTarget(renderTargetID);
       switch (rt.type) {
       case RenderTargetType_Texture:
@@ -1028,7 +758,7 @@ namespace bfc {
       return Vec2i(0);
     }
 
-    bool RenderTargetManager_OpenGL::attachWindow(GraphicsResource renderTargetID, platform::Window * pWindow, DepthStencilFormat depthStencilFormat) {
+    bool RenderTargetManager_OpenGL::attachWindow(GraphicsResourceRef renderTargetID, platform::Window * pWindow, DepthStencilFormat depthStencilFormat) {
       GLRenderTarget & rt   = getRenderTarget(renderTargetID);
       rt.window.hWnd        = (HWND)pWindow->getPlatformHandle();
       rt.window.hDC         = GetDC(rt.window.hWnd);
@@ -1068,7 +798,7 @@ namespace bfc {
       return SetPixelFormat(rt.window.hDC, pixelFormat, &pfd);
     }
 
-    void RenderTargetManager_OpenGL::attachColour(GraphicsResource renderTargetID, GraphicsResource textureID, int64_t slot, int64_t mipLevel, int64_t layer) {
+    void RenderTargetManager_OpenGL::attachColour(GraphicsResourceRef renderTargetID, GraphicsResourceRef textureID, int64_t slot, int64_t mipLevel, int64_t layer) {
       GLRenderTarget & rt      = getRenderTarget(renderTargetID);
       bool             changed = false;
       changed |= rt.textures.colour[slot].texture != textureID;
@@ -1080,7 +810,7 @@ namespace bfc {
       rt.textures.rebind |= changed;
     }
 
-    void RenderTargetManager_OpenGL::attachDepth(GraphicsResource renderTargetID, GraphicsResource textureID, int64_t mipLevel, int64_t layer) {
+    void RenderTargetManager_OpenGL::attachDepth(GraphicsResourceRef renderTargetID, GraphicsResourceRef textureID, int64_t mipLevel, int64_t layer) {
       GLRenderTarget & rt      = getRenderTarget(renderTargetID);
       bool             changed = false;
       changed |= rt.textures.depth.texture != textureID;
@@ -1092,7 +822,7 @@ namespace bfc {
       rt.textures.rebind |= changed;
     }
 
-    void RenderTargetManager_OpenGL::setReadAttachment(GraphicsResource renderTargetID, int64_t slot) {
+    void RenderTargetManager_OpenGL::setReadAttachment(GraphicsResourceRef renderTargetID, int64_t slot) {
       GLRenderTarget & rt      = getRenderTarget(renderTargetID);
       bool             changed = false;
       changed |= rt.textures.colourReadAttachment != slot;
@@ -1100,12 +830,8 @@ namespace bfc {
       rt.textures.rebind               = changed;
     }
 
-    int64_t RenderTargetManager_OpenGL::getRenderTargetReferences(GraphicsResource renderTargetID) {
-      return renderTargets.getReferenceCount(renderTargetID.id);
-    }
-
-    RenderTargetManager_OpenGL::GLRenderTarget & RenderTargetManager_OpenGL::getRenderTarget(GraphicsResource renderTargetID) {
-      return renderTargets[renderTargetID.id];
+    RenderTargetManager_OpenGL::GLRenderTarget & RenderTargetManager_OpenGL::getRenderTarget(GraphicsResourceRef renderTargetID) {
+      return *(RenderTargetManager_OpenGL::GLRenderTarget *)renderTargetID.get();
     }
 
     void StateManager_OpenGL::setFeatureEnabled(GraphicsState state, bool enabled) {
@@ -1179,12 +905,543 @@ namespace bfc {
     void StateManager_OpenGL::setColourFactor(float red, float green, float blue, float alpha) {
       glBlendColor(red, green, blue, alpha);
     }
+
     GLenum BufferManager_OpenGL::GLBuffer::getBindTarget(bool read) const {
       if (defaultTarget != GL_NONE)
         return defaultTarget;
       else
         return read ? GL_COPY_READ_BUFFER : GL_COPY_WRITE_BUFFER;
     }
+
+    void CommandList_OpenGL::bindProgram(GraphicsResourceRef programID) {
+      if (programID == InvalidGraphicsResource) {
+        glUseProgram(0);
+      } else {
+        BFC_ASSERT(programID.type == GraphicsResourceType_Program, "resource id is not a Program.");
+        glUseProgram(m_shaders.getProgram(programID).glID);
+      }
+    }
+
+    void CommandList_OpenGL::bindVertexArray(GraphicsResourceRef vertexArrayID) {
+      if (vertexArrayID == InvalidGraphicsResource) {
+        m_indexCount  = -1;
+        m_vertexCount = -1;
+        glBindVertexArray(m_emptyVertexArray);
+        return;
+      }
+
+      BFC_ASSERT(vertexArrayID.type == GraphicsResourceType_VertexArray, "resource id is not a Vertex Array.");
+
+      graphics::BufferManager_OpenGL::GLVertexArray & va = m_buffers.getVertexArray(vertexArrayID);
+      glBindVertexArray(va.glID);
+
+      if (va.rebind) {
+        for (int64_t slot : va.activeSlots) {
+          glDisableVertexAttribArray((GLuint)slot);
+        }
+
+        va.activeSlots.clear();
+        int64_t numElements = va.layout.getAttributeCount();
+        for (int64_t i = 0; i < numElements; ++i) {
+          auto const & elm = va.layout.getAttributeLayout(i);
+          auto const & sem = va.layout.getAttributeSemantic(i);
+
+          GLuint              loc          = (GLuint)GetSemanticLocation(sem);
+          GraphicsResourceRef vertexBuffer = va.vertexBuffers[elm.slot];
+          if (vertexBuffer == InvalidGraphicsResource)
+            continue;
+          glBindBuffer(GL_ARRAY_BUFFER, m_buffers.getBuffer(vertexBuffer).glID);
+          glEnableVertexAttribArray(loc);
+
+          bool normalized = (elm.flags & LayoutFlag_Normalize) > 0;
+          if ((elm.flags & LayoutFlag_Integer) > 0)
+            glVertexAttribIPointer(loc, (GLint)(elm.width * elm.height), ToGLDataType(elm.dataType), (GLsizei)elm.stride, (void *)elm.offset);
+          else
+            glVertexAttribPointer(loc, (GLint)(elm.width * elm.height), ToGLDataType(elm.dataType), normalized, (GLsizei)elm.stride, (void *)elm.offset);
+
+          va.activeSlots.pushBack(loc);
+        }
+
+        if (m_vertexCount == std::numeric_limits<int64_t>::max())
+          m_vertexCount = 0;
+
+        if (va.indexBuffer != InvalidGraphicsResource) {
+          glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_buffers.getBuffer(va.indexBuffer).glID);
+        } else {
+          glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+          m_vaIndexType = DataType_Unknown;
+          m_indexCount  = 0;
+        }
+        va.rebind = false;
+      }
+
+      int64_t numElements = va.layout.getAttributeCount();
+      m_vertexCount       = std::numeric_limits<int64_t>::max();
+      for (int64_t i = 0; i < numElements; ++i) {
+        auto const &        elm          = va.layout.getAttributeLayout(i);
+        GraphicsResourceRef vertexBuffer = va.vertexBuffers[elm.slot];
+        m_vertexCount                    = std::min(m_vertexCount, m_buffers.getBuffer(vertexBuffer).size / elm.stride);
+      }
+
+      if (va.indexBuffer != InvalidGraphicsResource) {
+        m_vaIndexType = va.indexBufferType;
+        m_indexCount  = m_buffers.getBuffer(va.indexBuffer).size / getDataTypeSize(m_vaIndexType);
+      }
+    }
+
+    void CommandList_OpenGL::bindTexture(GraphicsResourceRef textureID, int64_t textureUnit) {
+      uint32_t glID   = 0;
+      GLenum   target = GL_TEXTURE_2D;
+
+      if (textureID != InvalidGraphicsResource) {
+        BFC_ASSERT(textureID.type == GraphicsResourceType_Texture, "resource id is not a Texture.");
+
+        auto & tex = m_textures.getTexture(textureID);
+        target     = ToGLTextureType(tex.type);
+        glID       = tex.glID;
+      }
+
+      glActiveTexture((GLenum)(GL_TEXTURE0 + textureUnit));
+      glBindTexture(target, glID);
+      glActiveTexture((GLenum)(GL_TEXTURE0 + m_lastTextureUnit));
+      glBindTexture(target, 0);
+    }
+
+    void CommandList_OpenGL::bindSampler(GraphicsResourceRef samplerID, int64_t textureUnit) {
+      uint32_t glID = 0;
+      if (samplerID != InvalidGraphicsResource) {
+        BFC_ASSERT(samplerID.type == GraphicsResourceType_Sampler, "resource id is not a Sampler.");
+        glID = m_textures.getSampler(samplerID).glID;
+      }
+
+      glBindSampler((uint32_t)textureUnit, glID);
+    }
+
+    void CommandList_OpenGL::bindUniformBuffer(GraphicsResourceRef bufferID, int64_t bindPoint, int64_t offset, int64_t size) {
+      uint32_t glID = 0;
+      if (bufferID != InvalidGraphicsResource) {
+        BFC_ASSERT(bufferID.type == GraphicsResourceType_Buffer, "resource id is not a Buffer.");
+
+        if (size == 0) {
+          size = m_buffers.getSize(bufferID) - offset;
+        }
+
+        if (size >= 0) {
+          glID = m_buffers.getBuffer(bufferID).glID;
+        }
+      }
+
+      glBindBufferRange(GL_UNIFORM_BUFFER, (GLint)bindPoint, glID, (GLintptr)offset, (GLsizeiptr)size);
+    }
+
+    void CommandList_OpenGL::bindShaderStorageBuffer(GraphicsResourceRef bufferID, int64_t bindPoint, int64_t offset, int64_t size) {
+      uint32_t glID = 0;
+      if (bufferID != InvalidGraphicsResource) {
+        BFC_ASSERT(bufferID.type == GraphicsResourceType_Buffer, "resource id is not a Buffer.");
+
+        if (size == 0) {
+          size = m_buffers.getSize(bufferID) - offset;
+        }
+
+        if (size >= 0) {
+          glID = m_buffers.getBuffer(bufferID).glID;
+        }
+      }
+
+      glBindBufferRange(GL_SHADER_STORAGE_BUFFER, (GLint)bindPoint, glID, (GLintptr)offset, (GLsizeiptr)size);
+    }
+
+    void CommandList_OpenGL::bindRenderTarget(GraphicsResourceRef renderTargetID, MapAccess renderTargetAccess) {
+      if (renderTargetID == InvalidGraphicsResource) {
+        return bindRenderTarget(m_defaultTarget, renderTargetAccess);
+      }
+
+      BFC_ASSERT(renderTargetID.type == GraphicsResourceType_RenderTarget, "resource id is not a Render Target.");
+
+      bool write = (renderTargetAccess & MapAccess_Write) > 0;
+      bool read  = (renderTargetAccess & MapAccess_Read) > 0;
+
+      graphics::RenderTargetManager_OpenGL::GLRenderTarget & rt = m_renderTargets.getRenderTarget(renderTargetID);
+
+      if (rt.type == RenderTargetType_Texture) {
+        Vector<GLenum> activeAttachments;
+        GLenum         fboTarget = GL_NONE;
+        if (read) {
+          fboTarget = GL_READ_FRAMEBUFFER;
+          glBindFramebuffer(GL_READ_FRAMEBUFFER, rt.textures.glID);
+        }
+        if (write) {
+          fboTarget = GL_DRAW_FRAMEBUFFER;
+          glBindFramebuffer(GL_DRAW_FRAMEBUFFER, rt.textures.glID);
+        }
+
+        if (rt.textures.rebind) {
+          TextureType fbClass = TextureType_Unknown;
+          for (int64_t index = 0; index < MaxColourAttachments; ++index) {
+            auto & attachment = rt.textures.colour[index];
+            if (attachment.texture != InvalidGraphicsResource) {
+              auto & glTex = m_textures.getTexture(attachment.texture);
+              fbClass      = glTex.type;
+              break;
+            }
+          }
+
+          if (fbClass == TextureType_Unknown) {
+            if (rt.textures.depth.texture != InvalidGraphicsResource) {
+              auto & glTex = m_textures.getTexture(rt.textures.depth.texture);
+              fbClass      = glTex.type;
+            }
+          }
+
+          for (int64_t index = 0; index < MaxColourAttachments; ++index) {
+            GLenum attachmentID = (GLenum)(GL_COLOR_ATTACHMENT0 + index);
+            auto & attachment   = rt.textures.colour[index];
+            if (attachment.texture != InvalidGraphicsResource) {
+              auto & glTex         = m_textures.getTexture(attachment.texture);
+              GLenum textureTarget = ToGLFramebufferTextureTarget(glTex.type, attachment.layer);
+
+              switch (glTex.type) {
+              case TextureType_2D:
+              case TextureType_CubeMap: glFramebufferTexture2D(fboTarget, attachmentID, textureTarget, glTex.glID, (GLint)attachment.mipLevel); break;
+              case TextureType_2DArray:
+                glFramebufferTextureLayer(fboTarget, attachmentID, glTex.glID, (GLint)attachment.mipLevel, (GLint)attachment.layer);
+                break;
+              case TextureType_3D:
+                glFramebufferTexture3D(fboTarget, attachmentID, textureTarget, glTex.glID, (GLint)attachment.mipLevel, (GLint)attachment.layer);
+                break;
+              }
+              activeAttachments.pushBack(attachmentID);
+            } else {
+              switch (fbClass) {
+              case TextureType_2D: glFramebufferTexture2D(fboTarget, attachmentID, GL_TEXTURE_2D, 0, 0); break;
+              case TextureType_3D:
+              case TextureType_2DArray: glFramebufferTextureLayer(fboTarget, attachmentID, 0, 0, 0); break;
+              case TextureType_CubeMap: glFramebufferTexture3D(fboTarget, attachmentID, GL_TEXTURE_3D, 0, 0, 0); break;
+              }
+            }
+          }
+
+          if (rt.textures.depth.texture != InvalidGraphicsResource) {
+            auto & attachment    = rt.textures.depth;
+            auto & glTex         = m_textures.getTexture(attachment.texture);
+            GLenum textureTarget = ToGLFramebufferTextureTarget(glTex.type, attachment.layer);
+            GLenum attachmentID  = ToGLFramebufferAttachment(glTex.depthStencilFmt);
+            switch (glTex.type) {
+            case TextureType_2D:
+            case TextureType_CubeMap: glFramebufferTexture2D(fboTarget, attachmentID, textureTarget, glTex.glID, (GLint)attachment.mipLevel); break;
+            case TextureType_2DArray:
+              glFramebufferTextureLayer(fboTarget, attachmentID, glTex.glID, (GLint)attachment.mipLevel, (GLint)attachment.layer);
+              break;
+            case TextureType_3D:
+              glFramebufferTexture3D(fboTarget, attachmentID, textureTarget, glTex.glID, (GLint)attachment.mipLevel, (GLint)attachment.layer);
+              break;
+            }
+          } else {
+            switch (fbClass) {
+            case TextureType_2D: glFramebufferTexture2D(fboTarget, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0, 0); break;
+            case TextureType_3D:
+            case TextureType_2DArray: glFramebufferTextureLayer(fboTarget, GL_DEPTH_STENCIL_ATTACHMENT, 0, 0, 0); break;
+            case TextureType_CubeMap: glFramebufferTexture3D(fboTarget, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_3D, 0, 0, 0); break;
+            }
+          }
+
+          if (write) {
+            if (activeAttachments.size() == 0) {
+              glDrawBuffer(GL_NONE);
+            } else {
+              glDrawBuffers((GLint)activeAttachments.size(), activeAttachments.data());
+            }
+          }
+
+          if (read) {
+            if (activeAttachments.size() == 0) {
+              glReadBuffer(GL_NONE);
+            } else {
+              glReadBuffer(GLenum(GL_COLOR_ATTACHMENT0 + rt.textures.colourReadAttachment));
+            }
+          }
+
+          rt.textures.rebind = false;
+        }
+      } else if (rt.type == RenderTargetType_Window) {
+        wglMakeCurrent(rt.window.hDC, m_hGLRC);
+
+        if (read) {
+          glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+        }
+
+        if (write) {
+          glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        }
+
+        glDrawBuffer(write ? GL_BACK : GL_NONE);
+        glReadBuffer(read ? GL_BACK : GL_NONE);
+
+        m_activeWindowTarget = renderTargetID;
+      }
+    }
+
+    void CommandList_OpenGL::bindScreen(MapAccess renderTargetAccess) {
+      bindRenderTarget(m_defaultTarget, renderTargetAccess);
+    }
+
+    void CommandList_OpenGL::draw(int64_t elementCount, int64_t elementOffset, PrimitiveType primType, int64_t instanceCount) {
+      int64_t count = elementCount;
+
+      // Only validate elementCount if a vertex array has been bound.
+      // This is to support shaders which may not take any vertex inputs.
+      // However, you must explicity bind an Invalid vertex array.
+      if (m_vertexCount >= 0) {
+        count = std::min(elementCount, m_vertexCount - elementOffset);
+        if (count < 0)
+          return;
+      }
+
+      if (instanceCount == 1) {
+        glDrawArrays(ToGLPrimType(primType), (GLint)elementOffset, (GLsizei)count);
+      } else {
+        glDrawArraysInstanced(ToGLPrimType(primType), (GLint)elementOffset, (GLsizei)count, (GLsizei)instanceCount);
+      }
+    }
+
+    void CommandList_OpenGL::drawIndexed(int64_t elementCount, int64_t elementOffset, PrimitiveType primType, int64_t instanceCount) {
+      int64_t count = elementCount;
+
+      // Only validate elementCount if a vertex array has been bound.
+      // This is to support shaders which may not take any vertex inputs.
+      // However, you must explicity bind an Invalid vertex array.
+      if (m_indexCount >= 0) {
+        count = std::min(elementCount, m_indexCount - elementOffset);
+        if (count < 0)
+          return;
+      }
+
+      if (instanceCount == 1) {
+        glDrawElements(ToGLPrimType(primType), (GLsizei)count, ToGLDataType(m_vaIndexType), (void *)(elementOffset * getDataTypeSize(m_vaIndexType)));
+      } else {
+        glDrawElementsInstanced(ToGLPrimType(primType), (GLsizei)count, ToGLDataType(m_vaIndexType), (void *)elementOffset, (GLsizei)instanceCount);
+      }
+    }
+
+    void CommandList_OpenGL::clear(RGBAu8 colour) {
+      glClearColor(colour.r / 255.0f, colour.g / 255.0f, colour.b / 255.0f, colour.a / 255.0f);
+      glClearDepth(1.0f);
+      glClearStencil(0);
+      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    }
+
+    void CommandList_OpenGL::swap() {
+      SwapBuffers(m_renderTargets.getRenderTarget(m_activeWindowTarget).window.hDC);
+    }
+
+    void CommandList_OpenGL::setState() {
+
+    }
+
+    void CommandList_OpenGL::pushState() {
+
+    }
+
+    void CommandList_OpenGL::popState() {
+
+    }
+
+    bool CommandList_OpenGL::upload(GraphicsResourceRef bufferID, int64_t size, void const * pData) {
+      BFC_RELASSERT(bufferID != nullptr, "Cannot be null");
+      BFC_RELASSERT(bufferID->type == GraphicsResourceType_Buffer, "Resource is not a buffer");
+
+      auto & buf       = *(BufferManager_OpenGL::GLBuffer *)bufferID.get();
+      GLenum bindPoint = buf.getBindTarget(false);
+      glBindBuffer(bindPoint, buf.glID);
+
+      if (buf.allocated < size) {
+        glBufferData(bindPoint, size, pData, buf.glUsage);
+        buf.allocated = size;
+      } else {
+        glBufferSubData(bindPoint, 0, size, pData);
+      }
+
+      buf.size = size;
+      glBindBuffer(bindPoint, 0);
+
+      return false;
+    }
+
+    void * CommandList_OpenGL::map(GraphicsResourceRef bufferID, MapAccess access) {
+      BFC_RELASSERT(bufferID != nullptr, "Cannot be null");
+      BFC_RELASSERT(bufferID->type == GraphicsResourceType_Buffer, "Resource is not a buffer");
+
+      auto & buf     = *(BufferManager_OpenGL::GLBuffer *)bufferID.get();
+      void * pMapped = glMapNamedBuffer(buf.glID, ToGLAccess(access));
+      return pMapped;
+    }
+
+    void * CommandList_OpenGL::map(GraphicsResourceRef bufferID, int64_t offset, int64_t size, MapAccess access) {
+      BFC_RELASSERT(bufferID != nullptr, "Cannot be null");
+      BFC_RELASSERT(bufferID->type == GraphicsResourceType_Buffer, "Resource is not a buffer");
+
+      auto & buf       = *(BufferManager_OpenGL::GLBuffer *)bufferID.get();
+      GLenum bindPoint = buf.getBindTarget(false);
+      glBindBuffer(bindPoint, buf.glID);
+      void * pMapped = glMapBufferRange(bindPoint, offset, size, ToGLMapBits(access));
+      glBindBuffer(bindPoint, 0);
+      return pMapped;
+    }
+
+    void CommandList_OpenGL::unmap(GraphicsResourceRef bufferID) {
+      BFC_RELASSERT(bufferID != nullptr, "Cannot be null");
+      BFC_RELASSERT(bufferID->type == GraphicsResourceType_Buffer, "Resource is not a buffer");
+
+      auto & buf       = *(BufferManager_OpenGL::GLBuffer *)bufferID.get();
+      GLenum bindPoint = buf.getBindTarget(false);
+
+      glBindBuffer(bindPoint, buf.glID);
+      glUnmapBuffer(bindPoint);
+      glBindBuffer(bindPoint, 0);
+    }
+
+    int64_t CommandList_OpenGL::download(GraphicsResourceRef bufferID, void * pDst, int64_t offset, int64_t size) {
+      BFC_RELASSERT(bufferID != nullptr, "Cannot be null");
+      BFC_RELASSERT(bufferID->type == GraphicsResourceType_Buffer, "Resource is not a buffer");
+
+      auto & buf       = *(BufferManager_OpenGL::GLBuffer *)bufferID.get();
+      GLenum     bindPoint = buf.getBindTarget(true);
+      glBindBuffer(bindPoint, buf.glID);
+
+      if (size == 0) {
+        size = buf.size;
+      }
+      int64_t start = offset;
+      int64_t end   = std::min(buf.size, offset + size);
+      glGetBufferSubData(bindPoint, (GLintptr)start, (GLsizeiptr)(end - start), pDst);
+      glBindBuffer(bindPoint, 0);
+      return false;
+    }
+
+    bool CommandList_OpenGL::uploadTexture(GraphicsResourceRef textureID, DepthStencilFormat format, Vec3i size) {
+      BFC_RELASSERT(textureID != nullptr, "Cannot be null");
+      BFC_RELASSERT(textureID->type == GraphicsResourceType_Texture, "Resource is not a buffer");
+
+      auto &      tex = *(TextureManager_OpenGL::GLTexture *)textureID.get();
+
+      GLenum glFormat         = ToGLFormat(format);
+      GLenum glType           = ToGLType(format);
+      GLenum glInternalFormat = ToGLInternalFormat(format);
+      GLenum glTarget         = ToGLTextureType(tex.type);
+
+      glBindTexture(glTarget, tex.glID);
+
+      switch (tex.type) {
+      case TextureType_2D: glTexImage2D(glTarget, 0, glInternalFormat, size.x, size.y, GL_NONE, glFormat, glType, nullptr); break;
+      case TextureType_2DArray: // Fall-through
+      case TextureType_3D: glTexImage3D(glTarget, 0, glInternalFormat, size.x, size.y, size.z, GL_NONE, glFormat, glType, nullptr); break;
+      case TextureType_CubeMap: BFC_ASSERT(size.z == 6, "A cubemap must have a depth of 6."); break;
+      }
+
+      glBindTexture(glTarget, 0);
+
+      tex.depthStencilFmt = format;
+      tex.format          = PixelFormat_Unknown;
+      tex.size            = size;
+
+      return true;
+    }
+
+    bool CommandList_OpenGL::uploadTexture(GraphicsResourceRef textureID, media::Surface const & src) {
+      BFC_RELASSERT(textureID != nullptr, "Cannot be null");
+      BFC_RELASSERT(textureID->type == GraphicsResourceType_Texture, "Resource is not a buffer");
+
+      auto & tex = *(TextureManager_OpenGL::GLTexture *)textureID.get();
+
+      GLenum glFormat         = ToGLFormat(src.format);
+      GLenum glType           = ToGLType(src.format);
+      GLenum glInternalFormat = ToGLInternalFormat(src.format);
+      GLenum glTarget         = ToGLTextureType(tex.type);
+      glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+      glBindTexture(glTarget, tex.glID);
+      switch (tex.type) {
+      case TextureType_2D: glTexImage2D(glTarget, 0, glInternalFormat, src.size.x, src.size.y, GL_NONE, glFormat, glType, src.pBuffer); break;
+      case TextureType_2DArray: // Fall-through
+      case TextureType_3D: glTexImage3D(glTarget, 0, glInternalFormat, src.size.x, src.size.y, src.size.z, GL_NONE, glFormat, glType, src.pBuffer); break;
+      case TextureType_CubeMap:
+        BFC_ASSERT(src.size.z == 6, "A cubemap must have a depth of 6.");
+        for (int64_t i = 0; i < src.size.z; ++i) {
+          void * pPixels = getSurfacePixel(src, {0, 0, i});
+          glTexImage2D(ToGLCubeMapFace((CubeMapFace)i), 0, glInternalFormat, src.size.x, src.size.y, GL_NONE, glFormat, glType, pPixels);
+        }
+        break;
+      }
+      glBindTexture(glTarget, 0);
+
+      if (src.pBuffer != nullptr) {
+        generateMipMaps(textureID);
+      }
+
+      tex.depthStencilFmt = DepthStencilFormat_Unknown;
+      tex.format          = src.format;
+      tex.size            = src.size;
+
+      return true;
+    }
+
+    bool CommandList_OpenGL::uploadTextureSubData(GraphicsResourceRef textureID, media::Surface const & src, Vec3i offset) {
+      auto & tex = *(TextureManager_OpenGL::GLTexture *)textureID.get();
+
+      GLenum glFormat = ToGLFormat(src.format);
+      GLenum glType   = ToGLType(src.format);
+      GLenum glTarget = ToGLTextureType(tex.type);
+
+      glBindTexture(glTarget, tex.glID);
+      switch (tex.type) {
+      case TextureType_2D: glTexSubImage2D(glTarget, 0, offset.x, offset.y, src.size.x, src.size.y, glFormat, glType, src.pBuffer); break;
+      case TextureType_3D: glTexSubImage3D(glTarget, 0, offset.x, offset.y, offset.z, src.size.x, src.size.y, src.size.z, glFormat, glType, src.pBuffer); break;
+      case TextureType_CubeMap: break;
+      }
+      glBindTexture(glTarget, 0);
+      return true;
+    }
+
+    void CommandList_OpenGL::generateMipMaps(GraphicsResourceRef textureID) {
+      auto & tex = *(TextureManager_OpenGL::GLTexture *)textureID.get();
+
+      if (glGenerateTextureMipmap != 0 && glTextureParameteri != 0) { // Use 'named' function if available
+        glGenerateTextureMipmap(tex.glID);
+        glTextureParameteri(tex.glID, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTextureParameteri(tex.glID, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+      } else {
+        GLenum texTarget = ToGLTextureType(tex.type);
+        glBindTexture(texTarget, tex.glID);
+        glGenerateMipmap(texTarget);
+        glTexParameteri(texTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(texTarget, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glBindTexture(texTarget, 0);
+      }
+    }
+
+    bool CommandList_OpenGL::downloadTexture(GraphicsResourceRef textureID, media::Surface * pDest) {
+
+    }
+
+    void CommandList_OpenGL::clear(RGBAu8 colour) {
+
+    }
+
+    void CommandList_OpenGL::swap() {
+
+    }
+
+    void CommandList_OpenGL::draw(int64_t elementCount = std::numeric_limits<int64_t>::max(), int64_t elementOffset,
+                                   PrimitiveType primType = PrimitiveType_Triangle,
+                      int64_t instanceCount) {
+
+    }
+
+    void CommandList_OpenGL::drawIndexed(int64_t elementCount = std::numeric_limits<int64_t>::max(), int64_t elementOffset,
+      PrimitiveType primType, int64_t instanceCount)
+    {
+
+    }
+
   } // namespace graphics
 
   GraphicsDevice_OpenGL::GraphicsDevice_OpenGL()
@@ -1269,318 +1526,6 @@ namespace bfc {
     return true;
   }
 
-  void GraphicsDevice_OpenGL::bindProgram(GraphicsResource programID) {
-    if (programID == InvalidGraphicsResource) {
-      glUseProgram(0);
-    } else {
-      BFC_ASSERT(programID.type == GraphicsResourceType_Program, "resource id is not a Program.");
-      glUseProgram(m_shaders.getProgram(programID).glID);
-    }
-  }
-
-  void GraphicsDevice_OpenGL::bindVertexArray(GraphicsResource vertexArrayID) {
-    if (vertexArrayID == InvalidGraphicsResource) {
-      m_indexCount  = -1;
-      m_vertexCount = -1;
-      glBindVertexArray(m_emptyVertexArray);
-      return;
-    }
-
-    BFC_ASSERT(vertexArrayID.type == GraphicsResourceType_VertexArray, "resource id is not a Vertex Array.");
-
-    graphics::BufferManager_OpenGL::GLVertexArray & va = m_buffers.getVertexArray(vertexArrayID);
-    glBindVertexArray(va.glID);
-
-    if (va.rebind) {
-      for (int64_t slot : va.activeSlots) {
-        glDisableVertexAttribArray((GLuint)slot);
-      }
-
-      va.activeSlots.clear();
-      int64_t numElements = va.layout.getAttributeCount();
-      for (int64_t i = 0; i < numElements; ++i) {
-        auto const & elm = va.layout.getAttributeLayout(i);
-        auto const & sem = va.layout.getAttributeSemantic(i);
-
-        GLuint           loc          = (GLuint)GetSemanticLocation(sem);
-        GraphicsResource vertexBuffer = va.vertexBuffers[elm.slot];
-        if (vertexBuffer == InvalidGraphicsResource)
-          continue;
-        glBindBuffer(GL_ARRAY_BUFFER, m_buffers.getBuffer(vertexBuffer).glID);
-        glEnableVertexAttribArray(loc);
-
-        bool normalized = (elm.flags & LayoutFlag_Normalize) > 0;
-        if ((elm.flags & LayoutFlag_Integer) > 0)
-          glVertexAttribIPointer(loc, (GLint)(elm.width * elm.height), ToGLDataType(elm.dataType), (GLsizei)elm.stride, (void *)elm.offset);
-        else
-          glVertexAttribPointer(loc, (GLint)(elm.width * elm.height), ToGLDataType(elm.dataType), normalized, (GLsizei)elm.stride, (void *)elm.offset);
-
-        va.activeSlots.pushBack(loc);
-      }
-
-      if (m_vertexCount == std::numeric_limits<int64_t>::max())
-        m_vertexCount = 0;
-
-      if (va.indexBuffer != InvalidGraphicsResource) {
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_buffers.getBuffer(va.indexBuffer).glID);
-      } else {
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        m_vaIndexType = DataType_Unknown;
-        m_indexCount  = 0;
-      }
-      va.rebind = false;
-    }
-
-    int64_t numElements = va.layout.getAttributeCount();
-    m_vertexCount       = std::numeric_limits<int64_t>::max();
-    for (int64_t i = 0; i < numElements; ++i) {
-      auto const &     elm          = va.layout.getAttributeLayout(i);
-      GraphicsResource vertexBuffer = va.vertexBuffers[elm.slot];
-      m_vertexCount                 = std::min(m_vertexCount, m_buffers.getBuffer(vertexBuffer).size / elm.stride);
-    }
-
-    if (va.indexBuffer != InvalidGraphicsResource) {
-      m_vaIndexType = va.indexBufferType;
-      m_indexCount  = m_buffers.getBuffer(va.indexBuffer).size / getDataTypeSize(m_vaIndexType);
-    }
-  }
-
-  void GraphicsDevice_OpenGL::bindTexture(GraphicsResource textureID, int64_t textureUnit) {
-    uint32_t glID   = 0;
-    GLenum   target = GL_TEXTURE_2D;
-
-    if (textureID != InvalidGraphicsResource) {
-      BFC_ASSERT(textureID.type == GraphicsResourceType_Texture, "resource id is not a Texture.");
-
-      auto & tex = m_textures.getTexture(textureID);
-      target     = ToGLTextureType(tex.type);
-      glID       = tex.glID;
-    }
-
-    glActiveTexture((GLenum)(GL_TEXTURE0 + textureUnit));
-    glBindTexture(target, glID);
-    glActiveTexture((GLenum)(GL_TEXTURE0 + m_lastTextureUnit));
-    glBindTexture(target, 0);
-  }
-
-  void GraphicsDevice_OpenGL::bindSampler(GraphicsResource samplerID, int64_t textureUnit) {
-    uint32_t glID = 0;
-    if (samplerID != InvalidGraphicsResource) {
-      BFC_ASSERT(samplerID.type == GraphicsResourceType_Sampler, "resource id is not a Sampler.");
-      glID = m_textures.getSampler(samplerID).glID;
-    }
-
-    glBindSampler((uint32_t)textureUnit, glID);
-  }
-
-  void GraphicsDevice_OpenGL::bindUniformBuffer(GraphicsResource bufferID, int64_t bindPoint, int64_t offset, int64_t size) {
-    uint32_t glID = 0;
-    if (bufferID != InvalidGraphicsResource) {
-      BFC_ASSERT(bufferID.type == GraphicsResourceType_Buffer, "resource id is not a Buffer.");
-
-      if (size == 0) {
-        size = m_buffers.getSize(bufferID) - offset;
-      }
-
-      if (size >= 0) {
-        glID = m_buffers.getBuffer(bufferID).glID;
-      }
-    }
-
-    glBindBufferRange(GL_UNIFORM_BUFFER, (GLint)bindPoint, glID, (GLintptr)offset, (GLsizeiptr)size);
-  }
-
-  void GraphicsDevice_OpenGL::bindShaderStorageBuffer(GraphicsResource bufferID, int64_t bindPoint, int64_t offset, int64_t size) {
-    uint32_t glID = 0;
-    if (bufferID != InvalidGraphicsResource) {
-      BFC_ASSERT(bufferID.type == GraphicsResourceType_Buffer, "resource id is not a Buffer.");
-
-      if (size == 0) {
-        size = m_buffers.getSize(bufferID) - offset;
-      }
-
-      if (size >= 0) {
-        glID = m_buffers.getBuffer(bufferID).glID;
-      }
-    }
-
-    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, (GLint)bindPoint, glID, (GLintptr)offset, (GLsizeiptr)size);
-  }
-
-  void GraphicsDevice_OpenGL::bindRenderTarget(GraphicsResource renderTargetID, MapAccess renderTargetAccess) {
-    if (renderTargetID == InvalidGraphicsResource) {
-      return bindRenderTarget(m_defaultTarget, renderTargetAccess);
-    }
-
-    BFC_ASSERT(renderTargetID.type == GraphicsResourceType_RenderTarget, "resource id is not a Render Target.");
-
-    bool write = (renderTargetAccess & MapAccess_Write) > 0;
-    bool read  = (renderTargetAccess & MapAccess_Read) > 0;
-
-    graphics::RenderTargetManager_OpenGL::GLRenderTarget & rt = m_renderTargets.getRenderTarget(renderTargetID);
-
-    if (rt.type == RenderTargetType_Texture) {
-      Vector<GLenum> activeAttachments;
-      GLenum         fboTarget = GL_NONE;
-      if (read) {
-        fboTarget = GL_READ_FRAMEBUFFER;
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, rt.textures.glID);
-      }
-      if (write) {
-        fboTarget = GL_DRAW_FRAMEBUFFER;
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, rt.textures.glID);
-      }
-
-      if (rt.textures.rebind) {
-        TextureType fbClass = TextureType_Unknown;
-        for (int64_t index = 0; index < MaxColourAttachments; ++index) {
-          auto & attachment = rt.textures.colour[index];
-          if (attachment.texture != InvalidGraphicsResource) {
-            auto & glTex = m_textures.getTexture(attachment.texture);
-            fbClass      = glTex.type;
-            break;
-          }
-        }
-
-        if (fbClass == TextureType_Unknown) {
-          if (rt.textures.depth.texture != InvalidGraphicsResource) {
-            auto & glTex      = m_textures.getTexture(rt.textures.depth.texture);
-            fbClass      = glTex.type;
-          }
-        }
-
-        for (int64_t index = 0; index < MaxColourAttachments; ++index) {
-          GLenum attachmentID = (GLenum)(GL_COLOR_ATTACHMENT0 + index);
-          auto & attachment   = rt.textures.colour[index];
-          if (attachment.texture != InvalidGraphicsResource) {
-            auto & glTex         = m_textures.getTexture(attachment.texture);
-            GLenum textureTarget = ToGLFramebufferTextureTarget(glTex.type, attachment.layer);
-
-            switch (glTex.type) {
-            case TextureType_2D:
-            case TextureType_CubeMap: glFramebufferTexture2D(fboTarget, attachmentID, textureTarget, glTex.glID, (GLint)attachment.mipLevel); break;
-            case TextureType_2DArray:
-              glFramebufferTextureLayer(fboTarget, attachmentID, glTex.glID, (GLint)attachment.mipLevel, (GLint)attachment.layer);
-              break;
-            case TextureType_3D:
-              glFramebufferTexture3D(fboTarget, attachmentID, textureTarget, glTex.glID, (GLint)attachment.mipLevel, (GLint)attachment.layer);
-              break;
-            }
-            activeAttachments.pushBack(attachmentID);
-          } else {
-            switch (fbClass) {
-            case TextureType_2D: glFramebufferTexture2D(fboTarget, attachmentID, GL_TEXTURE_2D, 0, 0); break;
-            case TextureType_3D:
-            case TextureType_2DArray:
-              glFramebufferTextureLayer(fboTarget, attachmentID, 0, 0, 0);
-              break;
-            case TextureType_CubeMap:
-              glFramebufferTexture3D(fboTarget, attachmentID, GL_TEXTURE_3D, 0, 0, 0);
-              break;
-            }
-          }
-        }
-
-        if (rt.textures.depth.texture != InvalidGraphicsResource) {
-          auto & attachment    = rt.textures.depth;
-          auto & glTex         = m_textures.getTexture(attachment.texture);
-          GLenum textureTarget = ToGLFramebufferTextureTarget(glTex.type, attachment.layer);
-          GLenum attachmentID  = ToGLFramebufferAttachment(glTex.depthStencilFmt);
-          switch (glTex.type) {
-          case TextureType_2D:
-          case TextureType_CubeMap: glFramebufferTexture2D(fboTarget, attachmentID, textureTarget, glTex.glID, (GLint)attachment.mipLevel); break;
-          case TextureType_2DArray: glFramebufferTextureLayer(fboTarget, attachmentID, glTex.glID, (GLint)attachment.mipLevel, (GLint)attachment.layer); break;
-          case TextureType_3D:
-            glFramebufferTexture3D(fboTarget, attachmentID, textureTarget, glTex.glID, (GLint)attachment.mipLevel, (GLint)attachment.layer);
-            break;
-          }
-        } else {
-          switch (fbClass) {
-          case TextureType_2D: glFramebufferTexture2D(fboTarget, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0, 0); break;
-          case TextureType_3D:
-          case TextureType_2DArray: glFramebufferTextureLayer(fboTarget, GL_DEPTH_STENCIL_ATTACHMENT, 0, 0, 0); break;
-          case TextureType_CubeMap: glFramebufferTexture3D(fboTarget, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_3D, 0, 0, 0); break;
-          }
-        }
-
-        if (write) {
-          if (activeAttachments.size() == 0) {
-            glDrawBuffer(GL_NONE);
-          } else {
-            glDrawBuffers((GLint)activeAttachments.size(), activeAttachments.data());
-          }
-        }
-
-        if (read) {
-          if (activeAttachments.size() == 0) {
-            glReadBuffer(GL_NONE);
-          } else {
-            glReadBuffer(GLenum(GL_COLOR_ATTACHMENT0 + rt.textures.colourReadAttachment));
-          }
-        }
-
-        rt.textures.rebind = false;
-      }
-    } else if (rt.type == RenderTargetType_Window) {
-      wglMakeCurrent(rt.window.hDC, m_hGLRC);
-
-      if (read) {
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-      }
-
-      if (write) {
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-      }
-
-      glDrawBuffer(write ? GL_BACK : GL_NONE);
-      glReadBuffer(read ? GL_BACK : GL_NONE);
-
-      m_activeWindowTarget = renderTargetID;
-    }
-  }
-
-  void GraphicsDevice_OpenGL::bindScreen(MapAccess renderTargetAccess) {
-    bindRenderTarget(m_defaultTarget, renderTargetAccess);
-  }
-
-  void GraphicsDevice_OpenGL::draw(int64_t elementCount, int64_t elementOffset, PrimitiveType primType, int64_t instanceCount) {
-    int64_t count = elementCount;
-
-    // Only validate elementCount if a vertex array has been bound.
-    // This is to support shaders which may not take any vertex inputs.
-    // However, you must explicity bind an Invalid vertex array.
-    if (m_vertexCount >= 0) {
-      count = std::min(elementCount, m_vertexCount - elementOffset);
-      if (count < 0)
-        return;
-    }
-
-    if (instanceCount == 1) {
-      glDrawArrays(ToGLPrimType(primType), (GLint)elementOffset, (GLsizei)count);
-    } else {
-      glDrawArraysInstanced(ToGLPrimType(primType), (GLint)elementOffset, (GLsizei)count, (GLsizei)instanceCount);
-    }
-  }
-
-  void GraphicsDevice_OpenGL::drawIndexed(int64_t elementCount, int64_t elementOffset, PrimitiveType primType, int64_t instanceCount) {
-    int64_t count = elementCount;
-
-    // Only validate elementCount if a vertex array has been bound.
-    // This is to support shaders which may not take any vertex inputs.
-    // However, you must explicity bind an Invalid vertex array.
-    if (m_indexCount >= 0) {
-      count = std::min(elementCount, m_indexCount - elementOffset);
-      if (count < 0)
-        return;
-    }
-
-    if (instanceCount == 1) {
-      glDrawElements(ToGLPrimType(primType), (GLsizei)count, ToGLDataType(m_vaIndexType), (void *)(elementOffset * getDataTypeSize(m_vaIndexType)));
-    } else {
-      glDrawElementsInstanced(ToGLPrimType(primType), (GLsizei)count, ToGLDataType(m_vaIndexType), (void *)elementOffset, (GLsizei)instanceCount);
-    }
-  }
-
   graphics::BufferManager * GraphicsDevice_OpenGL::getBufferManager() {
     return &m_buffers;
   }
@@ -1595,17 +1540,6 @@ namespace bfc {
 
   void GraphicsDevice_OpenGL::destroy() {
     delete this;
-  }
-
-  void GraphicsDevice_OpenGL::clear(RGBAu8 colour) {
-    glClearColor(colour.r / 255.0f, colour.g / 255.0f, colour.b / 255.0f, colour.a / 255.0f);
-    glClearDepth(1.0f);
-    glClearStencil(0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-  }
-
-  void GraphicsDevice_OpenGL::swap() {
-    SwapBuffers(m_renderTargets.getRenderTarget(m_activeWindowTarget).window.hDC);
   }
 
   graphics::RenderTargetManager * GraphicsDevice_OpenGL::getRenderTargetManager() {

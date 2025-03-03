@@ -23,63 +23,21 @@ namespace bfc {
     GraphicsResourceType_Count,
   };
 
-  /// Graphics resource identifier.
-  /// This struct encodes the ID and type of a graphics resource.
+  /// Shared base for graphics resources.
   struct GraphicsResource {
-    /// Construct a GraphicsResource from a packed intptr_t.
-    /// see operator inptr_t().
-    constexpr GraphicsResource(intptr_t packed)
-      : id((packed >> 32) & 0xFFFFFFFF)
-      , type(GraphicsResourceType(packed & 0xFFFFFFFF)) {}
+    GraphicsResource(GraphicsResourceType type)
+      : type(type) {}
 
-    /// Default construct a graphics resource.
-    /// This is an invalid graphics resource.
-    constexpr GraphicsResource()
-      : id(0)
-      , type(GraphicsResourceType_Invalid) {}
+    const GraphicsResourceType type = GraphicsResourceType_Invalid;
 
-    /// Construct a GraphicsResource from the resource id and type.
-    constexpr GraphicsResource(uint32_t id, GraphicsResourceType type)
-      : id(id)
-      , type(type) {}
-
-    uint32_t             id   = 0;
-    GraphicsResourceType type = GraphicsResourceType_Invalid;
-
-    /// Equality check.
-    /// @param rhs The resource to compare this instance with.
-    /// @retval true  Both resources are of an invalid type, or the type and id are not identical.
-    /// @retval false `rhs` is of a different type, or has a different `id`.
-    constexpr bool operator==(GraphicsResource const & rhs) {
-      return (type == -1 && rhs.type == -1) || (type == rhs.type && id == rhs.id);
-    }
-
-    /// Inequality check.
-    constexpr bool operator!=(GraphicsResource const & rhs) {
-      return !(*this == rhs);
-    }
-
-    /// Pack a GraphicsResource's id and type into an intptr_t.
-    /// The id is stored in the high 32 bits.
-    /// The type is stored in the low 32 bits.
-    /// @returns The packed id.
-    constexpr operator intptr_t() const {
-      return (intptr_t(id) << 32) | intptr_t(type);
-    }
-
-    /// Get this GraphicsResource id, then reset it.
-    /// This graphics resource will equal InvalidGraphicsResource after this operation.
-    /// @returns The previous contents of this GraphicsResource.
-    GraphicsResource take() {
-      GraphicsResource ret = *this;
-      *this                = GraphicsResource();
-      return ret;
-    }
+    virtual ~GraphicsResource() = default;
   };
 
-  constexpr GraphicsResource InvalidGraphicsResource = GraphicsResource(); ///< Invalid GraphicsResource value.
-  constexpr int64_t          MaxVertexBuffers        = 8;                  ///< Max buffers allowed in a Vertex Array
-  constexpr int64_t          MaxColourAttachments    = 8;                  ///< Max colour attachments allowed in a Render Target
+  using GraphicsResourceRef = Ref<GraphicsResource>;
+
+  inline static const GraphicsResourceRef InvalidGraphicsResource = nullptr; ///< Invalid GraphicsResource value.
+  constexpr int64_t                       MaxVertexBuffers        = 8;       ///< Max buffers allowed in a Vertex Array
+  constexpr int64_t                       MaxColourAttachments    = 8;       ///< Max colour attachments allowed in a Render Target
 
   enum TextureType {
     TextureType_Unknown = -1,
@@ -357,122 +315,63 @@ namespace bfc {
       /// Create a new buffer resource.
       /// @param usageHint A bitfield of usage flags indicating how the buffer is intended to be used.
       /// @returns A GraphicsResource that refers to the new buffer.
-      virtual GraphicsResource createBuffer(BufferUsageHint usageHint = BufferUsageHint_Unknown) = 0;
-
-      /// Add a reference to a buffer.
-      /// @param `bufferID` The buffer to increment the reference count for.
-      /// @returns `bufferID` for convenience.
-      virtual GraphicsResource refBuffer(GraphicsResource bufferID) = 0;
-
-      /// Release a reference to a buffer.
-      /// The resource is released and the handle is reset. If no references to the buffer remain,
-      /// the buffer is destroyed.
-      /// @param pResource A pointer to the GraphicsResource to release.
-      virtual void releaseBuffer(GraphicsResource * pResource) = 0;
+      virtual GraphicsResourceRef createBuffer(BufferUsageHint usageHint = BufferUsageHint_Unknown) = 0;
 
       /// Get the number of references to a buffer.
-      virtual int64_t getBufferReferences(GraphicsResource bufferID) = 0;
+      virtual int64_t getBufferReferences(GraphicsResourceRef bufferID) = 0;
 
       /// Get the size of a buffer in bytes.
-      virtual int64_t getSize(GraphicsResource bufferID) = 0;
-
-      /// Map a buffer to client memory.
-      /// @param bufferID The buffer to map.
-      /// @param access   Type of access needed (read, write, read/write).
-      /// @returns A pointer to the mapped buffer.
-      virtual void * map(GraphicsResource bufferID, MapAccess access = MapAccess_ReadWrite) = 0;
-
-      /// Map part of a buffer to client memory.
-      /// @param bufferID The buffer to map.
-      /// @param offset   The offset into the buffer to map (in bytes).
-      /// @param size     The number of bytes to map, starting at `offset`.
-      /// @param access   Type of access needed (read, write, read/write).
-      /// @returns A pointer to the mapped buffer.
-      virtual void * map(GraphicsResource bufferID, int64_t offset, int64_t size, MapAccess access = MapAccess_ReadWrite) = 0;
-
-      virtual void unmap(GraphicsResource bufferID) = 0;
-
-      virtual bool upload(GraphicsResource bufferID, int64_t size, void const * pData = nullptr) = 0;
-
-      virtual int64_t download(GraphicsResource bufferID, void * pDst, int64_t offset = 0, int64_t size = 0) = 0;
+      virtual int64_t getSize(GraphicsResourceRef bufferID) = 0;
 
       // Vertex Array Interface
 
-      virtual GraphicsResource createVertexArray() = 0;
+      virtual GraphicsResourceRef createVertexArray() = 0;
 
-      virtual GraphicsResource refVertexArray(GraphicsResource vaID) = 0;
+      virtual void setLayout(GraphicsResourceRef vaID, VertexInputLayout const & layout) = 0;
 
-      virtual void releaseVertexArray(GraphicsResource * pResource) = 0;
+      virtual bool setVertexBuffer(GraphicsResourceRef vaID, int64_t slot, GraphicsResourceRef vertexBufferID) = 0;
 
-      virtual int64_t getVertexArrayReferences(GraphicsResource vertexArrayID) = 0;
+      virtual bool setIndexBuffer(GraphicsResourceRef vaID, GraphicsResourceRef indexBufferID, DataType indexType) = 0;
 
-      virtual void setLayout(GraphicsResource vaID, VertexInputLayout const & layout) = 0;
+      virtual VertexInputLayout getLayout(GraphicsResourceRef vaID) = 0;
 
-      virtual bool setVertexBuffer(GraphicsResource vaID, int64_t slot, GraphicsResource vertexBufferID) = 0;
+      virtual GraphicsResourceRef getVertexBuffer(GraphicsResourceRef vaID, int64_t slot) = 0;
 
-      virtual bool setIndexBuffer(GraphicsResource vaID, GraphicsResource indexBufferID, DataType indexType) = 0;
+      virtual GraphicsResourceRef getIndexBuffer(GraphicsResourceRef vaID) = 0;
 
-      virtual VertexInputLayout getLayout(GraphicsResource vaID) = 0;
-
-      virtual GraphicsResource getVertexBuffer(GraphicsResource vaID, int64_t slot) = 0;
-
-      virtual GraphicsResource getIndexBuffer(GraphicsResource vaID) = 0;
-
-      virtual DataType getIndexType(GraphicsResource vaID) = 0;
+      virtual DataType getIndexType(GraphicsResourceRef vaID) = 0;
     };
 
     class BFC_API TextureManager {
     public:
       /// Create a new texture resource.
-      virtual GraphicsResource createTexture(TextureType type) = 0;
+      virtual GraphicsResourceRef createTexture(TextureType type) = 0;
 
-      virtual GraphicsResource refTexture(GraphicsResource textureID) = 0;
+      virtual TextureType getType(GraphicsResourceRef textureID) = 0;
 
-      virtual void releaseTexture(GraphicsResource * pResource) = 0;
+      virtual Vec3i getSize(GraphicsResourceRef textureID, int64_t mipLevel = 0) = 0;
 
-      virtual int64_t getTextureReferences(GraphicsResource resourceID) = 0;
+      virtual bool isDepthTexture(GraphicsResourceRef textureID) = 0;
 
-      virtual bool upload(GraphicsResource textureID, DepthStencilFormat format, Vec3i size) = 0;
+      virtual DepthStencilFormat getDepthStencilFormat(GraphicsResourceRef textureID) = 0;
 
-      virtual bool upload(GraphicsResource textureID, media::Surface const & src) = 0;
-
-      virtual bool uploadSubData(GraphicsResource textureID, media::Surface const & src, Vec3i offset) = 0;
-
-      virtual void generateMipMaps(GraphicsResource textureID) = 0;
-
-      virtual bool download(GraphicsResource textureID, media::Surface * pDest) = 0;
-
-      virtual TextureType getType(GraphicsResource textureID) = 0;
-
-      virtual Vec3i getSize(GraphicsResource textureID, int64_t mipLevel = 0) = 0;
-
-      virtual bool isDepthTexture(GraphicsResource textureID) = 0;
-
-      virtual DepthStencilFormat getDepthStencilFormat(GraphicsResource textureID) = 0;
-
-      virtual PixelFormat getColourFormat(GraphicsResource textureID) = 0;
+      virtual PixelFormat getColourFormat(GraphicsResourceRef textureID) = 0;
 
       // Samplers
 
-      virtual GraphicsResource createSampler() = 0;
+      virtual GraphicsResourceRef createSampler() = 0;
 
-      virtual GraphicsResource refSampler(GraphicsResource samplerID) = 0;
+      virtual void setSamplerMinFilter(GraphicsResourceRef samplerID, FilterMode filter, FilterMode mipFilter) = 0;
+      virtual void setSamplerMagFilter(GraphicsResourceRef samplerID, FilterMode filter, FilterMode mipFilter) = 0;
 
-      virtual void releaseSampler(GraphicsResource * pResource) = 0;
+      virtual void setSamplerMinLOD(GraphicsResourceRef samplerID, float level) = 0;
+      virtual void setSamplerMaxLOD(GraphicsResourceRef samplerID, float level) = 0;
 
-      virtual int64_t getSamplerReferences(GraphicsResource samplerID) = 0;
+      virtual void setSamplerWrapU(GraphicsResourceRef samplerID, WrapMode mode) = 0;
+      virtual void setSamplerWrapV(GraphicsResourceRef samplerID, WrapMode mode) = 0;
+      virtual void setSamplerWrapW(GraphicsResourceRef samplerID, WrapMode mode) = 0;
 
-      virtual void setSamplerMinFilter(GraphicsResource samplerID, FilterMode filter, FilterMode mipFilter) = 0;
-      virtual void setSamplerMagFilter(GraphicsResource samplerID, FilterMode filter, FilterMode mipFilter) = 0;
-
-      virtual void setSamplerMinLOD(GraphicsResource samplerID, float level) = 0;
-      virtual void setSamplerMaxLOD(GraphicsResource samplerID, float level) = 0;
-
-      virtual void setSamplerWrapU(GraphicsResource samplerID, WrapMode mode) = 0;
-      virtual void setSamplerWrapV(GraphicsResource samplerID, WrapMode mode) = 0;
-      virtual void setSamplerWrapW(GraphicsResource samplerID, WrapMode mode) = 0;
-
-      inline void setSamplerWrap(GraphicsResource samplerID, WrapMode mode) {
+      inline void setSamplerWrap(GraphicsResourceRef samplerID, WrapMode mode) {
         setSamplerWrapU(samplerID, mode);
         setSamplerWrapV(samplerID, mode);
         setSamplerWrapW(samplerID, mode);
@@ -482,90 +381,73 @@ namespace bfc {
     class BFC_API ShaderManager {
     public:
       /// Create a new shader resource.
-      virtual GraphicsResource createShader(ShaderType type) = 0;
+      virtual GraphicsResourceRef createShader(ShaderType type) = 0;
 
-      virtual GraphicsResource refShader(GraphicsResource shaderID) = 0;
+      virtual ShaderType getType(GraphicsResourceRef shaderID) = 0;
 
-      virtual void releaseShader(GraphicsResource * pResource) = 0;
+      virtual void setSource(GraphicsResourceRef shaderID, StringView src) = 0;
 
-      virtual int64_t getShaderReferences(GraphicsResource shaderID) = 0;
+      virtual void setFile(GraphicsResourceRef shaderID, StringView path) = 0;
 
-      virtual ShaderType getType(GraphicsResource shaderID) = 0;
+      virtual bool compile(GraphicsResourceRef shaderID, String * pError = nullptr) = 0;
 
-      virtual void setSource(GraphicsResource shaderID, StringView src) = 0;
+      virtual GraphicsResourceRef createProgram() = 0;
 
-      virtual void setFile(GraphicsResource shaderID, StringView path) = 0;
+      virtual void addShader(GraphicsResourceRef programID, GraphicsResourceRef shaderID) = 0;
 
-      virtual bool compile(GraphicsResource shaderID, String * pError = nullptr) = 0;
+      virtual GraphicsResourceRef getShader(GraphicsResourceRef programID, ShaderType shaderID) = 0;
 
-      virtual GraphicsResource createProgram() = 0;
-
-      virtual GraphicsResource refProgram(GraphicsResource programID) = 0;
-
-      virtual void releaseProgram(GraphicsResource * pResource) = 0;
-
-      virtual int64_t getProgramReferences(GraphicsResource programID) = 0;
-
-      virtual void addShader(GraphicsResource programID, GraphicsResource shaderID) = 0;
-
-      virtual GraphicsResource getShader(GraphicsResource programID, ShaderType shaderID) = 0;
-
-      virtual bool linkProgram(GraphicsResource programID, String * pError = nullptr) = 0;
+      virtual bool linkProgram(GraphicsResourceRef programID, String * pError = nullptr) = 0;
 
       // Program inputs
 
-      virtual void setUniform(GraphicsResource programID, int64_t uniformIndex, void const * pBuffer) = 0;
+      virtual void setUniform(GraphicsResourceRef programID, int64_t uniformIndex, void const * pBuffer) = 0;
 
-      virtual void setBufferBinding(GraphicsResource programID, int64_t bufferIndex, int64_t bindPoint) = 0;
+      virtual void setBufferBinding(GraphicsResourceRef programID, int64_t bufferIndex, int64_t bindPoint) = 0;
 
-      virtual void setTextureBinding(GraphicsResource programID, int64_t bufferIndex, int64_t bindPoint) = 0;
+      virtual void setTextureBinding(GraphicsResourceRef programID, int64_t bufferIndex, int64_t bindPoint) = 0;
 
-      virtual void getUniform(GraphicsResource programID, int64_t uniformIndex, void * pBuffer, ProgramUniformDesc * pDesc) = 0;
+      virtual void getUniform(GraphicsResourceRef programID, int64_t uniformIndex, void * pBuffer, ProgramUniformDesc * pDesc) = 0;
 
-      virtual int64_t getBufferBinding(GraphicsResource programID, int64_t bufferIndex) = 0;
+      virtual int64_t getBufferBinding(GraphicsResourceRef programID, int64_t bufferIndex) = 0;
 
-      virtual int64_t getTextureBinding(GraphicsResource programID, int64_t bufferIndex) = 0;
+      virtual int64_t getTextureBinding(GraphicsResourceRef programID, int64_t bufferIndex) = 0;
 
       // Program reflection
 
-      virtual int64_t getAttributeCount(GraphicsResource programID) = 0;
+      virtual int64_t getAttributeCount(GraphicsResourceRef programID) = 0;
 
-      virtual int64_t getUniformCount(GraphicsResource programID) = 0;
+      virtual int64_t getUniformCount(GraphicsResourceRef programID) = 0;
 
-      virtual int64_t getBufferCount(GraphicsResource programID) = 0;
+      virtual int64_t getBufferCount(GraphicsResourceRef programID) = 0;
 
-      virtual int64_t getTextureCount(GraphicsResource programID) = 0;
+      virtual int64_t getTextureCount(GraphicsResourceRef programID) = 0;
 
-      virtual void getAttributeDesc(GraphicsResource programID, int64_t uniformIndex, ProgramAttributeDesc * pDesc) = 0;
+      virtual void getAttributeDesc(GraphicsResourceRef programID, int64_t uniformIndex, ProgramAttributeDesc * pDesc) = 0;
 
-      virtual void getUniformDesc(GraphicsResource programID, int64_t uniformIndex, ProgramUniformDesc * pDesc) = 0;
+      virtual void getUniformDesc(GraphicsResourceRef programID, int64_t uniformIndex, ProgramUniformDesc * pDesc) = 0;
 
-      virtual void getTextureDesc(GraphicsResource programID, int64_t textureIndex, ProgramTextureDesc * pDesc) = 0;
+      virtual void getTextureDesc(GraphicsResourceRef programID, int64_t textureIndex, ProgramTextureDesc * pDesc) = 0;
 
-      virtual void getBufferDesc(GraphicsResource programID, int64_t bufferIndex, ProgramBufferDesc * pDesc) = 0;
+      virtual void getBufferDesc(GraphicsResourceRef programID, int64_t bufferIndex, ProgramBufferDesc * pDesc) = 0;
     };
 
     class BFC_API RenderTargetManager {
     public:
-      virtual GraphicsResource createRenderTarget(RenderTargetType type) = 0;
+      virtual GraphicsResourceRef createRenderTarget(RenderTargetType type) = 0;
 
-      virtual GraphicsResource refRenderTarget(GraphicsResource renderTargetID) = 0;
+      virtual RenderTargetType getType(GraphicsResourceRef renderTargetID) = 0;
 
-      virtual void releaseRenderTarget(GraphicsResource * pRenderTargetID) = 0;
+      virtual Vec2i getSize(GraphicsResourceRef renderTargetID) = 0;
 
-      virtual int64_t getRenderTargetReferences(GraphicsResource renderTargetID) = 0;
+      virtual bool attachWindow(GraphicsResourceRef renderTargetID, platform::Window * pWindow, DepthStencilFormat depthStencilFormat) = 0;
 
-      virtual RenderTargetType getType(GraphicsResource renderTargetID) = 0;
+      virtual void attachColour(GraphicsResourceRef renderTargetID, GraphicsResourceRef textureID, int64_t slot = 0, int64_t mipLevel = 0,
+                                int64_t layer = 0) = 0;
 
-      virtual Vec2i getSize(GraphicsResource renderTargetID) = 0;
+      virtual void setReadAttachment(GraphicsResourceRef renderTargetID, int64_t slot) = 0;
 
-      virtual bool attachWindow(GraphicsResource renderTargetID, platform::Window * pWindow, DepthStencilFormat depthStencilFormat) = 0;
-
-      virtual void attachColour(GraphicsResource renderTargetID, GraphicsResource textureID, int64_t slot = 0, int64_t mipLevel = 0, int64_t layer = 0) = 0;
-
-      virtual void setReadAttachment(GraphicsResource renderTargetID, int64_t slot) = 0;
-
-      virtual void attachDepth(GraphicsResource renderTargetID, GraphicsResource textureID, int64_t mipLevel = 0, int64_t layer = 0) = 0;
+      virtual void attachDepth(GraphicsResourceRef renderTargetID, GraphicsResourceRef textureID, int64_t mipLevel = 0, int64_t layer = 0) = 0;
     };
 
     class BFC_API StateManager {
@@ -593,6 +475,60 @@ namespace bfc {
 
       virtual void setColourFactor(float red, float green, float blue, float alpha) = 0;
     };
+
+    class BFC_API CommandList {
+    public:
+      // Pipeline state
+      virtual void bindProgram(GraphicsResourceRef programID)                                                                  = 0;
+      virtual void bindVertexArray(GraphicsResourceRef vertexArrayID)                                                          = 0;
+      virtual void bindTexture(GraphicsResourceRef textureID, int64_t textureUnit)                                             = 0;
+      virtual void bindSampler(GraphicsResourceRef samplerID, int64_t textureUnit)                                             = 0;
+      virtual void bindUniformBuffer(GraphicsResourceRef bufferID, int64_t bindPoint, int64_t offset = 0, int64_t size = 0)    = 0;
+      virtual void bindShaderStorageBuffer(GraphicsResourceRef bufferID, int64_t bindPoint, int64_t offset = 0, int64_t size = 0) = 0;
+      virtual void bindRenderTarget(GraphicsResourceRef renderTargetID, MapAccess renderTargetAccess = MapAccess_ReadWrite)       = 0;
+      virtual void bindScreen(MapAccess renderTargetAccess = MapAccess_ReadWrite)                                              = 0;
+
+      virtual void setState()  = 0;
+      virtual void pushState() = 0;
+      virtual void popState()  = 0;
+
+      // Buffers
+      virtual bool upload(GraphicsResourceRef bufferID, int64_t size, void const * pData = nullptr) = 0;
+      
+      /// Map a buffer to client memory.
+      /// @param bufferID The buffer to map.
+      /// @param access   Type of access needed (read, write, read/write).
+      /// @returns A pointer to the mapped buffer.
+      virtual void * map(GraphicsResourceRef bufferID, MapAccess access = MapAccess_ReadWrite) = 0;
+
+      /// Map part of a buffer to client memory.
+      /// @param bufferID The buffer to map.
+      /// @param offset   The offset into the buffer to map (in bytes).
+      /// @param size     The number of bytes to map, starting at `offset`.
+      /// @param access   Type of access needed (read, write, read/write).
+      /// @returns A pointer to the mapped buffer.
+      virtual void * map(GraphicsResourceRef bufferID, int64_t offset, int64_t size, MapAccess access = MapAccess_ReadWrite) = 0;
+
+      virtual void unmap(GraphicsResourceRef bufferID) = 0;
+
+      virtual int64_t download(GraphicsResourceRef bufferID, void * pDst, int64_t offset = 0, int64_t size = 0) = 0;
+
+      // Textures
+      virtual bool uploadTexture(GraphicsResourceRef textureID, DepthStencilFormat format, Vec3i size)        = 0;
+      virtual bool uploadTexture(GraphicsResourceRef textureID, media::Surface const & src)                   = 0;
+      virtual bool uploadTextureSubData(GraphicsResourceRef textureID, media::Surface const & src, Vec3i offset) = 0;
+      virtual void generateMipMaps(GraphicsResourceRef textureID)                                                = 0;
+      virtual bool downloadTexture(GraphicsResourceRef textureID, media::Surface * pDest)                        = 0;
+
+      // Rendering commands
+      virtual void clear(RGBAu8 colour) = 0;
+      virtual void swap()               = 0;
+
+      virtual void draw(int64_t elementCount = std::numeric_limits<int64_t>::max(), int64_t elementOffset = 0, PrimitiveType primType = PrimitiveType_Triangle,
+                        int64_t instanceCount = 1)                                                         = 0;
+      virtual void drawIndexed(int64_t elementCount = std::numeric_limits<int64_t>::max(), int64_t elementOffset = 0,
+                               PrimitiveType primType = PrimitiveType_Triangle, int64_t instanceCount = 1) = 0;
+    };
   } // namespace graphics
 
   class BFC_API GraphicsDevice {
@@ -600,32 +536,11 @@ namespace bfc {
     virtual bool init(platform::Window * pWindow) = 0;
     virtual void destroy()                        = 0;
 
-    virtual void bindProgram(GraphicsResource programID)                                                                     = 0;
-    virtual void bindVertexArray(GraphicsResource vertexArrayID)                                                             = 0;
-    virtual void bindTexture(GraphicsResource textureID, int64_t textureUnit)                                                = 0;
-    virtual void bindSampler(GraphicsResource samplerID, int64_t textureUnit)                                                = 0;
-    virtual void bindUniformBuffer(GraphicsResource bufferID, int64_t bindPoint, int64_t offset = 0, int64_t size = 0)       = 0;
-    virtual void bindShaderStorageBuffer(GraphicsResource bufferID, int64_t bindPoint, int64_t offset = 0, int64_t size = 0) = 0;
-    virtual void bindRenderTarget(GraphicsResource renderTargetID, MapAccess renderTargetAccess = MapAccess_ReadWrite)       = 0;
-    virtual void bindScreen(MapAccess renderTargetAccess = MapAccess_ReadWrite)                                              = 0;
-
-    virtual void draw(int64_t elementCount = std::numeric_limits<int64_t>::max(), int64_t elementOffset = 0, PrimitiveType primType = PrimitiveType_Triangle,
-                      int64_t instanceCount = 1)                                                         = 0;
-    virtual void drawIndexed(int64_t elementCount = std::numeric_limits<int64_t>::max(), int64_t elementOffset = 0,
-                             PrimitiveType primType = PrimitiveType_Triangle, int64_t instanceCount = 1) = 0;
-
-    virtual void clear(RGBAu8 colour) = 0;
-    virtual void swap()               = 0;
-
     virtual graphics::BufferManager *       getBufferManager()       = 0;
     virtual graphics::TextureManager *      getTextureManager()      = 0;
     virtual graphics::ShaderManager *       getShaderManager()       = 0;
     virtual graphics::RenderTargetManager * getRenderTargetManager() = 0;
     virtual graphics::StateManager *        getStateManager()        = 0;
-
-    int64_t          getReferences(GraphicsResource resourceID);
-    GraphicsResource refResource(GraphicsResource resourceID);
-    void             releaseResource(GraphicsResource * pResourceID);
   };
 
   /// Graphics device factory function type.
@@ -651,35 +566,6 @@ namespace bfc {
 
   /// Get the name of a graphics device by index.
   BFC_API StringView getGraphicsDeviceName(int64_t index);
-
-  class BFC_API ManagedGraphicsResource {
-  public:
-    virtual ~ManagedGraphicsResource();
-    ManagedGraphicsResource() = default;
-    ManagedGraphicsResource(GraphicsDevice * pDevice, GraphicsResource resource);
-    ManagedGraphicsResource(ManagedGraphicsResource const & o);
-    ManagedGraphicsResource(ManagedGraphicsResource && o);
-    ManagedGraphicsResource & operator=(ManagedGraphicsResource const & o);
-    ManagedGraphicsResource & operator=(ManagedGraphicsResource && o);
-
-    bool hasResource() const;
-    void release();
-
-    GraphicsResource     takeResource(GraphicsDevice ** ppDevice);
-    GraphicsResource     getResource() const;
-    GraphicsDevice *     getDevice() const;
-    GraphicsResourceType getType() const;
-    int64_t              getReferences() const;
-
-    operator GraphicsResource() const;
-
-  protected:
-    void set(GraphicsDevice * pDevice, GraphicsResource resource);
-
-  private:
-    GraphicsDevice * m_pDevice  = nullptr;
-    GraphicsResource m_resource = InvalidGraphicsResource;
-  };
 
   // TODO: Work out a solution that doesn't require exposing these functions
   bool graphicsDevice_registerOpenGL();
