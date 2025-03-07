@@ -15,155 +15,169 @@
 #endif
 
 namespace bfc {
-  namespace impl {
-    class CommandBuffer {
-    public:
-      using GenericCommandCallback = void (*)(uint8_t * pCommand, CommandBuffer * pBuffer);
-
-      template<typename Cmd>
-      void Add(Cmd const & command) {
-        static_assert(std::is_trivially_copyable_v<Cmd>, "Cmd must be trivially copyable");
-
-        data.pushBack((uint8_t *)&cmd, sizeof(command));
-
-        Command cmd;
-        cmd.callback = (GenericCommandCallback)&Cmd::Execute;
-        cmd.size     = sizeof(Cmd);
-      }
-
-      void Execute() {
-        uint64_t dataOffset = 0;
-        for (auto& command : m_commands) {
-          command.callback(m_data.begin() + dataOffset, this);
-          dataOffset += command.size;
-        }
-      }
-
-      void Reset() {
-        m_commands.clear();
-        m_data.clear();
-      }
-
-    private:
-      struct Command {
-        GenericCommandCallback callback;
-        uint16_t size;
-      };
-
-      Vector<Command> m_commands;
-      Vector<uint8_t> m_data;
-    };
-  }
-
   namespace graphics {
-    class BufferManager_OpenGL : public BufferManager {
+    namespace impl {
+      class CommandBuffer {
+      public:
+        using GenericCommandCallback = void (*)(uint8_t const * pCommand, GraphicsDevice * pDevice, CommandBuffer * pBuffer);
+
+        template<typename Cmd>
+        void add(Cmd const & command) {
+          static_assert(std::is_trivially_copyable_v<Cmd>, "Cmd must be trivially copyable");
+
+          m_stream.pushBack((uint8_t *)&cmd, sizeof(command));
+
+          Command cmd;
+          cmd.callback = (GenericCommandCallback)&Cmd::execute;
+          cmd.size     = sizeof(Cmd);
+        }
+
+        void execute(GraphicsDevice * pDevice) {
+          for (auto & command : m_commands) {
+            command.callback(m_stream.storage().begin() + command.offset, pDevice, this);
+          }
+        }
+
+        void reset() {
+          m_commands.clear();
+          m_stream.clear();
+        }
+
+        int64_t write(Span<const uint8_t> const & data) {
+          if (data.begin() == 0) {
+            return -1;
+          }
+
+          m_stream.seek(0, SeekOrigin_End);
+          int64_t offset = m_stream.tell();
+          m_stream.write(data.begin(), data.size());
+          return offset;
+        }
+
+        Span<const uint8_t> read(int64_t offset, int64_t size) const {
+          if (offset == -1)
+            return { nullptr, size };
+          else
+            return {m_stream.storage().begin() + offset, size};
+        }
+
+        template<typename T>
+        struct Serialized {
+          int64_t offset = -1;
+        };
+
+        template<typename T>
+        Serialized<T> serialize(T const & o) {
+          int64_t offset = m_stream.tell();
+          m_stream.write(o);
+          return offset;
+        }
+
+        template<typename T>
+        T deserialize(Serialized<T> const & handle) {
+          m_stream.seek(handle.offset);
+          bfc::Uninitialized<T> buffer;
+          m_stream.read(buffer.ptr());
+          return buffer.take();
+        }
+
+        template<typename T>
+        T deserialize(Serialized<T> const & handle, int64_t * pSize) {
+          T ret  = deserialize(handle);
+          *pSize = m_stream.tell() - handle.offset;
+          return ret;
+        }
+
+      private:
+        struct Command {
+          GenericCommandCallback callback;
+          uint64_t               offset;
+        };
+
+        Vector<Command> m_commands;
+        MemoryStream    m_stream;
+      };
+    } // namespace impl
+
+    class GLBuffer : public Buffer {
     public:
-      struct GLBuffer : public GraphicsResource {
-        GLBuffer() : GraphicsResource(GraphicsResourceType_Buffer) {}
+      virtual int64_t getSize() const override;
 
-        uint32_t        glID          = 0;
-        int64_t         size          = 0;
-        int64_t         allocated     = 0;
-        GLenum          defaultTarget = GL_NONE;
-        GLenum          glUsage       = GL_STATIC_DRAW;
-        BufferUsageHint usageHint     = BufferUsageHint_Unknown;
+      uint32_t        glID          = 0;
+      int64_t         size          = 0;
+      int64_t         allocated     = 0;
+      GLenum          defaultTarget = GL_NONE;
+      GLenum          glUsage       = GL_STATIC_DRAW;
+      BufferUsageHint usageHint     = BufferUsageHint_Unknown;
 
-        GLenum getBindTarget(bool read) const;
-      };
-
-      struct GLVertexArray : public GraphicsResource {
-        GLVertexArray()
-          : GraphicsResource(GraphicsResourceType_VertexArray) {}
-
-        uint32_t glID = 0;
-
-        DataType         indexBufferType = DataType_Unknown;
-        GraphicsResourceRef indexBuffer     = InvalidGraphicsResource;
-
-        VertexInputLayout layout;
-        GraphicsResourceRef vertexBuffers[MaxVertexBuffers];
-
-        bool            rebind = false; // VAO has changed and needs to be rebound
-        Vector<int64_t> activeSlots;    // Currently active attrib arrays
-      };
-
-      virtual GraphicsResourceRef createBuffer(BufferUsageHint usageHint = BufferUsageHint_Unknown) override;
-      virtual int64_t             getBufferReferences(GraphicsResourceRef bufferID) override;
-      virtual int64_t             getSize(GraphicsResourceRef bufferID) override;
-
-      virtual GraphicsResourceRef createVertexArray() override;
-      virtual void                setLayout(GraphicsResourceRef vaID, VertexInputLayout const & layout) override;
-      virtual bool                setVertexBuffer(GraphicsResourceRef vaID, int64_t slot, GraphicsResourceRef vertexBufferID) override;
-      virtual bool                setIndexBuffer(GraphicsResourceRef vaID, GraphicsResourceRef indexBufferID, DataType indexType) override;
-      virtual VertexInputLayout   getLayout(GraphicsResourceRef vaID) override;
-      virtual GraphicsResourceRef getVertexBuffer(GraphicsResourceRef vaID, int64_t slot) override;
-      virtual GraphicsResourceRef getIndexBuffer(GraphicsResourceRef vaID) override;
-      virtual DataType            getIndexType(GraphicsResourceRef vaID) override;
-
-      GLBuffer &      getBuffer(GraphicsResourceRef bufferID);
-      GLVertexArray & getVertexArray(GraphicsResourceRef bufferID);
-
-      RefPool<GLBuffer>      buffers;
-      RefPool<GLVertexArray> vertexArrays;
+      GLenum getBindTarget(bool read) const;
     };
 
-    class TextureManager_OpenGL : public TextureManager {
+    class GLVertexArray : public VertexArray {
     public:
-      struct GLTexture : public GraphicsResource {
-        GLTexture()
-          : GraphicsResource(GraphicsResourceType_Texture) {}
+      virtual void              setLayout(VertexInputLayout const & layout) override;
+      virtual bool              setVertexBuffer(int64_t slot, BufferRef vertexBufferID) override;
+      virtual bool              setIndexBuffer(BufferRef indexBufferID, DataType indexType) override;
+      virtual VertexInputLayout getLayout() const override;
+      virtual BufferRef         getVertexBuffer(int64_t slot) const override;
+      virtual BufferRef         getIndexBuffer() const override;
+      virtual DataType          getIndexType() const override;
 
-        TextureType        type            = TextureType_Unknown;
-        uint32_t           glID            = 0;
-        Vec3i              size            = Vec3i(0);
-        PixelFormat        format          = PixelFormat_Unknown;
-        DepthStencilFormat depthStencilFmt = DepthStencilFormat_Unknown;
-      };
+      uint32_t glID = 0;
 
-      struct GLSampler : public GraphicsResource {
-        GLSampler()
-          : GraphicsResource(GraphicsResourceType_Sampler) {}
+      DataType  indexBufferType = DataType_Unknown;
+      BufferRef indexBuffer     = InvalidGraphicsResource;
 
-        uint32_t glID = 0;
+      VertexInputLayout layout;
+      BufferRef         vertexBuffers[MaxVertexBuffers];
 
-        FilterMode minFilter    = FilterMode_Linear;
-        FilterMode magFilter    = FilterMode_Linear;
-        FilterMode minMipFilter = FilterMode_None;
-        FilterMode magMipFilter = FilterMode_None;
-
-        float minLOD = -1000.0f;
-        float maxLOD = 1000.0f;
-
-        Vector3<WrapMode> wrapMode = { WrapMode_Repeat, WrapMode_Repeat, WrapMode_Repeat };
-      };
-
-      virtual GraphicsResourceRef   createTexture(TextureType type) override;
-      virtual TextureType        getType(GraphicsResourceRef textureID) override;
-      virtual Vec3i              getSize(GraphicsResourceRef textureID, int64_t mipLevel) override;
-      virtual bool               isDepthTexture(GraphicsResourceRef textureID) override;
-      virtual DepthStencilFormat getDepthStencilFormat(GraphicsResourceRef textureID) override;
-      virtual PixelFormat        getColourFormat(GraphicsResourceRef textureID) override;
-
-      virtual GraphicsResourceRef createSampler() override;
-
-      virtual void setSamplerMinFilter(GraphicsResourceRef samplerID, FilterMode filter, FilterMode mipFilter) override;
-      virtual void setSamplerMagFilter(GraphicsResourceRef samplerID, FilterMode filter, FilterMode mipFilter) override;
-
-      virtual void setSamplerMinLOD(GraphicsResourceRef samplerID, float level) override;
-      virtual void setSamplerMaxLOD(GraphicsResourceRef samplerID, float level) override;
-
-      virtual void setSamplerWrapU(GraphicsResourceRef samplerID, WrapMode mode) override;
-      virtual void setSamplerWrapV(GraphicsResourceRef samplerID, WrapMode mode) override;
-      virtual void setSamplerWrapW(GraphicsResourceRef samplerID, WrapMode mode) override;
-
-      GLTexture & getTexture(GraphicsResourceRef textureID);
-      GLSampler & getSampler(GraphicsResourceRef samplerID);
-
-      RefPool<GLTexture> textures;
-      RefPool<GLSampler> samplers;
+      bool            rebind = false; // VAO has changed and needs to be rebound
+      Vector<int64_t> activeSlots;    // Currently active attrib arrays
     };
 
-    class ShaderManager_OpenGL : public ShaderManager {
+    class GLTexture : public Texture {
+    public:
+      virtual TextureType        getType() const override;
+      virtual Vec3i              getSize(int64_t mipLevel) const override;
+      virtual bool               isDepthTexture() const override;
+      virtual DepthStencilFormat getDepthStencilFormat() const override;
+      virtual PixelFormat        getColourFormat() const override;
+
+      TextureType        type            = TextureType_Unknown;
+      uint32_t           glID            = 0;
+      Vec3i              size            = Vec3i(0);
+      PixelFormat        format          = PixelFormat_Unknown;
+      DepthStencilFormat depthStencilFmt = DepthStencilFormat_Unknown;
+    };
+
+    class GLSampler : public Sampler {
+    public:
+      virtual void setSamplerMinFilter(FilterMode filter, FilterMode mipFilter) override;
+      virtual void setSamplerMagFilter(FilterMode filter, FilterMode mipFilter) override;
+
+      virtual void setSamplerMinLOD(float level) override;
+      virtual void setSamplerMaxLOD(float level) override;
+
+      virtual void setSamplerWrapU(WrapMode mode) override;
+      virtual void setSamplerWrapV(WrapMode mode) override;
+      virtual void setSamplerWrapW(WrapMode mode) override;
+
+      uint32_t glID    = 0;
+
+      bool     changed = false;
+
+      FilterMode minFilter    = FilterMode_Linear;
+      FilterMode magFilter    = FilterMode_Linear;
+      FilterMode minMipFilter = FilterMode_None;
+      FilterMode magMipFilter = FilterMode_None;
+
+      float minLOD = -1000.0f;
+      float maxLOD = 1000.0f;
+
+      Vector3<WrapMode> wrapMode = {WrapMode_Repeat, WrapMode_Repeat, WrapMode_Repeat};
+    };
+
+    class GLProgram : public Program {
     public:
       struct Attribute {
         String    name;
@@ -200,151 +214,138 @@ namespace bfc {
         int32_t glLoc     = -1;
       };
 
-      struct GLProgram : public GraphicsResource {
-        GLProgram()
-          : GraphicsResource(GraphicsResourceType_Program) {}
+      virtual void                      addShader(ShaderType type, std::optional<ShaderDesc> desc) override;
+      virtual std::optional<ShaderDesc> getShader(ShaderType type) const override;
+      virtual bool                      compile(String * pError = nullptr) override;
 
-        uint32_t         glID = 0;
-        GraphicsResourceRef shaders[ShaderType_Count];
+      virtual int64_t getAttributeCount() const override;
+      virtual int64_t getUniformCount() const override;
+      virtual int64_t getBufferCount() const override;
+      virtual int64_t getTextureCount() const override;
 
-        Vector<Attribute> attributes;
-        Vector<Uniform>   uniforms;
-        Vector<Buffer>    buffers;
-        Vector<Texture>   textures;
-      };
+      virtual void getAttributeDesc(int64_t uniformIndex, ProgramAttributeDesc * pDesc) const override;
+      virtual void getUniformDesc(int64_t uniformIndex, ProgramUniformDesc * pDesc) const override;
+      virtual void getTextureDesc(int64_t textureIndex, ProgramTextureDesc * pDesc) const override;
+      virtual void getBufferDesc(int64_t bufferIndex, ProgramBufferDesc * pDesc) const override;
 
-      struct GLShader : public GraphicsResource {
-        GLShader()
-          : GraphicsResource(GraphicsResourceType_Shader) {}
+      static void reflect(uint32_t glID, Vector<Attribute> * pAttributes, Vector<Uniform> * pUniforms, Vector<Texture> * pTextures, Vector<Buffer> * pBuffers);
 
-        ShaderType type   = ShaderType_Unknown;
-        uint32_t   glID   = 0;
-        String     source = ""; // Shader source
-        String     file   = ""; // Shader file
-      };
+      uint32_t   glID = 0;
+      std::optional<ShaderDesc> shaders[ShaderType_Count];
 
-      virtual GraphicsResourceRef createShader(ShaderType type) override;
-      virtual ShaderType       getType(GraphicsResourceRef shaderID) override;
-      virtual void             setSource(GraphicsResourceRef shaderID, StringView src) override;
-      virtual void             setFile(GraphicsResourceRef shaderID, StringView path) override;
-      virtual bool             compile(GraphicsResourceRef shaderID, String * pError) override;
-
-      virtual GraphicsResourceRef createProgram() override;
-      virtual void             addShader(GraphicsResourceRef programID, GraphicsResourceRef shaderID) override;
-      virtual GraphicsResourceRef getShader(GraphicsResourceRef programID, ShaderType shaderID) override;
-      virtual bool             linkProgram(GraphicsResourceRef programID, String * pError) override;
-
-      virtual void    setUniform(GraphicsResourceRef programID, int64_t uniformIndex, void const * pBuffer) override;
-      virtual void    setBufferBinding(GraphicsResourceRef programID, int64_t bufferIndex, int64_t bindPoint) override;
-      virtual void    setTextureBinding(GraphicsResourceRef programID, int64_t textureIndex, int64_t bindPoint) override;
-      virtual void    getUniform(GraphicsResourceRef programID, int64_t uniformIndex, void * pBuffer, ProgramUniformDesc * pDesc) override;
-      virtual int64_t getBufferBinding(GraphicsResourceRef programID, int64_t bufferIndex) override;
-      virtual int64_t getTextureBinding(GraphicsResourceRef programID, int64_t bufferIndex) override;
-
-      virtual int64_t getAttributeCount(GraphicsResourceRef programID) override;
-      virtual int64_t getUniformCount(GraphicsResourceRef programID) override;
-      virtual int64_t getBufferCount(GraphicsResourceRef programID) override;
-      virtual int64_t getTextureCount(GraphicsResourceRef programID) override;
-      virtual void    getAttributeDesc(GraphicsResourceRef programID, int64_t uniformIndex, ProgramAttributeDesc * pDesc) override;
-      virtual void    getUniformDesc(GraphicsResourceRef programID, int64_t uniformIndex, ProgramUniformDesc * pDesc) override;
-      virtual void    getTextureDesc(GraphicsResourceRef programID, int64_t textureIndex, ProgramTextureDesc * pDesc) override;
-      virtual void    getBufferDesc(GraphicsResourceRef programID, int64_t bufferIndex, ProgramBufferDesc * pDesc) override;
-
-      void reflect(uint32_t glID, Vector<Attribute> * pAttributes, Vector<Uniform> * pUniforms, Vector<Texture> * pTextures, Vector<Buffer> * pBuffers);
-
-      GLShader &  getShader(GraphicsResourceRef shaderID);
-      GLProgram & getProgram(GraphicsResourceRef programID);
-
-      RefPool<GLShader>  shaders;
-      RefPool<GLProgram> programs;
+      Vector<Attribute> attributes;
+      Vector<Uniform>   uniforms;
+      Vector<Buffer>    buffers;
+      Vector<Texture>   textures;
     };
 
-    class BFC_API RenderTargetManager_OpenGL : public RenderTargetManager {
+    class GLRenderTarget : public RenderTarget {
     public:
-      RenderTargetManager_OpenGL(TextureManager * pTextures);
+      virtual RenderTargetType getType() const override;
+      virtual Vec2i            getSize() const override;
+      virtual bool             attachWindow(platform::Window * pWindow, DepthStencilFormat depthStencilFormat) override;
+      virtual void             attachColour(TextureRef textureID, int64_t slot, int64_t mipLevel, int64_t layer) override;
+      virtual void             setReadAttachment(int64_t slot) override;
+      virtual void             attachDepth(TextureRef textureID, int64_t mipLevel, int64_t layer) override;
 
       struct Attachment {
-        int64_t          layer    = 0; // Level/Face for 3D textures
-        int64_t          mipLevel = 0;
-        GraphicsResourceRef texture  = InvalidGraphicsResource;
+        int64_t    layer    = 0; // Level/Face for 3D textures
+        int64_t    mipLevel = 0;
+        TextureRef texture  = InvalidGraphicsResource;
       };
 
-      struct GLRenderTarget : public GraphicsResource {
-        GLRenderTarget()
-          : GraphicsResource(GraphicsResourceType_RenderTarget) {}
+      RenderTargetType type = RenderTargetType_Unknown;
 
-        RenderTargetType type = RenderTargetType_Unknown;
+      struct Texture {
+        bool       rebind = false;
+        uint32_t   glID   = 0;
+        Attachment depth;
+        Attachment colour[MaxColourAttachments];
+        int64_t    colourReadAttachment = 0;
+      } textures;
 
-        struct {
-          bool       rebind = false;
-          uint32_t   glID   = 0;
-          Attachment depth;
-          Attachment colour[MaxColourAttachments];
-          int64_t    colourReadAttachment = 0;
-        } textures;
-
-        struct {
-          HWND               hWnd        = 0;
-          HDC                hDC         = 0;
-          DepthStencilFormat depthFormat = DepthStencilFormat_Unknown;
-        } window;
-      };
-
-      virtual GraphicsResourceRef createRenderTarget(RenderTargetType type) override;
-
-      virtual RenderTargetType getType(GraphicsResourceRef renderTargetID) override;
-      virtual Vec2i            getSize(GraphicsResourceRef renderTargetID) override;
-      virtual bool             attachWindow(GraphicsResourceRef renderTargetID, platform::Window * pWindow, DepthStencilFormat depthStencilFormat) override;
-      virtual void attachColour(GraphicsResourceRef renderTargetID, GraphicsResourceRef textureID, int64_t slot, int64_t mipLevel, int64_t layer) override;
-      virtual void setReadAttachment(GraphicsResourceRef renderTargetID, int64_t slot) override;
-      virtual void attachDepth(GraphicsResourceRef renderTargetID, GraphicsResourceRef textureID, int64_t mipLevel, int64_t layer) override;
-
-      GLRenderTarget & getRenderTarget(GraphicsResourceRef renderTargetID);
-
-      TextureManager *        m_pTextures = nullptr;
-      RefPool<GLRenderTarget> renderTargets;
+      struct Window {
+        HWND               hWnd        = 0;
+        HDC                hDC         = 0;
+        DepthStencilFormat depthFormat = DepthStencilFormat_Unknown;
+      } window;
     };
 
     class BFC_API StateManager_OpenGL : public StateManager {
     public:
-      virtual void setFeatureEnabled(GraphicsState state, bool enabled) override;
-      virtual void setViewport(Vec2i position, Vec2i size) override;
-      virtual void setScissor(Vec2i position, Vec2i size) override;
-      virtual void setDepthRange(float min, float max) override;
-      virtual void setDepthFunction(ComparisonFunction function) override;
-      virtual void setBlendEquation(BlendEquation colourAndAlpha, int64_t colourAttachment) override;
-      virtual void setBlendEquation(BlendEquation colour, BlendEquation alpha, int64_t colourAttachment) override;
-      virtual void setBlendFunction(BlendFunction sourceFactor, BlendFunction destFactor, int64_t colourAttachment) override;
-      virtual void setBlendFunction(BlendFunction sourceColourFactor, BlendFunction sourceAlphaFactor, BlendFunction destColourFactor,
-                                    BlendFunction destAlphaFactor, int64_t colourAttachment) override;
-      virtual void setColourWriteEnabled(bool red, bool green, bool blue, bool alpha) override;
-      virtual void setColourFactor(float red, float green, float blue, float alpha) override;
+      virtual void apply(State const & state) override;
+    };
+
+    class BFC_API GLBufferDownload : public BufferDownload {
+    public:
+      virtual bool wait(std::optional<Timestamp> const & timeout) override {
+        if (timeout.has_value())
+          return complete.wait_for(std::chrono::microseconds{(int64_t)timeout->micros()}) == std::future_status::ready;
+
+        complete.wait();
+        return true;
+      }
+
+      virtual Vector<uint8_t> take() override {
+        return std::move(storage);
+      }
+
+      virtual Span<const uint8_t> view() const override {
+        return storage;
+      }
+
+      Vector<uint8_t>   storage;
+      std::future<void> complete;
+    };
+
+    class BFC_API GLTextureDownload : public TextureDownload {
+    public:
+      virtual bool wait(std::optional<Timestamp> const & timeout) override {
+        if (timeout.has_value())
+          return complete.wait_for((std::chrono::microseconds)timeout.value()) == std::future_status::ready;
+
+        complete.wait();
+        return true;
+      }
+
+      virtual media::Surface view() const override {
+      
+      }
+
+      virtual std::tuple<media::Surface, Vector<uint8_t>> take() override {
+        
+      }
+
+      Vector<uint8_t>   storage;
+      std::future<bool> complete;
     };
 
     class BFC_API CommandList_OpenGL : public CommandList {
     public:
-      // Pipeline state
-      virtual void bindProgram(GraphicsResourceRef programID) override;
-      virtual void bindVertexArray(GraphicsResourceRef vertexArrayID)                                                             override;
-      virtual void bindTexture(GraphicsResourceRef textureID, int64_t textureUnit)                                                override;
-      virtual void bindSampler(GraphicsResourceRef samplerID, int64_t textureUnit)                                                override;
-      virtual void bindUniformBuffer(GraphicsResourceRef bufferID, int64_t bindPoint, int64_t offset = 0, int64_t size = 0)       override;
-      virtual void bindShaderStorageBuffer(GraphicsResourceRef bufferID, int64_t bindPoint, int64_t offset = 0, int64_t size = 0) override;
-      virtual void bindRenderTarget(GraphicsResourceRef renderTargetID, MapAccess renderTargetAccess = MapAccess_ReadWrite)       override;
-      virtual void bindScreen(MapAccess renderTargetAccess = MapAccess_ReadWrite)                                              override;
+      CommandList_OpenGL(GraphicsDevice * pDevice, RenderTargetRef defaultTarget, VertexArrayRef emptyVertexArray, uint32_t lastTextureUnit);
 
-      virtual void setState() override;
-      virtual void pushState() override;
-      virtual void popState()  override;
+      // Pipeline state
+      virtual void bindProgram(ProgramRef programID) override;
+      virtual void bindVertexArray(VertexArrayRef vertexArrayID) override;
+      virtual void bindTexture(TextureRef textureID, int64_t textureUnit) override;
+      virtual void bindSampler(SamplerRef samplerID, int64_t textureUnit) override;
+      virtual void bindUniformBuffer(BufferRef bufferID, int64_t bindPoint, int64_t offset = 0, int64_t size = 0) override;
+      virtual void bindShaderStorageBuffer(BufferRef bufferID, int64_t bindPoint, int64_t offset = 0, int64_t size = 0) override;
+      virtual void bindRenderTarget(RenderTargetRef renderTargetID, MapAccess renderTargetAccess = MapAccess_ReadWrite) override;
+      virtual void bindScreen(MapAccess renderTargetAccess = MapAccess_ReadWrite) override;
+
+      virtual void setState(Span<const State> const & state) override;
+      virtual void pushState(Span<const State> const & state) override;
+      virtual void popState() override;
 
       // Buffers
-      virtual bool upload(GraphicsResourceRef bufferID, int64_t size, void const * pData = nullptr) override;
+      virtual bool upload(BufferRef bufferID, int64_t size, void const * pData = nullptr) override;
 
       /// Map a buffer to client memory.
       /// @param bufferID The buffer to map.
       /// @param access   Type of access needed (read, write, read/write).
       /// @returns A pointer to the mapped buffer.
-      virtual void * map(GraphicsResourceRef bufferID, MapAccess access = MapAccess_ReadWrite) override;
+      virtual std::future<void*> map(BufferRef bufferID, MapAccess access = MapAccess_ReadWrite) override;
 
       /// Map part of a buffer to client memory.
       /// @param bufferID The buffer to map.
@@ -352,56 +353,72 @@ namespace bfc {
       /// @param size     The number of bytes to map, starting at `offset`.
       /// @param access   Type of access needed (read, write, read/write).
       /// @returns A pointer to the mapped buffer.
-      virtual void * map(GraphicsResourceRef bufferID, int64_t offset, int64_t size, MapAccess access = MapAccess_ReadWrite) override;
+      virtual std::future<void*> map(BufferRef bufferID, int64_t offset, int64_t size, MapAccess access = MapAccess_ReadWrite) override;
 
-      virtual void unmap(GraphicsResourceRef bufferID) override;
+      virtual void unmap(BufferRef bufferID) override;
 
-      virtual int64_t download(GraphicsResourceRef bufferID, void * pDst, int64_t offset = 0, int64_t size = 0) override;
+      virtual void download(BufferRef bufferID, BufferDownloadRef pDownload, int64_t offset, int64_t size) override;
 
       // Textures
-      virtual bool uploadTexture(GraphicsResourceRef textureID, DepthStencilFormat format, Vec3i size)           override;
-      virtual bool uploadTexture(GraphicsResourceRef textureID, media::Surface const & src)                      override;
-      virtual bool uploadTextureSubData(GraphicsResourceRef textureID, media::Surface const & src, Vec3i offset) override;
-      virtual void generateMipMaps(GraphicsResourceRef textureID)                                                override;
-      virtual bool downloadTexture(GraphicsResourceRef textureID, media::Surface * pDest)                        override;
+      virtual bool uploadTexture(TextureRef textureID, DepthStencilFormat format, Vec3i size) override;
+      virtual bool uploadTexture(TextureRef textureID, media::Surface const & src) override;
+      virtual bool uploadTextureSubData(TextureRef textureID, media::Surface const & src, Vec3i offset) override;
+      virtual void generateMipMaps(TextureRef textureID) override;
+      virtual bool downloadTexture(TextureRef textureID, TextureDownloadRef pDownload) override;
+
+      // Shaders
+      virtual void    setUniform(int64_t uniformIndex, void const * pBuffer, int64_t size) override;
+      virtual void    setBufferBinding(int64_t bufferIndex, int64_t bindPoint) override;
+      virtual void    setTextureBinding(int64_t textureIndex, int64_t bindPoint) override;
+      // virtual void    getUniform(int64_t uniformIndex, void * pBuffer, ProgramUniformDesc * pDesc) override;
+      // virtual int64_t getBufferBinding(int64_t bufferIndex) override;
+      // virtual int64_t getTextureBinding(int64_t bufferIndex) override;
 
       // Rendering commands
       virtual void clear(RGBAu8 colour) override;
-      virtual void swap()               override;
+      virtual void swap() override;
 
       virtual void draw(int64_t elementCount = std::numeric_limits<int64_t>::max(), int64_t elementOffset = 0, PrimitiveType primType = PrimitiveType_Triangle,
                         int64_t instanceCount = 1) override;
       virtual void drawIndexed(int64_t elementCount = std::numeric_limits<int64_t>::max(), int64_t elementOffset = 0,
                                PrimitiveType primType = PrimitiveType_Triangle, int64_t instanceCount = 1) override;
 
+      /// Get the graphics device that created this command list.
+      virtual GraphicsDevice * getDevice() const override;
     private:
       template<typename Cmd>
-      void Add(Cmd const & cmd) {
+      void add(Cmd const & cmd) {
         m_commandBuffer.Add(cmd);
       }
 
-      void Track(GraphicsResourceRef const & resource) {
-        m_trackedResources.pushBack(resource);
+      void track(Ref<void> const & resource) {
+        if (resource != nullptr) {
+          m_trackedResources.pushBack(resource);
+        }
       }
 
-      void Clear()
-      {
+      void clear() {
         m_trackedResources.clear();
-        m_commandBuffer.Reset();
+        m_commandBuffer.reset();
       }
+
+      GraphicsDevice * m_pDevice;
 
       int64_t  m_indexCount  = -1;
       int64_t  m_vertexCount = -1;
       DataType m_vaIndexType = DataType_Unknown;
 
-      int64_t m_lastTextureUnit = 0;
+      RenderTargetRef m_activeWindowTarget = InvalidGraphicsResource;
+      RenderTargetRef m_defaultTarget      = InvalidGraphicsResource;
 
-      GraphicsResourceRef m_activeTarget       = InvalidGraphicsResource;
-      GraphicsResourceRef m_activeWindowTarget = InvalidGraphicsResource;
+      VertexArrayRef m_emptyVertexArray = nullptr;
+      uint32_t       m_lastTextureUnit  = 0;
 
-      impl::CommandBuffer         m_commandBuffer;
-      Vector<GraphicsResourceRef> m_trackedResources;
-      GraphicsDevice *            m_pDevice;
+      ProgramRef m_boundProgram = nullptr;
+
+      impl::CommandBuffer m_commandBuffer;
+      Vector<Ref<void>>   m_trackedResources;
+      GraphicsDevice *    m_pDevice;
     };
   } // namespace graphics
 
@@ -412,21 +429,57 @@ namespace bfc {
     virtual bool init(platform::Window * pWindow) override;
     virtual void destroy() override;
 
-    virtual graphics::BufferManager *       getBufferManager() override;
-    virtual graphics::TextureManager *      getTextureManager() override;
-    virtual graphics::ShaderManager *       getShaderManager() override;
-    virtual graphics::RenderTargetManager * getRenderTargetManager() override;
-    virtual graphics::StateManager *        getStateManager() override;
+    virtual std::unique_ptr<graphics::CommandList> createCommandList() override;
+    virtual graphics::BufferRef       createBuffer(BufferUsageHint usageHint) override;
+    virtual graphics::VertexArrayRef  createVertexArray() override;
+    virtual graphics::ProgramRef      createProgram() override;
+    virtual graphics::TextureRef      createTexture(TextureType type) override;
+    virtual graphics::SamplerRef      createSampler() override;
+    virtual graphics::RenderTargetRef createRenderTarget(RenderTargetType type) override;
+
+    virtual graphics::StateManager * getStateManager() override;
+
+    virtual uint64_t submit(std::unique_ptr<graphics::CommandList> const & pCommandList) override;
+
+    virtual bool wait(uint64_t handle, std::optional<Timestamp> const & timeout = std::nullopt) override;
+
+    const graphics::VertexArrayRef getEmptyVertexArray() const {
+      return m_emptyVertexArray;
+    }
+
+    const graphics::RenderTargetRef getDefaultRenderTarget() const {
+      return m_defaultTarget;
+    }
+
+    const uint32_t getReservedTextureUnit() const {
+      return m_lastTextureUnit;
+    }
+
+    const HGLRC getGLRC() const {
+      return m_hGLRC;
+    }
 
   private:
-    graphics::BufferManager_OpenGL       m_buffers;
-    graphics::TextureManager_OpenGL      m_textures;
-    graphics::ShaderManager_OpenGL       m_shaders;
-    graphics::RenderTargetManager_OpenGL m_renderTargets;
-    graphics::StateManager_OpenGL        m_stateManager;
+    void RenderThread();
 
-    HGLRC               m_hGLRC            = 0;
-    GraphicsResourceRef m_defaultTarget    = InvalidGraphicsResource;
-    uint32_t            m_emptyVertexArray = 0;
+    std::thread m_renderThread;
+    bool        m_running = false;
+
+    uint64_t                m_nextCommandListID = 0;
+    uint64_t                m_commandListFence  = 0;
+    std::mutex              m_fenceLock;
+    std::condition_variable m_fenceNotifier;
+
+    std::mutex                                     m_queueLock;
+    std::condition_variable                        m_queueNotifier;
+    Vector<std::unique_ptr<graphics::CommandList>> m_commandListQueue;
+
+    graphics::StateManager_OpenGL m_stateManager;
+
+    HGLRC                     m_hGLRC            = 0;
+    graphics::RenderTargetRef m_defaultTarget    = InvalidGraphicsResource;
+    graphics::VertexArrayRef  m_emptyVertexArray = InvalidGraphicsResource0;
+
+    uint32_t m_lastTextureUnit = 0;
   };
 } // namespace bfc

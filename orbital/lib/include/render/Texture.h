@@ -15,10 +15,8 @@ namespace bfc {
     class Image;
   } // namespace media
 
-  class BFC_API Texture : public ManagedGraphicsResource {
+  class BFC_API Texture {
   public:
-    using ManagedGraphicsResource::ManagedGraphicsResource;
-
     Texture() = default;
     Texture(GraphicsDevice * pDevice, media::Surface const & surface);
     Texture(GraphicsDevice * pDevice, Vec2i const & size, PixelFormat const & format, void const * pPixels = nullptr, int64_t rowPitch = 0);
@@ -101,12 +99,4 @@ namespace bfc {
 
     TextureType getTextureType() const;
   };
-
-  // class Sampler : public ManagedGraphicsResource {
-  // public:
-  //   Sampler() = default;
-  //
-  //   void load(GraphicsDevice * pDevice);
-  //
-  // };
 } // namespace bfc

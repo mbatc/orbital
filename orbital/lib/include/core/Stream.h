@@ -111,6 +111,9 @@ namespace bfc {
 
   class BFC_API MemoryStream : public Stream {
   public:
+    using Stream::write;
+    using Stream::read;
+
     MemoryStream();
     MemoryStream(Vector<uint8_t> data, SeekOrigin origin = SeekOrigin_Start);
 
@@ -126,6 +129,8 @@ namespace bfc {
     virtual int64_t read(void * data, int64_t length) override;
 
     const Vector<uint8_t> & storage() const;
+
+    void clear();
 
   private:
     Vector<uint8_t> m_data;

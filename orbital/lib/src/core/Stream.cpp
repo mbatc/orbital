@@ -63,6 +63,11 @@ namespace bfc {
     return m_data;
   }
 
+  void MemoryStream::clear() {
+    m_data.clear();
+    m_streamPos = 0;
+  }
+
   int64_t MemoryStream::tell() const {
     return m_streamPos;
   }

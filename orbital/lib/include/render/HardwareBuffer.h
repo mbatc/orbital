@@ -3,81 +3,67 @@
 #include "GraphicsDevice.h"
 
 namespace bfc {
-  class BFC_API HardwareBuffer : public ManagedGraphicsResource {
-  public:
-    HardwareBuffer(BufferUsageHint usageHint = BufferUsageHint_Unknown);
+  namespace graphics {
+    template<typename Type>
+    class StructuredBuffer {
+    public:
+      StructuredBuffer(BufferUsageHint usageHint = BufferUsageHint_Unknown)
+        : m_hint(usageHint) {}
 
-    /// Upload data to a hardware buffer.
-    void upload(GraphicsDevice * pDevice, int64_t size, void * pData = nullptr);
-    int64_t getSize() const;
-    void *  map(MapAccess access = MapAccess_ReadWrite) const;
-    void *  map(int64_t offset, int64_t size, MapAccess access = MapAccess_ReadWrite) const;
-    void    unmap() const;
-    int64_t download(void * pDst, int64_t offset = 0, int64_t size = 0) const;
+      Type data;
 
-    BufferUsageHint getUsageHint() const;
+      void upload(graphics::CommandList * pCmd) {
+        // m_pBuffer = 
+        pCmd->upload();
+        graphics::BufferManager * pBuffers = pDevice->getBufferManager();
+        GraphicsResource          resource = getResource();
+        if (resource == InvalidGraphicsResource) {
+          resource = pBuffers->createBuffer(m_hint);
+          pBuffers->upload(resource, sizeof(Type), &data);
+        } else {
+          void * pMapped = pBuffers->map(resource, MapAccess_Write);
+          memcpy(pMapped, &data, sizeof(Type));
+          pBuffers->unmap(resource);
+        }
 
-  private:
-    BufferUsageHint m_hint = BufferUsageHint_Unknown;
-  };
-
-  template<typename Type>
-  class StructuredHardwareBuffer : public ManagedGraphicsResource {
-  public:
-    StructuredHardwareBuffer(BufferUsageHint usageHint = BufferUsageHint_Unknown)
-      : m_hint(usageHint) {}
-
-    Type data;
-
-    void upload(GraphicsDevice *pDevice) {
-      graphics::BufferManager * pBuffers = pDevice->getBufferManager();
-      GraphicsResource          resource  = getResource();
-      if (resource == InvalidGraphicsResource) {
-        resource = pBuffers->createBuffer(m_hint);
-        pBuffers->upload(resource, sizeof(Type), &data);
-      } else {
-        void * pMapped = pBuffers->map(resource, MapAccess_Write);
-        memcpy(pMapped, &data, sizeof(Type));
-        pBuffers->unmap(resource);
+        set(pDevice, resource);
       }
 
-      set(pDevice, resource);
-    }
-
-    BufferUsageHint getUsageHint() const {
-      return m_hint;
-    }
-
-  private:
-    BufferUsageHint m_hint = BufferUsageHint_Unknown;
-  };
-
-  template<typename Type>
-  class StructuredHardwareArrayBuffer : public ManagedGraphicsResource {
-  public:
-    StructuredHardwareArrayBuffer(BufferUsageHint usageHint = BufferUsageHint_Unknown)
-      : m_hint(usageHint)
-    {}
-
-    Vector<Type> data;
-
-    void upload(GraphicsDevice * pDevice) {
-      graphics::BufferManager * pBuffers = pDevice->getBufferManager();
-      GraphicsResource          resource = getResource();
-
-      if (resource == InvalidGraphicsResource) {
-        resource = pBuffers->createBuffer(m_hint);
+      BufferUsageHint getUsageHint() const {
+        return m_hint;
       }
 
-      pBuffers->upload(resource, sizeof(Type) * data.size(), data.data());
-      set(pDevice, resource);
-    }
+    private:
+      BufferUsageHint     m_hint = BufferUsageHint_Unknown;
+      graphics::BufferRef m_pBuffer;
+    };
 
-    BufferUsageHint getUsageHint() const {
-      return m_hint;
-    }
+    template<typename Type>
+    class StructuredArrayBuffer : public ManagedGraphicsResource {
+    public:
+      StructuredArrayBuffer(BufferUsageHint usageHint = BufferUsageHint_Unknown)
+        : m_hint(usageHint) {}
 
-  private:
-    BufferUsageHint m_hint = BufferUsageHint_Unknown;
-  };
+      Vector<Type> data;
+
+      void upload(GraphicsDevice * pDevice) {
+        graphics::BufferManager * pBuffers = pDevice->getBufferManager();
+        GraphicsResource          resource = getResource();
+
+        if (resource == InvalidGraphicsResource) {
+          resource = pBuffers->createBuffer(m_hint);
+        }
+
+        pBuffers->upload(resource, sizeof(Type) * data.size(), data.data());
+        set(pDevice, resource);
+      }
+
+      BufferUsageHint getUsageHint() const {
+        return m_hint;
+      }
+
+    private:
+      BufferUsageHint m_hint = BufferUsageHint_Unknown;
+    };
+  }
 }

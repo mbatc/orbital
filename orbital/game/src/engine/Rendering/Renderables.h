@@ -14,9 +14,9 @@ namespace engine {
     bfc::Mat4d modelMatrix;
     bfc::Mat4d normalMatrix;
 
-    bfc::GraphicsResource vertexArray;
-    bfc::GraphicsResource materialBuffer;
-    bfc::GraphicsResource materialTextures[bfc::Material::TextureSlot_Count];
+    bfc::graphics::VertexArrayRef vertexArray;
+    bfc::graphics::BufferRef      materialBuffer;
+    bfc::graphics::TextureRef     materialTextures[bfc::Material::TextureSlot_Count];
 
     bfc::geometry::Box<float> bounds;
   };
@@ -28,22 +28,22 @@ namespace engine {
     bfc::Mat4d modelMatrix;
     bfc::Mat4d normalMatrix;
 
-    bfc::GraphicsResource vertexArray;
+    bfc::graphics::VertexArrayRef vertexArray;
 
     bfc::geometry::Box<float> bounds;
   };
 
   /// Skybox render data.
   struct CubeMapRenderable {
-    bfc::GraphicsResource texture;
+    bfc::graphics::TextureRef texture;
     float                 alpha;
   };
 
   /// Image-based lighting data.
   struct CubeMapIBLRenderable {
-    bfc::GraphicsResource irradiance;
-    bfc::GraphicsResource prefilter;
-    bfc::GraphicsResource brdfLUT;
+    bfc::graphics::TextureRef irradiance;
+    bfc::graphics::TextureRef prefilter;
+    bfc::graphics::TextureRef brdfLUT;
     float                 intensity;
   };
 
@@ -76,7 +76,7 @@ namespace engine {
     float filterRadius;
     float threshold;
 
-    bfc::GraphicsResource dirtTex;
+    bfc::graphics::TextureRef dirtTex;
     float                 dirtIntensity;
   };
 

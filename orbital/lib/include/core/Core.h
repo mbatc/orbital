@@ -388,6 +388,15 @@ namespace bfc {
     );
   }
 
+  template<typename... Ts>
+  struct overloads : Ts... {
+    using Ts::operator()...;
+  };
+
+  template<typename...Ts>
+  auto overloaded(Ts &&... functors) {
+    return overloads<Ts...>{std::forward<Ts>(functors)...};
+  }
 
   BFC_API bool assertion(char const * file, char const * function, int64_t line, bool condition, char const * expression, char const * message, ...);
   BFC_API void fail(char const * file, char const * function, int64_t line, char const * message, ...);

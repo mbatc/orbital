@@ -49,7 +49,7 @@ namespace bfc {
 
     int64_t getIndexCount() const;
 
-    GraphicsResource getVertexArray() const;
+    graphics::VertexArrayRef getVertexArray() const;
 
     geometry::Box<float> getBounds() const;
 
@@ -58,9 +58,9 @@ namespace bfc {
     Vector<SubMesh> m_meshes;
     geometry::Boxf  m_bounds;
 
-    ManagedGraphicsResource m_vertexBuffer;
-    ManagedGraphicsResource m_indexBuffer;
-    ManagedGraphicsResource m_vertexArray;
+    graphics::BufferRef               m_vertexBuffer;
+    graphics::BufferRef m_indexBuffer;
+    graphics::VertexArrayRef          m_vertexArray;
 
     int64_t m_vertexCount = 0;
     int64_t m_indexCount = 0;
