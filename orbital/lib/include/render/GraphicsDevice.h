@@ -6,6 +6,7 @@
 #include "../core/Timestamp.h"
 
 #include <variant>
+#include <optional>
 #include <future>
 
 namespace bfc {

@@ -1223,21 +1223,36 @@ namespace bfc {
   }
 
   uint64_t GraphicsDevice_OpenGL::submit(std::unique_ptr<graphics::CommandList> const & pCommandList) {
-    return uint64_t();
+    m_queueLock.lock();
+    uint64_t commandList = ++m_nextCommandListID;
+    m_commandListQueue.pushBack(std::move(pCommandList));
+    m_queueLock.unlock();
+    m_queueNotifier.notify_one();
+    return commandList;
   }
 
   bool GraphicsDevice_OpenGL::wait(uint64_t handle, std::optional<Timestamp> const & timeout) {
-    return false;
+    std::unique_lock guard{m_fenceLock};
+    if (timeout.has_value())
+      return m_fenceNotifier.wait_for(guard, (std::chrono::microseconds)timeout.value(), [=]() { return m_commandListFence >= handle; });
+
+    m_fenceNotifier.wait(guard, [=]() { return m_commandListFence >= handle; });
+    return true;
   }
 
   void GraphicsDevice_OpenGL::RenderThread() {
-    bool running = false;
+    bool                                           running = false;
+    Vector<std::unique_ptr<graphics::CommandList>> lists;
     while (m_running) {
       std::unique_lock guard{m_queueLock};
       m_queueNotifier.wait(guard, [&]() {
         running = m_running || m_commandListQueue.size() > 0;
-        
+        lists   = std::move(m_commandListQueue);
+        return !running || lists.size() > 0;
       });
+
+      for (auto &list : lists)
+        list->
     }
   }
 
