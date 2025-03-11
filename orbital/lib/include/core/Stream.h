@@ -8,6 +8,7 @@
 namespace bfc {
   class URI;
   class Stream;
+  class String;
   enum FileMode;
 
   enum FileMode {
@@ -93,6 +94,13 @@ namespace bfc {
 
     virtual bool flush();
 
+    /// Get the length of the stream.
+    /// @returns The number of bytes in the stream.
+    /// @retval -1 If the stream length is unknown.
+    virtual int64_t length() const {
+      return -1;
+    }
+
     template<typename T>
     bool write(T const & value) {
       return ::bfc::write(this, &value, 1) == 1;
@@ -139,6 +147,8 @@ namespace bfc {
 
   class BFC_API MemoryReader : public Stream {
   public:
+    using Stream::read;
+
     MemoryReader(Span<uint8_t> const & data);
 
     virtual bool readable() const override;
@@ -239,4 +249,12 @@ namespace bfc {
     }
     return std::move(buffer.get());
   }
+
+  BFC_API bool readFile(URI const & uri, Vector<uint8_t> * pContent);
+
+  BFC_API bool readTextURI(URI const & uri, String * pContent);
+
+  BFC_API bool writeURI(URI const & uri, Span<uint8_t> const & content);
+
+  BFC_API bool writeTextURI(URI const & uri, StringView const & content);
 } // namespace bfc

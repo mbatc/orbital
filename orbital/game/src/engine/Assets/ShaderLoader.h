@@ -3,7 +3,7 @@
 #include "core/Map.h"
 #include "core/URI.h"
 #include "core/Serialize.h"
-#include "render/Shader.h"
+#include "render/GraphicsDevice.h"
 
 #include "AssetLoader.h"
 
@@ -13,11 +13,11 @@ namespace engine {
     bfc::Map<bfc::ShaderType, bfc::URI> sources;
   };
 
-  class ShaderLoader : public AssetLoader<bfc::Shader> {
+  class ShaderLoader : public AssetLoader<bfc::graphics::Program> {
   public:
     ShaderLoader(bfc::GraphicsDevice * pGraphicsDevice);
 
-    virtual bfc::Ref<bfc::Shader> load(bfc::URI const & uri, AssetLoadContext * pContext) const override;
+    virtual bfc::Ref<bfc::graphics::Program> load(bfc::URI const & uri, AssetLoadContext * pContext) const override;
     virtual bool                  handles(bfc::URI const & uri, AssetManager const * pManager) const override;
 
   private:

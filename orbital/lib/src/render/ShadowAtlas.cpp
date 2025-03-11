@@ -1,10 +1,11 @@
 #include "render/ShadowAtlas.h"
 
 namespace bfc {
-  ShadowAtlas::ShadowAtlas(GraphicsDevice * pDevice, int64_t maxRes, int64_t memoryLimit) {
+  ShadowAtlas::ShadowAtlas(graphics::CommandList * pCmdList, int64_t maxRes, int64_t memoryLimit) {
     m_numLayers = math::max(1ll, memoryLimit / (4 * maxRes * maxRes));
-    m_texture.load2DArray(pDevice, {maxRes, maxRes, m_numLayers}, DepthStencilFormat_D32);
-    m_texture.generateMipmaps();
+    graphics::loadTexture2DArray(pCmdList, &m_texture, {maxRes, maxRes, m_numLayers}, DepthStencilFormat_D32);
+    pCmdList->generateMipMaps(m_texture);
+
     m_resolution = {maxRes, maxRes};
     m_numMips    = 1 + (int64_t)glm::floor(glm::log2(maxRes));
   }

@@ -5,6 +5,7 @@
 #include <utility>
 #include <memory>
 #include <type_traits>
+#include <variant>
 
 namespace bfc {
   enum class PlatformID {
@@ -189,7 +190,7 @@ namespace bfc {
   static constexpr int64_t npos = std::numeric_limits<int64_t>::max();
 
   template<typename T>
-  struct enable_bitwise_operators : std::false_type {};
+  struct enable_bitwise_operators : sfinae_false {};
 
   template<typename T, std::enable_if_t<enable_bitwise_operators<T>::value>* = 0>
   T operator|(T const& lhs, T const& rhs) {
@@ -280,10 +281,8 @@ namespace bfc {
 
   // Some type trait helpers
 
-  template<typename T>
   struct sfinae_true : std::true_type {};
 
-  template<typename T>
   struct sfinae_false : std::false_type {};
 
   template<typename... Args>
@@ -301,21 +300,43 @@ namespace bfc {
   template<bool IsConst, typename T>
   using conditional_const_t = typename conditional_const<IsConst, T>::type;
 
+  template<typename T, typename... Types>
+  struct in_set {
+    inline static constexpr bool value = (std::is_same_v<T, Types> || ...);
+  };
+
+  template<typename Var>
+  struct variant_arg_list {};
+
+  template<typename... Args>
+  struct variant_arg_list<std::variant<Args...>> {
+    using type = arg_list<Args...>;
+  };
+
+  template<typename T, typename Variant>
+  struct in_variant : sfinae_false {};
+
+  template<typename T, typename... Args>
+  struct in_variant<T, std::variant<Args...>> : in_set<T, Args...> {};
+
+  template<typename T, typename Variant>
+  inline constexpr bool in_variant_v = in_variant<T, Variant>::value;
+
   // Test if a type is a function.
   template<typename T>
-  struct is_function : std::false_type {};
+  struct is_function : sfinae_false {};
 
   template<typename ReturnT, typename... Args>
-  struct is_function<ReturnT (*)(Args...)> : std::true_type {};
+  struct is_function<ReturnT (*)(Args...)> : sfinae_true {};
 
   template<typename ReturnT, typename... Args>
-  struct is_function<ReturnT(Args...)> : std::true_type {};
+  struct is_function<ReturnT(Args...)> : sfinae_true {};
 
   template<typename ClassT, typename ReturnT, typename... Args>
-  struct is_function<ReturnT (ClassT::*)(Args...)> : std::true_type {};
+  struct is_function<ReturnT (ClassT::*)(Args...)> : sfinae_true {};
 
   template<typename ClassT, typename ReturnT, typename... Args>
-  struct is_function<ReturnT (ClassT::*)(Args...) const> : std::true_type {};
+  struct is_function<ReturnT (ClassT::*)(Args...) const> : sfinae_true {};
 
   template<typename T>
   inline constexpr bool is_function_v = is_function<T>::value;

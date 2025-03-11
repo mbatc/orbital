@@ -43,7 +43,7 @@ namespace engine {
       EntityID testEntity = pNewLevel->create();
 
       pNewLevel->add<components::Name>  (testEntity).name     = "Environment";
-      pNewLevel->add<components::Skybox>(testEntity).pTexture = pAssets->load<bfc::Texture>(URI::File(skyboxPath));
+      pNewLevel->add<components::Skybox>(testEntity).pTexture = pAssets->load<graphics::Texture>(URI::File(skyboxPath));
 
       components::Transform & sunTransform = pNewLevel->add<components::Transform>(testEntity);
       sunTransform.lookAt(bfc::Vec3d(1, 1, -1));
@@ -59,7 +59,12 @@ namespace engine {
     pLevels->setActiveLevel(pLevels->load(settings.startupLevel.get()));
     
     // Create an editor viewport and render the active level.
-    m_pEditorViewport = NewRef<LevelEditorViewport>(pRendering->getDevice(), pAssets.get());
+    {
+      auto pInitCmdList = pRendering->getDevice()->createCommandList();
+      m_pEditorViewport = NewRef<LevelEditorViewport>(pInitCmdList.get(), pAssets.get());
+      pRendering->getDevice()->submit(std::move(pInitCmdList));
+    }
+
     m_pEditorViewport->setLevel(pLevels->getActiveLevel());
 
     m_pViewportListener = m_pEditorViewport->getEvents()->addListener();
@@ -73,8 +78,10 @@ namespace engine {
 
     m_pAppListener->on([=](events::OnRenderViewport const & e) {
       if (m_pDrawData != nullptr && e.isMainViewport) {
-        m_uiContext.renderDrawData(m_pDrawData);
+        auto pCmdList = e.pDevice->createCommandList();
+        m_uiContext.renderDrawData(pCmdList.get(), m_pDrawData);
         m_pDrawData = nullptr;
+        e.pDevice->submit(std::move(pCmdList));
       }
     });
 
@@ -84,11 +91,15 @@ namespace engine {
       m_pEditorViewport->setLevel(e.pLevel);
     });
 
+    GraphicsDevice *pGraphicDevice = pRendering->getDevice();
+
+    auto pInitCmdList = pGraphicDevice->createCommandList();
+
     // Render the editor viewport to the main window.
     pRendering->setMainViewport(m_pEditorViewport);
 
     // Init ui context rendering.
-    m_uiContext.init(pRendering->getDevice());
+    m_uiContext.init(pInitCmdList.get());
     m_uiContext.getEvents()->listenTo(pRendering->getMainWindow()->getEvents());
 
     addComponentEditor<NameEditor>();
@@ -102,6 +113,8 @@ namespace engine {
     addComponentEditor<PostProcess_BloomEditor>();
     addComponentEditor<PostProcess_SSAOEditor>();
     addComponentEditor<PostProcess_SSREditor>();
+
+    pGraphicDevice->submit(std::move(pInitCmdList));
 
     return true;
   }
@@ -145,7 +158,7 @@ namespace engine {
       if (kbd.isPressed(KeyCode_1)) {
         // Reload all the shaders
         BFC_LOG_INFO("LevelEditor", "Reloading shaders");
-        for (AssetHandle handle : pAssets->findHandles<bfc::Shader>()) {
+        for (AssetHandle handle : pAssets->findHandles<bfc::graphics::Program>()) {
           pAssets->reload(handle);
         }
       }
@@ -328,7 +341,10 @@ namespace engine {
         m_pEditorViewport->setLevel(pLevels->getActiveLevel());
         pRendering->setMainViewport(m_pEditorViewport);
       } else if (activateGameViewport) {
-        auto pGameViewport = NewRef<GameViewport>(pRendering->getDevice(), pAssets.get());
+        auto pInitCmdList  = pRendering->getDevice()->createCommandList();
+        auto pGameViewport = NewRef<GameViewport>(pInitCmdList.get(), pAssets.get());
+        pRendering->getDevice()->submit(std::move(pInitCmdList));
+
         pGameViewport->setLevel(pLevels->getActiveLevel());
         pRendering->setMainViewport(pGameViewport);
       }

@@ -208,4 +208,48 @@ namespace bfc {
       return openURI(uri, FileMode_Read) != nullptr;
     }
   }
+
+  BFC_API bool readUntilEof(Stream * pStream, Vector<uint8_t> * pContent) {
+    if (pStream == nullptr) {
+      return false;
+    }
+
+    if (pStream->length() != -1) {
+      int64_t len = pStream->length();
+      pContent->resize(len, 0);
+      return pStream->read(pContent->data(), len) == len;
+    }
+
+    const int64_t readSize  = 32ll * 1024 * 1024;
+    int64_t       totalRead = 0;
+    pContent->resize(readSize, 0);
+    while (int64_t bytes = pStream->read(pContent->begin() + totalRead, readSize)) {
+      pContent->resize(totalRead + readSize, 0);
+      totalRead += bytes;
+    }
+    pContent->resize(totalRead);
+    return pContent->size();
+  }
+
+  BFC_API bool readFile(URI const & uri, Vector<uint8_t> * pContent) {
+    return readUntilEof(openURI(uri, FileMode_ReadBinary).get(), pContent);
+  }
+
+  BFC_API bool readTextURI(URI const & uri, String * pContent) {
+    Vector<uint8_t> data;
+    if (!readUntilEof(openURI(uri, FileMode_ReadBinary).get(), &data))
+      return false;
+    *pContent = String(std::move((Vector<char>&)data));
+    return true;
+  }
+
+  BFC_API bool writeURI(URI const & uri, Span<uint8_t> const & content) {
+    Ref<Stream> pStream = openURI(uri, FileMode_WriteBinary);
+    return pStream != nullptr && pStream->write(content.data(), content.size()) == content.size();
+  }
+
+  BFC_API bool writeTextURI(URI const & uri, StringView const & content) {
+    Ref<Stream> pStream = openURI(uri, FileMode_Write);
+    return pStream != nullptr && pStream->write(content.data(), content.length()) == content.length();
+  }
 } // namespace bfc

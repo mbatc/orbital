@@ -1,13 +1,12 @@
 #pragma once
 
 #include "AssetLoader.h"
+#include "render/GraphicsDevice.h"
 
 namespace bfc {
   namespace media {
     class Surface;
   }
-  class Texture;
-  class GraphicsDevice;
 } // namespace bfc
 
 namespace engine {
@@ -17,12 +16,12 @@ namespace engine {
     virtual bool                          handles(bfc::URI const & uri, AssetManager const * pManager) const override;
   };
 
-  class Texture2DLoader : public AssetLoader<bfc::Texture> {
+  class Texture2DLoader : public AssetLoader<bfc::graphics::Texture> {
   public:
     Texture2DLoader(bfc::GraphicsDevice * pGraphicsDevice);
 
-    virtual bfc::Ref<bfc::Texture> load(bfc::URI const & uri, AssetLoadContext * pManager) const override;
-    virtual bool                   handles(bfc::URI const & uri, AssetManager const * pManager) const override;
+    virtual bfc::Ref<bfc::graphics::Texture> load(bfc::URI const & uri, AssetLoadContext * pManager) const override;
+    virtual bool                 handles(bfc::URI const & uri, AssetManager const * pManager) const override;
 
   private:
     bfc::GraphicsDevice * m_pGraphicsDevice = nullptr;

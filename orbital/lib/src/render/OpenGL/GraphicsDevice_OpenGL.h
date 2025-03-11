@@ -19,21 +19,21 @@ namespace bfc {
     namespace impl {
       class CommandBuffer {
       public:
-        using GenericCommandCallback = void (*)(uint8_t const * pCommand, GraphicsDevice * pDevice, CommandBuffer * pBuffer);
+        using GenericCommandCallback = void (*)(uint8_t const * pCommand, GraphicsDevice * pDevice, CommandBuffer const * pBuffer);
 
         template<typename Cmd>
         void add(Cmd const & command) {
           static_assert(std::is_trivially_copyable_v<Cmd>, "Cmd must be trivially copyable");
 
-          m_stream.pushBack((uint8_t *)&cmd, sizeof(command));
-
           Command cmd;
           cmd.callback = (GenericCommandCallback)&Cmd::execute;
-          cmd.size     = sizeof(Cmd);
+          cmd.offset   = m_stream.tell();
+          m_stream.write(command);
+          m_commands.pushBack(cmd);
         }
 
-        void execute(GraphicsDevice * pDevice) {
-          for (auto & command : m_commands) {
+        void execute(GraphicsDevice * pDevice) const {
+          for (auto const & command : m_commands) {
             command.callback(m_stream.storage().begin() + command.offset, pDevice, this);
           }
         }
@@ -70,22 +70,17 @@ namespace bfc {
         Serialized<T> serialize(T const & o) {
           int64_t offset = m_stream.tell();
           m_stream.write(o);
-          return offset;
+          return Serialized<T>{offset};
         }
 
         template<typename T>
-        T deserialize(Serialized<T> const & handle) {
-          m_stream.seek(handle.offset);
+        T deserialize(Serialized<T> const & handle, int64_t * pSize) const {
+          MemoryReader reader(m_stream.storage().getView(handle.offset));
           bfc::Uninitialized<T> buffer;
-          m_stream.read(buffer.ptr());
+          reader.read(buffer.ptr());
+          if (pSize != nullptr)
+            *pSize = reader.tell();
           return buffer.take();
-        }
-
-        template<typename T>
-        T deserialize(Serialized<T> const & handle, int64_t * pSize) {
-          T ret  = deserialize(handle);
-          *pSize = m_stream.tell() - handle.offset;
-          return ret;
         }
 
       private:
@@ -214,10 +209,9 @@ namespace bfc {
         int32_t glLoc     = -1;
       };
 
-      virtual void                      addShader(ShaderType type, std::optional<ShaderDesc> desc) override;
+      virtual void                      setShader(ShaderType type, std::optional<ShaderDesc> desc) override;
       virtual std::optional<ShaderDesc> getShader(ShaderType type) const override;
-      virtual bool                      compile(String * pError = nullptr) override;
-
+      
       virtual int64_t getAttributeCount() const override;
       virtual int64_t getUniformCount() const override;
       virtual int64_t getBufferCount() const override;
@@ -228,6 +222,8 @@ namespace bfc {
       virtual void getTextureDesc(int64_t textureIndex, ProgramTextureDesc * pDesc) const override;
       virtual void getBufferDesc(int64_t bufferIndex, ProgramBufferDesc * pDesc) const override;
 
+      void        waitForCompilation() const;
+      bool        compile(String * pError);
       static void reflect(uint32_t glID, Vector<Attribute> * pAttributes, Vector<Uniform> * pUniforms, Vector<Texture> * pTextures, Vector<Buffer> * pBuffers);
 
       uint32_t   glID = 0;
@@ -237,6 +233,8 @@ namespace bfc {
       Vector<Uniform>   uniforms;
       Vector<Buffer>    buffers;
       Vector<Texture>   textures;
+
+      std::optional<std::shared_future<bool>> compileResult;
     };
 
     class GLRenderTarget : public RenderTarget {
@@ -324,6 +322,8 @@ namespace bfc {
     public:
       CommandList_OpenGL(GraphicsDevice * pDevice, RenderTargetRef defaultTarget, VertexArrayRef emptyVertexArray, uint32_t lastTextureUnit);
 
+      virtual void execute() const override;
+
       // Pipeline state
       virtual void bindProgram(ProgramRef programID) override;
       virtual void bindVertexArray(VertexArrayRef vertexArrayID) override;
@@ -339,7 +339,7 @@ namespace bfc {
       virtual void popState() override;
 
       // Buffers
-      virtual bool upload(BufferRef bufferID, int64_t size, void const * pData = nullptr) override;
+      virtual void upload(BufferRef bufferID, int64_t size, void const * pData = nullptr) override;
 
       /// Map a buffer to client memory.
       /// @param bufferID The buffer to map.
@@ -364,12 +364,15 @@ namespace bfc {
       virtual bool uploadTexture(TextureRef textureID, media::Surface const & src) override;
       virtual bool uploadTextureSubData(TextureRef textureID, media::Surface const & src, Vec3i offset) override;
       virtual void generateMipMaps(TextureRef textureID) override;
-      virtual bool downloadTexture(TextureRef textureID, TextureDownloadRef pDownload) override;
+      virtual void downloadTexture(TextureRef textureID, TextureDownloadRef pDownload) override;
 
       // Shaders
       virtual void    setUniform(int64_t uniformIndex, void const * pBuffer, int64_t size) override;
+      virtual void    setUniform(StringView const & name, void const * pBuffer, int64_t size) override;
       virtual void    setBufferBinding(int64_t bufferIndex, int64_t bindPoint) override;
+      virtual void    setBufferBinding(StringView const & name, int64_t bindPoint) override;
       virtual void    setTextureBinding(int64_t textureIndex, int64_t bindPoint) override;
+      virtual void    setTextureBinding(StringView const & name, int64_t bindPoint) override;
       // virtual void    getUniform(int64_t uniformIndex, void * pBuffer, ProgramUniformDesc * pDesc) override;
       // virtual int64_t getBufferBinding(int64_t bufferIndex) override;
       // virtual int64_t getTextureBinding(int64_t bufferIndex) override;
@@ -383,26 +386,21 @@ namespace bfc {
       virtual void drawIndexed(int64_t elementCount = std::numeric_limits<int64_t>::max(), int64_t elementOffset = 0,
                                PrimitiveType primType = PrimitiveType_Triangle, int64_t instanceCount = 1) override;
 
+      /// Track a pointer to keep it alive while this command list exists.
+      virtual void track(bfc::Ref<void> pPtr) override;
+
       /// Get the graphics device that created this command list.
       virtual GraphicsDevice * getDevice() const override;
     private:
       template<typename Cmd>
       void add(Cmd const & cmd) {
-        m_commandBuffer.Add(cmd);
-      }
-
-      void track(Ref<void> const & resource) {
-        if (resource != nullptr) {
-          m_trackedResources.pushBack(resource);
-        }
+        m_commandBuffer.add(cmd);
       }
 
       void clear() {
         m_trackedResources.clear();
         m_commandBuffer.reset();
       }
-
-      GraphicsDevice * m_pDevice;
 
       int64_t  m_indexCount  = -1;
       int64_t  m_vertexCount = -1;
@@ -439,7 +437,9 @@ namespace bfc {
 
     virtual graphics::StateManager * getStateManager() override;
 
-    virtual uint64_t submit(std::unique_ptr<graphics::CommandList> const & pCommandList) override;
+    virtual std::shared_future<bool> compile(graphics::ProgramRef pProgram) override;
+
+    virtual uint64_t submit(std::unique_ptr<graphics::CommandList> && pCommandList) override;
 
     virtual bool wait(uint64_t handle, std::optional<Timestamp> const & timeout = std::nullopt) override;
 
@@ -460,25 +460,42 @@ namespace bfc {
     }
 
   private:
-    void RenderThread();
+    void RenderThread(platform::Window * pWindow, Ref<std::promise<void>> initComplete);
+    void cleanupResources();
+
+    std::mutex m_destroyLock;
+    struct DestroyQueues {
+      Vector<uint32_t> textures;
+      Vector<uint32_t> vertexArrays;
+      Vector<uint32_t> programs;
+      Vector<uint32_t> buffers;
+      Vector<uint32_t> framebuffers;
+      Vector<uint32_t> samplers;
+    } m_destroy;
 
     std::thread m_renderThread;
-    bool        m_running = false;
+    bool        m_running = true;
 
     uint64_t                m_nextCommandListID = 0;
     uint64_t                m_commandListFence  = 0;
     std::mutex              m_fenceLock;
     std::condition_variable m_fenceNotifier;
 
+    struct CompileProgramJob {
+      graphics::ProgramRef  pProgram;
+      std::promise<bool>    result;
+    };
+
     std::mutex                                     m_queueLock;
     std::condition_variable                        m_queueNotifier;
     Vector<std::unique_ptr<graphics::CommandList>> m_commandListQueue;
+    Vector<CompileProgramJob>                      m_compileJobs;
 
     graphics::StateManager_OpenGL m_stateManager;
 
     HGLRC                     m_hGLRC            = 0;
     graphics::RenderTargetRef m_defaultTarget    = InvalidGraphicsResource;
-    graphics::VertexArrayRef  m_emptyVertexArray = InvalidGraphicsResource0;
+    graphics::VertexArrayRef  m_emptyVertexArray = InvalidGraphicsResource;
 
     uint32_t m_lastTextureUnit = 0;
   };

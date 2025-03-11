@@ -19,14 +19,14 @@ namespace bfc {
       ~Context();
 
       /// Initialise the imgui context using the given GraphicsDevice.
-      void init(GraphicsDevice * pDevice);
+      void init(graphics::CommandList * pCmdList);
       /// Shutdown the imgui context.
       void deinit();
       /// Called before every frame.
       /// @param size The size of the main window.
       void beginFrame(Vec2 size);
       /// Render ImGui draw data.
-      void renderDrawData(ImDrawData * pDrawData);
+      void renderDrawData(graphics::CommandList * pCmdList, ImDrawData * pDrawData);
       /// Make this the current ImGui context.
       void bind();
       /// Get the graphics device used by the GUI context.
@@ -47,23 +47,29 @@ namespace bfc {
         return &m_events;
       }
 
+      /// Track a texture.
+      /// Release after rendering this frame.
+      uint64_t track(graphics::TextureRef texture);
+
     private:
       void updateMouseData();
 
       Events m_events;
       Ref<EventListener> m_pListener = nullptr;
 
-      GraphicsDevice * m_pDevice        = nullptr;
       ImGuiContext *   m_pImContext     = nullptr;
       TextureAtlas *   m_pAtlas         = nullptr;
       bool             m_updateMonitors = true;
-      GraphicsResource m_vertexArray    = InvalidGraphicsResource;
-      GraphicsResource m_vertexBuffer   = InvalidGraphicsResource;
-      GraphicsResource m_indexBuffer    = InvalidGraphicsResource;
-      GraphicsResource m_fontTexture    = InvalidGraphicsResource;
-      Shader           m_shader;
-      GraphicsResource m_sampler         = InvalidGraphicsResource;
-      ImGuiMouseCursor m_lastMouseCursor = ImGuiMouseCursor_None;
+
+      graphics::VertexArrayRef m_vertexArray    = InvalidGraphicsResource;
+      graphics::BufferRef      m_vertexBuffer   = InvalidGraphicsResource;
+      graphics::BufferRef      m_indexBuffer    = InvalidGraphicsResource;
+      graphics::TextureRef     m_fontTexture    = InvalidGraphicsResource;
+      graphics::ProgramRef     m_shader;
+      graphics::SamplerRef     m_sampler         = InvalidGraphicsResource;
+      ImGuiMouseCursor         m_lastMouseCursor = ImGuiMouseCursor_None;
+
+      Vector<graphics::TextureRef> m_tracked;
     };
     BFC_API CursorIcon getCursorIcon(ImGuiMouseCursor cursor);
   } // namespace ui

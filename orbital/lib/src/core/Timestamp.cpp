@@ -54,23 +54,23 @@ namespace bfc {
     return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
   }
 
-  inline Timestamp::operator std::chrono::microseconds() const {
+  Timestamp::operator std::chrono::microseconds() const {
     return std::chrono::microseconds{(int64_t)micros()};
   }
 
-  inline Timestamp::operator std::chrono::milliseconds() const {
+  Timestamp::operator std::chrono::milliseconds() const {
     return std::chrono::milliseconds{(int64_t)millis()};
   }
 
-  inline Timestamp::operator std::chrono::seconds() const {
+  Timestamp::operator std::chrono::seconds() const {
     return std::chrono::seconds{(int64_t)secs()};
   }
 
-  inline Timestamp::operator std::chrono::minutes() const {
+  Timestamp::operator std::chrono::minutes() const {
     return std::chrono::minutes{(int64_t)mins()};
   }
 
-  inline Timestamp::operator std::chrono::hours() const {
+  Timestamp::operator std::chrono::hours() const {
     return std::chrono::hours{(int64_t)hours()};
   }
 

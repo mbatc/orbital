@@ -66,5 +66,18 @@
     return bfc::Vec4i64(x, y, z, w);                                                                                                                           \
   }
 
+namespace bfc {
+  namespace external {
+    struct ImGuiTextureRef {
+      ImGuiTextureRef() = default;
+      ImGuiTextureRef(ImGuiTextureRef const & o);
+      ImGuiTextureRef & operator=(ImGuiTextureRef const & o);
+      ImGuiTextureRef(::bfc::graphics::TextureRef const & pTexture);
+      operator uint64_t() const;
+
+      uint64_t index = 0;
+    };
+  }
+}
 // Override texture type to be a bfc::GraphicsResource
-#define ImTextureID ::bfc::GraphicsResource
+#define ImTextureID ::bfc::external::ImGuiTextureRef

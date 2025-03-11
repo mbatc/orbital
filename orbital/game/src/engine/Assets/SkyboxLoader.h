@@ -7,7 +7,9 @@ namespace bfc {
   namespace media {
     class Surface;
   }
-  class Texture;
+  namespace graphics {
+    class Texture;
+  }
   class GraphicsDevice;
   enum CubeMapFace;
 } // namespace bfc
@@ -31,11 +33,11 @@ namespace engine {
     bfc::Vec2i resolution  = bfc::Vec2i(2048);
   };
 
-  class SkyboxLoader : public AssetLoader<bfc::Texture> {
+  class SkyboxLoader : public AssetLoader<bfc::graphics::Texture> {
   public:
     SkyboxLoader(bfc::GraphicsDevice * pGraphicsDevice);
 
-    virtual bfc::Ref<bfc::Texture> load(bfc::URI const & uri, AssetLoadContext * pContext) const override;
+    virtual bfc::Ref<bfc::graphics::Texture> load(bfc::URI const & uri, AssetLoadContext * pContext) const override;
     virtual bool                   handles(bfc::URI const & uri, AssetManager const * pManager) const override;
 
   private:

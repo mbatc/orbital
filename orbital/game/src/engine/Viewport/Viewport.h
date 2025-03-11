@@ -3,7 +3,6 @@
 #include "input/Keyboard.h"
 #include "input/Mouse.h"
 #include "platform/Events.h"
-#include "render/Texture.h"
 #include "Rendering/RenderScene.h"
 
 namespace bfc {
@@ -16,16 +15,16 @@ namespace engine {
   class AssetManager;
   class Viewport {
   public:
-    Viewport(bfc::GraphicsDevice * pGraphics, AssetManager * pAssets, bfc::StringView const & viewportName);
+    Viewport(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets, bfc::StringView const & viewportName);
 
     /// Render the viewport.
-    void render(bfc::GraphicsResource renderTarget);
+    void render(bfc::graphics::CommandList * pCmdList, bfc::graphics::RenderTargetRef renderTarget);
 
     /// Collect all of the views that need to be rendered
-    virtual bfc::Vector<RenderView> collectViews(bfc::GraphicsResource renderTarget) const = 0;
+    virtual bfc::Vector<RenderView> collectViews(bfc::graphics::RenderTargetRef renderTarget) const = 0;
 
     /// Set the size of the viewport.
-    void setSize(bfc::Vec2i const & size);
+    void setSize(bfc::graphics::CommandList * pCmdList, bfc::Vec2i const & size);
 
     /// Set the Level this viewport should render.
     void setLevel(bfc::Ref<Level> const & pLevel);

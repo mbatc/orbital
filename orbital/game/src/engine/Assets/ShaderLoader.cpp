@@ -8,23 +8,24 @@ namespace engine {
   ShaderLoader::ShaderLoader(GraphicsDevice * pGraphicsDevice)
     : m_pGraphicsDevice(pGraphicsDevice) {}
 
-  Ref<Shader> ShaderLoader::load(URI const & uri, AssetLoadContext * pContext) const {
+  Ref<graphics::Program> ShaderLoader::load(URI const & uri, AssetLoadContext * pContext) const {
     auto definition = pContext->getFileSystem()->deserialize<ShaderDefinition>(uri);
     if (!definition.has_value()) {
       return nullptr;
     }
 
     URI sourceBasePath = uri.withPath(uri.path().parent());
-    Map<ShaderType, Filename> sources;
+    Map<ShaderType, URI> sources;
     for (auto & [type, shaderFile] : definition->sources) {
       URI resolvedUri = pContext->getFileSystem()->resolveUri(sourceBasePath.resolveRelativeReference(shaderFile));
-      sources.add(type, resolvedUri.path());
+      sources.add(type, resolvedUri);
     }
 
-    Ref<Shader> shader = NewRef<Shader>();
+    graphics::ProgramRef shader = m_pGraphicsDevice->createProgram();
+    shader->setFiles(sources);
 
     // TODO: Use URI to load shader source and customize reading files.
-    if (!shader->loadFiles(m_pGraphicsDevice, sources)) {
+    if (!m_pGraphicsDevice->compile(shader).get()) {
       return nullptr;
     }
 

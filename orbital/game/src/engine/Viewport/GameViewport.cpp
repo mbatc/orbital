@@ -5,15 +5,14 @@
 using namespace bfc;
 
 namespace engine {
-  GameViewport::GameViewport(GraphicsDevice * pGraphics, AssetManager * pAssets)
-    : Viewport(pGraphics, pAssets, "Game") {
+  GameViewport::GameViewport(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets)
+    : Viewport(pCmdList, pAssets, "Game") {
     m_mouse.attachTo(getEvents());
     m_keyboard.attachTo(getEvents());
   }
 
-  Vector<RenderView> GameViewport::collectViews(GraphicsResource renderTarget) const {
+  Vector<RenderView> GameViewport::collectViews(bfc::graphics::RenderTargetRef renderTarget) const {
     Level * pLevel = getLevel();
-    bfc::graphics::RenderTargetManager *pRT = getGraphics()->getRenderTargetManager();
 
     Vector<RenderView> ret;
     for (auto & [transform, camera] : getLevel()->getView<components::Transform, components::Camera>()) {
@@ -23,7 +22,7 @@ namespace engine {
         view.renderTarget = renderTarget;
       }
 
-      Vec2 renderSize = pRT->getSize(view.renderTarget);
+      Vec2 renderSize = view.renderTarget->getSize();
       renderSize *= camera.viewportSize;
 
       view.projectionMatrix = camera.projectionMat(renderSize.x / renderSize.y);

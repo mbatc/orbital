@@ -2,12 +2,13 @@
 
 #include "../core/Map.h"
 #include "../core/StringView.h"
-#include "../media/Surface.h"
 #include "../core/Timestamp.h"
+#include "../media/Surface.h"
+#include "../media/Image.h"
 
-#include <variant>
-#include <optional>
 #include <future>
+#include <optional>
+#include <variant>
 
 namespace bfc {
   namespace platform {
@@ -17,8 +18,8 @@ namespace bfc {
   class GraphicsDevice;
 
   inline static const std::nullptr_t InvalidGraphicsResource = nullptr; ///< Invalid GraphicsResource value.
-  constexpr int64_t                       MaxVertexBuffers        = 8;  ///< Max buffers allowed in a Vertex Array
-  constexpr int64_t                       MaxColourAttachments    = 8;  ///< Max colour attachments allowed in a Render Target
+  constexpr int64_t                  MaxVertexBuffers        = 8;       ///< Max buffers allowed in a Vertex Array
+  constexpr int64_t                  MaxColourAttachments    = 8;       ///< Max colour attachments allowed in a Render Target
 
   enum TextureType {
     TextureType_Unknown = -1,
@@ -330,11 +331,11 @@ namespace bfc {
     public:
       virtual void setSamplerMinFilter(FilterMode filter, FilterMode mipFilter) = 0;
       virtual void setSamplerMagFilter(FilterMode filter, FilterMode mipFilter) = 0;
-      virtual void setSamplerMinLOD(float level) = 0;
-      virtual void setSamplerMaxLOD(float level) = 0;
-      virtual void setSamplerWrapU(WrapMode mode) = 0;
-      virtual void setSamplerWrapV(WrapMode mode) = 0;
-      virtual void setSamplerWrapW(WrapMode mode) = 0;
+      virtual void setSamplerMinLOD(float level)                                = 0;
+      virtual void setSamplerMaxLOD(float level)                                = 0;
+      virtual void setSamplerWrapU(WrapMode mode)                               = 0;
+      virtual void setSamplerWrapV(WrapMode mode)                               = 0;
+      virtual void setSamplerWrapW(WrapMode mode)                               = 0;
 
       inline void setSamplerWrap(WrapMode mode) {
         setSamplerWrapU(mode);
@@ -345,15 +346,17 @@ namespace bfc {
     using SamplerRef = Ref<Sampler>;
 
     struct ShaderDesc {
-      Filename           path;
-      String             src;
+      std::optional<URI>    resource;
+      std::optional<String> src;
     };
 
     class BFC_API Program {
     public:
-      virtual void                      addShader(ShaderType type, std::optional<ShaderDesc> desc) = 0;
+      void setSource(Map<ShaderType, String> const & source);
+      void setFiles(Map<ShaderType, URI> const & files);
+
+      virtual void                      setShader(ShaderType type, std::optional<ShaderDesc> desc) = 0;
       virtual std::optional<ShaderDesc> getShader(ShaderType type) const                           = 0;
-      virtual bool                      compile(String * pError = nullptr)                         = 0;
 
       virtual int64_t getAttributeCount() const = 0;
       virtual int64_t getUniformCount() const   = 0;
@@ -361,9 +364,9 @@ namespace bfc {
       virtual int64_t getTextureCount() const   = 0;
 
       virtual void getAttributeDesc(int64_t uniformIndex, ProgramAttributeDesc * pDesc) const = 0;
-      virtual void getUniformDesc(int64_t uniformIndex, ProgramUniformDesc * pDesc)     const = 0;
-      virtual void getTextureDesc(int64_t textureIndex, ProgramTextureDesc * pDesc)     const = 0;
-      virtual void getBufferDesc(int64_t bufferIndex, ProgramBufferDesc * pDesc)        const = 0;
+      virtual void getUniformDesc(int64_t uniformIndex, ProgramUniformDesc * pDesc) const     = 0;
+      virtual void getTextureDesc(int64_t textureIndex, ProgramTextureDesc * pDesc) const     = 0;
+      virtual void getBufferDesc(int64_t bufferIndex, ProgramBufferDesc * pDesc) const        = 0;
     };
     using ProgramRef = Ref<Program>;
 
@@ -375,12 +378,11 @@ namespace bfc {
 
       virtual bool attachWindow(platform::Window * pWindow, DepthStencilFormat depthStencilFormat) = 0;
 
-      virtual void attachColour(TextureRef textureID, int64_t slot = 0, int64_t mipLevel = 0,
-                                int64_t layer = 0) = 0;
+      virtual void attachColour(TextureRef textureID, int64_t slot = 0, int64_t mipLevel = 0, int64_t layer = 0) = 0;
 
       virtual void setReadAttachment(int64_t slot) = 0;
 
-      virtual void attachDepth(TextureRef textureID, int64_t mipLevel = 0, int64_t layer = 0) = 0; 
+      virtual void attachDepth(TextureRef textureID, int64_t mipLevel = 0, int64_t layer = 0) = 0;
     };
     using RenderTargetRef = Ref<RenderTarget>;
 
@@ -408,11 +410,29 @@ namespace bfc {
       };
 
       struct Viewport {
+        Viewport(Vec2i position, Vec2i size)
+          : position(position)
+          , size(size) {}
+        Viewport(Vec2i size)
+          : Viewport(Vec2i(0), size) {}
+        Viewport(RenderTargetRef target)
+          : Viewport(target->getSize()) {}
+        Viewport(TextureRef texture)
+          : Viewport(texture->getSize()) {}
+
         Vec2i position;
         Vec2i size;
       };
 
       struct Scissor {
+        Scissor(Vec2i position, Vec2i size)
+          : position(position)
+          , size(size) {}
+        Scissor(Vec2i size)
+          : Scissor(Vec2i(0), size) {}
+        Scissor(RenderTargetRef target)
+          : Scissor(target->getSize()) {}
+
         Vec2i position;
         Vec2i size;
       };
@@ -493,29 +513,22 @@ namespace bfc {
         float a = 1.0f;
       };
 
-      using Storage = std::variant<
-        std::monostate,
-        EnableBlend,
-        EnableStencilTest,
-        EnableScissorTest,
-        EnableDepthRead,
-        EnableDepthWrite,
-        Viewport,
-        Scissor,
-        DepthRange,
-        DepthFunc,
-        BlendFunc,
-        BlendEq,
-        ColourWrite,
-        ColourFactor
-      >;
+      using Storage = std::variant<std::monostate, EnableBlend, EnableStencilTest, EnableScissorTest, EnableDepthRead, EnableDepthWrite, Viewport, Scissor,
+                                   DepthRange, DepthFunc, BlendFunc, BlendEq, ColourWrite, ColourFactor>;
+
+      template<typename T>
+      inline static constexpr bool IsState = in_variant_v<T, State::Storage>;
+
+      template<typename T, std::enable_if_t<IsState<T>>* = 0>
+      State(T const & value)
+        : m_storage(value) {}
 
       State(Storage const & value = std::monostate{})
         : m_storage(value) {}
 
       /// Visit stored state.
       template<typename Callable>
-      auto visit(Callable&& v) const {
+      auto visit(Callable && v) const {
         return std::visit(std::forward<Callable>(v), m_storage);
       }
 
@@ -541,10 +554,9 @@ namespace bfc {
       /// Push states, recording the previously known value.
       template<typename... States>
       void push(States &&... states) {
-        Array<State, sizeof...(States)> values{std::forward<States>(states)...};
         beginGroup();
-        (push(states), ...);
-        pushGroup();
+        (_push(states), ...);
+        endGroup();
       }
 
       /// Begin a group of state changes that will be pushed to the stack.
@@ -571,10 +583,8 @@ namespace bfc {
       /// Set a state without pushing the previous value to the stack.
       template<typename... States>
       void set(States &&... states) {
-        Array<State, sizeof...(States)> values{std::forward<States>(states)...};
-        set(Span<const State>{values.begin(), values.size()});
+        (_set(states), ...);
       }
-      void set(Span<const State> const & states);
       void set(State const & state);
 
       /// Apply the state changes.
@@ -583,6 +593,9 @@ namespace bfc {
       void apply();
 
     protected:
+      void _set(State const & state);
+      void _push(State const & state);
+
       /// Implementation should apply the state to the graphics device.
       virtual void apply(State const & state) = 0;
 
@@ -623,6 +636,10 @@ namespace bfc {
 
     class BFC_API CommandList {
     public:
+      /// Execute all commands in the list.
+      /// Should only be called from a render thread.
+      virtual void execute() const = 0;
+
       // Pipeline state
       virtual void bindProgram(ProgramRef programID)                                                                    = 0;
       virtual void bindVertexArray(VertexArrayRef vertexArrayID)                                                        = 0;
@@ -634,24 +651,31 @@ namespace bfc {
       virtual void bindScreen(MapAccess renderTargetAccess = MapAccess_ReadWrite)                                       = 0;
 
       /// Set a state without pushing the previous value to the stack.
-      template<typename... States>
-      void set(States &&... states) {
-        std::array<State, sizeof...(States)> values{std::forward<States>(states)...};
+      template<typename... States, std::enable_if_t<(State::IsState<States> || ...)> * = 0>
+      void setState(States &&... states) {
+        Array<State, sizeof...(States)> values{std::forward<States>(states)...};
         setState(Span<const State>{values.begin(), values.size()});
       }
       virtual void setState(Span<const State> const & state) = 0;
       /// Push a state, recording the previously known value.
-      template<typename... States>
+      template<typename... States, std::enable_if_t<(in_variant_v<States, State::Storage> || ...)>* = 0>
       void pushState(States &&... states) {
-        std::array<State, sizeof...(States)> values{std::forward<States>(states)...};
+        Array<State, sizeof...(States)> values{std::forward<States>(states)...};
         pushState(Span<const State>{values.begin(), values.size()});
       }
       virtual void pushState(Span<const State> const & state) = 0;
-      virtual void popState()  = 0;
+      virtual void popState()                                 = 0;
 
       // Buffers
-      virtual bool upload(BufferRef bufferID, int64_t size, void const * pData = nullptr) = 0;
-      
+      virtual void upload(BufferRef bufferID, int64_t size, void const * pData = nullptr) = 0;
+
+      template<typename T>
+      void upload(BufferRef bufferID, Vector<T> data) {
+        auto pBuffer = NewRef<Vector<T>>(std::move(data));
+        upload(bufferID, pBuffer->size() * sizeof(T), pBuffer->begin());
+        track(pBuffer);
+      }
+
       /// Map a buffer to client memory.
       /// @param bufferID The buffer to map.
       /// @param access   Type of access needed (read, write, read/write).
@@ -667,20 +691,33 @@ namespace bfc {
       virtual std::future<void *> map(BufferRef bufferID, int64_t offset, int64_t size, MapAccess access = MapAccess_ReadWrite) = 0;
 
       virtual void unmap(BufferRef bufferID) = 0;
-
       virtual void download(BufferRef bufferID, BufferDownloadRef dst, int64_t offset = 0, int64_t size = 0) = 0;
 
       // Textures
-      virtual bool uploadTexture(TextureRef textureID, DepthStencilFormat format, Vec3i size)        = 0;
-      virtual bool uploadTexture(TextureRef textureID, media::Surface const & src)                               = 0;
-      virtual bool uploadTextureSubData(TextureRef textureID, media::Surface const & src, Vec3i offset)          = 0;
-      virtual void generateMipMaps(TextureRef textureID)                                                         = 0;
-      virtual bool downloadTexture(TextureRef textureID, TextureDownloadRef pDownload)                           = 0;
+      virtual bool uploadTexture(TextureRef textureID, DepthStencilFormat format, Vec3i size)           = 0;
+      virtual bool uploadTexture(TextureRef textureID, media::Surface const & src)                      = 0;
+      virtual bool uploadTextureSubData(TextureRef textureID, media::Surface const & src, Vec3i offset) = 0;
+      virtual void generateMipMaps(TextureRef textureID)                                                = 0;
+      virtual void downloadTexture(TextureRef textureID, TextureDownloadRef pDownload)                  = 0;
 
       // Shaders
-      virtual void    setUniform(int64_t uniformIndex, void const * pBuffer, int64_t size)         = 0;
-      virtual void    setBufferBinding(int64_t bufferIndex, int64_t bindPoint)                     = 0;
-      virtual void    setTextureBinding(int64_t bufferIndex, int64_t bindPoint)                    = 0;
+      virtual void setUniform(int64_t uniformIndex, void const * pBuffer, int64_t size)    = 0;
+      virtual void setUniform(StringView const & name, void const * pBuffer, int64_t size) = 0;
+      void         setUniform(StringView const & name, Mat4 value);
+      void         setUniform(StringView const & name, float value);
+      void         setUniform(StringView const & name, Vec2 value);
+      void         setUniform(StringView const & name, Vec3 value);
+      void         setUniform(StringView const & name, Vec4 value);
+      void         setUniform(StringView const & name, Vec2i value);
+      void         setUniform(StringView const & name, Vec3i value);
+      void         setUniform(StringView const & name, Vec4i value);
+      void         setUniform(StringView const & name, int32_t value);
+
+      virtual void setBufferBinding(int64_t bufferIndex, int64_t bindPoint)      = 0;
+      virtual void setBufferBinding(StringView const & name, int64_t bindPoint)  = 0;
+      virtual void setTextureBinding(int64_t bufferIndex, int64_t bindPoint)     = 0;
+      virtual void setTextureBinding(StringView const & name, int64_t bindPoint) = 0;
+
       // virtual void    getUniform(int64_t uniformIndex, void * pBuffer, ProgramUniformDesc * pDesc) = 0;
       // virtual int64_t getBufferBinding(int64_t bufferIndex)                                        = 0;
       // virtual int64_t getTextureBinding(int64_t bufferIndex)                                       = 0;
@@ -694,28 +731,77 @@ namespace bfc {
       virtual void drawIndexed(int64_t elementCount = std::numeric_limits<int64_t>::max(), int64_t elementOffset = 0,
                                PrimitiveType primType = PrimitiveType_Triangle, int64_t instanceCount = 1) = 0;
 
+      /// Track a pointer to keep it alive while this command list exists.
+      virtual void track(bfc::Ref<void> pPtr) = 0;
+
       /// Get the graphics device that created this command list.
       virtual GraphicsDevice * getDevice() const = 0;
 
-      inline graphics::BufferRef createBuffer(BufferUsageHint usageHint = BufferUsageHint_Unknown) {
-        return getDevice()->createBuffer();
-      }
-      inline graphics::VertexArrayRef createVertexArray() {
-        return getDevice()->createVertexArray();
-      }
-      inline graphics::ProgramRef createProgram() {
-        return getDevice()->createProgram();
-      }
-      inline graphics::TextureRef createTexture(TextureType type) {
-        return getDevice()->createTexture(type);
-      }
-      inline graphics::SamplerRef createSampler() {
-        return getDevice()->createSampler();
-      }
-      inline graphics::RenderTargetRef createRenderTarget(RenderTargetType type) {
-        return getDevice()->createRenderTarget(type);
-      }
+      graphics::BufferRef       createBuffer(BufferUsageHint usageHint = BufferUsageHint_Unknown);
+      graphics::VertexArrayRef  createVertexArray();
+      graphics::ProgramRef      createProgram();
+      graphics::TextureRef      createTexture(TextureType type);
+      graphics::SamplerRef      createSampler();
+      graphics::RenderTargetRef createRenderTarget(RenderTargetType type);
     };
+
+    void loadTexture(CommandList * pCmdList, TextureRef * pTexture, TextureType const & type, media::Surface const & surface);
+    void loadTexture(CommandList * pCmdList, TextureRef * pTexture, TextureType const & type, Vec3i const & size, PixelFormat const & format,
+                     void const * pPixels = nullptr, int64_t rowPitch = 0);
+    void loadTexture(CommandList * pCmdList, TextureRef * pTexture, TextureType const & type, Vec3i const & size, DepthStencilFormat const & depthFormat);
+    void loadTexture2D(CommandList * pCmdList, TextureRef * pTexture, media::Surface const & surface);
+    bool loadTexture2D(CommandList * pCmdList, TextureRef * pTexture, URI const & path);
+    void loadTexture2D(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size, PixelFormat const & format, void const * pPixels = nullptr, int64_t rowPitch = 0);
+    void loadTexture2D(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size, DepthStencilFormat const & depthFormat);
+    bool loadTextureSub2D(CommandList * pCmdList, TextureRef * pTexture, media::Surface const & surface, Vec2i offset);
+    void loadTexture2DArray(CommandList * pCmdList, TextureRef * pTexture, media::Surface const & surface);
+    void loadTexture2DArray(CommandList * pCmdList, TextureRef * pTexture, Vec3i const & size, PixelFormat const & format, void const * pPixels = nullptr,
+                            int64_t rowPitch = 0);
+    void loadTexture2DArray(CommandList * pCmdList, TextureRef * pTexture, Vec3i const & size, DepthStencilFormat const & depthFormat);
+    void loadTexture3D(CommandList * pCmdList, TextureRef * pTexture, media::Surface const & surface);
+    void loadTexture3D(CommandList * pCmdList, TextureRef * pTexture, Vec3i const & size, PixelFormat const & format, void const * pPixels = nullptr,
+                       int64_t rowPitch = 0);
+    void loadTexture3D(CommandList * pCmdList, TextureRef * pTexture, Vec3i const & size, DepthStencilFormat const & depthFormat);
+    void loadTextureCubeMap(CommandList * pCmdList, TextureRef * pTexture, media::Surface const & surface);
+    void loadTextureCubeMap(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size, PixelFormat const & format, void const * pPixels = nullptr,
+                            int64_t rowPitch = 0);
+    void loadTextureCubeMap(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size, DepthStencilFormat const & depthFormat);
+
+    template<typename Format>
+    bool loadTexture2D(CommandList * pCmdList, TextureRef * pTexture, URI const & path) {
+      media::Image<Format> img;
+      if (!img.load(path)) {
+        return false;
+      }
+      loadTexture2D(pCmdList, pTexture, img);
+      return true;
+    }
+
+    template<typename Format>
+    void loadTexture2D(CommandList * pCmdList, TextureRef * pTexture, media::Image<Format> const & image) {
+      loadTexture2D(pCmdList, pTexture, image.getSurface());
+    }
+
+    template<typename Format>
+    void loadTexture2D(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size, Colour<Format> * pPixels = nullptr) {
+      loadTexture2D(pCmdList, pTexture, size, Format::FormatID, pPixels);
+    }
+
+    template<typename Format>
+    void loadTexture2DArray(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size, Colour<Format> * pPixels = nullptr) {
+      loadTexture2DArray(pCmdList, pTexture, size, Format::FormatID, pPixels);
+    }
+
+    template<typename Format>
+    void loadTexture3D(CommandList * pCmdList, TextureRef * pTexture, Vec3i const & size, Colour<Format> * pPixels = nullptr) {
+      loadTexture3D(pCmdList, pTexture, size, Format::FormatID, pPixels);
+    }
+
+    template<typename Format>
+    void loadTextureCubeMap(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size, Colour<Format> * pPixels = nullptr) {
+      loadTextureCubeMap(pCmdList, pTexture, size, Format::FormatID, pPixels);
+    }
+
   } // namespace graphics
 
   class BFC_API GraphicsDevice {
@@ -745,8 +831,12 @@ namespace bfc {
     /// Get the state manager
     virtual graphics::StateManager * getStateManager() = 0;
 
+    /// Compile a shader program.
+    /// @returns a future that will resolve to the result of the compilation job.
+    virtual std::shared_future<bool> compile(graphics::ProgramRef pProgram) = 0;
+
     /// Submit a command list to be executed.
-    virtual uint64_t submit(std::unique_ptr<graphics::CommandList> const & pCommandList) = 0;
+    virtual uint64_t submit(std::unique_ptr<graphics::CommandList> && pCommandList) = 0;
 
     /// Wait for a command list to complete execution.
     virtual bool wait(uint64_t handle, std::optional<Timestamp> const & timeout = std::nullopt) = 0;
@@ -798,4 +888,70 @@ namespace bfc {
     inline static Map<CubeMapFace, String> const mapping = {{CubeMapFace_Left, "left"},     {CubeMapFace_Right, "right"}, {CubeMapFace_Top, "top"},
                                                             {CubeMapFace_Bottom, "bottom"}, {CubeMapFace_Front, "front"}, {CubeMapFace_Back, "back"}};
   };
+
+  namespace graphics {
+    template<typename Type>
+    class StructuredBuffer {
+    public:
+      StructuredBuffer(BufferUsageHint usageHint = BufferUsageHint_Unknown)
+        : m_hint(usageHint) {}
+
+      Type data;
+
+      void upload(graphics::CommandList * pCmd) {
+        if (m_pBuffer == nullptr)
+          m_pBuffer = pCmd->createBuffer(m_hint);
+
+        pCmd->upload(m_pBuffer, sizeof(Type), &data);
+      }
+
+      BufferUsageHint getUsageHint() const {
+        return m_hint;
+      }
+
+      graphics::BufferRef const & getBuffer() const {
+        return m_pBuffer;
+      }
+
+      operator graphics::BufferRef() const {
+        return m_pBuffer;
+      }
+
+    private:
+      BufferUsageHint     m_hint = BufferUsageHint_Unknown;
+      graphics::BufferRef m_pBuffer;
+    };
+
+    template<typename Type>
+    class StructuredArrayBuffer {
+    public:
+      StructuredArrayBuffer(BufferUsageHint usageHint = BufferUsageHint_Unknown)
+        : m_hint(usageHint) {}
+
+      Vector<Type> data;
+
+      void upload(graphics::CommandList * pCmd) {
+        if (m_pBuffer == nullptr)
+          m_pBuffer = pCmd->createBuffer(m_hint);
+
+        pCmd->upload(m_pBuffer, sizeof(Type) * data.size(), data.data());
+      }
+
+      BufferUsageHint getUsageHint() const {
+        return m_hint;
+      }
+
+      graphics::BufferRef const & getBuffer() const {
+        return m_pBuffer;
+      }
+
+      operator graphics::BufferRef() const {
+        return m_pBuffer;
+      }
+
+    private:
+      BufferUsageHint     m_hint = BufferUsageHint_Unknown;
+      graphics::BufferRef m_pBuffer;
+    };
+  } // namespace graphics
 } // namespace bfc

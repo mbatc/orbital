@@ -22,41 +22,39 @@ namespace engine {
 
   class DeferredRenderer : public Renderer {
   public:
-    DeferredRenderer(bfc::GraphicsDevice * pDevice, AssetManager * pAssets);
+    DeferredRenderer(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets);
 
     static constexpr int64_t ColourTargetBindPointBase  = 0;
     static constexpr int64_t FinalColourTargetBindPoint = ColourTargetBindPointBase + bfc::GBufferTarget_Count;
     static constexpr int64_t DepthTargetBindPoint       = FinalColourTargetBindPoint + 1;
 
-    virtual void onResize(bfc::Vec2i size) override;
-    virtual void render(bfc::Vector<RenderView> const & views) override;
+    virtual void onResize(bfc::graphics::CommandList *pCmdList, bfc::Vec2i size) override;
+    virtual void render(bfc::graphics::CommandList * pCmdList, bfc::Vector<RenderView> const & views) override;
 
     /// Get the GBuffer render target.
-    bfc::GraphicsResource getFinalTarget() const;
+    bfc::graphics::RenderTargetRef getFinalTarget() const;
 
     /// Get the default texture for a texture slot.
-    bfc::Texture const & getDefaultTexture(bfc::Material::TextureSlot slot) const;
+    bfc::graphics::TextureRef const & getDefaultTexture(bfc::Material::TextureSlot slot) const;
 
     /// Get the default material data
-    bfc::StructuredHardwareBuffer<bfc::renderer::PBRMaterial> const & getDefaultMaterial() const;
+    bfc::graphics::StructuredBuffer<bfc::renderer::PBRMaterial> const & getDefaultMaterial() const;
 
   protected:
-    virtual void beginView(RenderView const & view) override;
-    virtual void endView(RenderView const & view) override;
+    virtual void beginView(bfc::graphics::CommandList * pCmdList, RenderView const & view) override;
+    virtual void endView(bfc::graphics::CommandList * pCmdList, RenderView const & view) override;
 
   private:
-    bfc::PostProcessingStack m_postProc;
-    bfc::GBuffer             m_gbuffer;
-    bfc::Texture             m_finalColourTarget; ///< Final scene colour is rendered to this target.
+    bfc::PostProcessingStack  m_postProc;
+    bfc::GBuffer              m_gbuffer;
+    bfc::graphics::TextureRef m_finalColourTarget; ///< Final scene colour is rendered to this target.
 
-    bfc::GraphicsResource m_finalTarget = bfc::InvalidGraphicsResource;
+    bfc::graphics::RenderTargetRef m_finalTarget = bfc::InvalidGraphicsResource;
 
-    bfc::StructuredHardwareBuffer<bfc::renderer::PBRMaterial>  m_defaultMaterial;
-    bfc::StructuredHardwareBuffer<bfc::renderer::ModelBuffer>  m_modelData;
-    bfc::StructuredHardwareBuffer<bfc::renderer::CameraBuffer> m_cameraData;
+    bfc::graphics::StructuredBuffer<bfc::renderer::PBRMaterial>  m_defaultMaterial;
+    bfc::graphics::StructuredBuffer<bfc::renderer::ModelBuffer>  m_modelData;
+    bfc::graphics::StructuredBuffer<bfc::renderer::CameraBuffer> m_cameraData;
 
-    bfc::Texture m_defaultMaterialTextures[bfc::Material::TextureSlot_Count]; // Default textures used if missing
-
-    bfc::GraphicsDevice * m_pDevice  = nullptr;
+    bfc::graphics::TextureRef m_defaultMaterialTextures[bfc::Material::TextureSlot_Count]; // Default textures used if missing
   };
 } // namespace engine

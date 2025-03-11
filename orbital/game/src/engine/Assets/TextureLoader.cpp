@@ -1,5 +1,5 @@
 #include "TextureLoader.h"
-#include "render/Texture.h"
+#include "render/GraphicsDevice.h"
 #include "AssetManager.h"
 #include "AssetLoadContext.h"
 
@@ -31,15 +31,17 @@ namespace engine {
   Texture2DLoader::Texture2DLoader(GraphicsDevice * pGraphicsDevice)
     : m_pGraphicsDevice(pGraphicsDevice) {}
 
-  Ref<Texture> Texture2DLoader::load(URI const & uri, AssetLoadContext * pContext) const {
+  bfc::Ref<graphics::Texture> Texture2DLoader::load(URI const & uri, AssetLoadContext * pContext) const {
+    bfc::GraphicsDevice *pDevice = pContext->getGraphicsDevice();
     Ref<media::Surface> pSurface = pContext->load<media::Surface>(uri);
     if (pSurface == nullptr) {
       return nullptr;
     }
 
-    Ref<Texture> pTexture = NewRef<Texture>();
-
-    pTexture->load2D(m_pGraphicsDevice, *pSurface);
+    auto                 pLoadList = pDevice->createCommandList();
+    graphics::TextureRef pTexture;
+    graphics::loadTexture2D(pLoadList.get(), &pTexture, *pSurface);
+    pDevice->submit(std::move(pLoadList));
     return pTexture;
   }
 

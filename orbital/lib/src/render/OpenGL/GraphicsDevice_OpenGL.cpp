@@ -35,7 +35,6 @@ namespace bfc {
   static GLenum ToGLEquation(BlendEquation blendEquation);
   static GLenum ToGLBlendFunction(BlendFunction function);
   static GLenum ToGLComparison(ComparisonFunction function);
-  static GLenum ToGLCubeMapFace(CubeMapFace face);
   static GLenum ToGLWrapMode(WrapMode mode);
   static GLenum ToGLFilterMode(FilterMode filter, FilterMode mipFilter);
 
@@ -116,7 +115,7 @@ namespace bfc {
     }
 
     Vec3i GLTexture::getSize(int64_t mipLevel) const {
-      Vec3i size = size;
+      Vec3i size = this->size;
       size /= (1 << (int32_t)mipLevel);
       return {std::max(1, size.x), std::max(1, size.y), std::max(1, size.z)};
     }
@@ -172,7 +171,9 @@ namespace bfc {
       }
     }
 
-    void GLProgram::addShader(ShaderType type, std::optional<ShaderDesc> desc) {
+    void GLProgram::setShader(ShaderType type, std::optional<ShaderDesc> desc) {
+      waitForCompilation();
+
       shaders[type] = desc;
     }
 
@@ -182,11 +183,13 @@ namespace bfc {
 
     static bool compileShader(GLint glID, ShaderDesc const & desc, String * pError) {
       String src;
-      if (desc.path.length() > 0) {
-        if (!readTextFile(desc.path, &src)) {
-          *pError = String("Failed to read source file ").concat(desc.path);
+      if (desc.resource.has_value()) {
+        if (!readTextURI(desc.resource.value(), &src)) {
+          *pError = String("Failed to read source file ").concat(desc.resource.value().str());
           return false;
         }
+      } else if (desc.src.has_value()) {
+        src = desc.src.value();
       }
 
       if (src.empty()) {
@@ -220,10 +223,77 @@ namespace bfc {
       return true;
     }
 
-    bool GLProgram::compile(String * pError) {
-      GLuint shaderIDs[ShaderType_Count] = { 0 };
+    int64_t GLProgram::getAttributeCount() const {
+      waitForCompilation();
 
-      for (auto &[i, shader] : enumerate(shaders)) {
+      return attributes.size();
+    }
+
+    int64_t GLProgram::getUniformCount() const {
+      waitForCompilation();
+
+      return uniforms.size();
+    }
+
+    int64_t GLProgram::getBufferCount() const {
+      waitForCompilation();
+
+      return buffers.size();
+    }
+
+    int64_t GLProgram::getTextureCount() const {
+      waitForCompilation();
+
+      return textures.size();
+    }
+
+    void GLProgram::getAttributeDesc(int64_t attributeIndex, ProgramAttributeDesc * pDesc) const {
+      waitForCompilation();
+
+      Attribute const & attributeDesc = attributes[attributeIndex];
+      pDesc->name                     = attributeDesc.name;
+      pDesc->cls                      = attributeDesc.cls;
+      pDesc->type                     = attributeDesc.type;
+      pDesc->width                    = attributeDesc.width;
+      pDesc->height                   = attributeDesc.height;
+    }
+
+    void GLProgram::getUniformDesc(int64_t uniformIndex, ProgramUniformDesc * pDesc) const {
+      waitForCompilation();
+
+      Uniform const & uniformDesc = uniforms[uniformIndex];
+      pDesc->name                 = uniformDesc.name;
+      pDesc->cls                  = uniformDesc.cls;
+      pDesc->type                 = uniformDesc.type;
+      pDesc->width                = uniformDesc.width;
+      pDesc->height               = uniformDesc.height;
+    }
+
+    void GLProgram::getTextureDesc(int64_t textureIndex, ProgramTextureDesc * pDesc) const {
+      waitForCompilation();
+
+      Texture const & textureDesc = textures[textureIndex];
+      pDesc->name                 = textureDesc.name;
+      pDesc->type                 = textureDesc.type;
+    }
+
+    void GLProgram::getBufferDesc(int64_t bufferIndex, ProgramBufferDesc * pDesc) const {
+      waitForCompilation();
+
+      Buffer const & bufferDesc = buffers[bufferIndex];
+      pDesc->name               = bufferDesc.name;
+      pDesc->size               = bufferDesc.size;
+    }
+
+    void GLProgram::waitForCompilation() const {
+      if (compileResult.has_value())
+        compileResult->wait();
+    }
+
+    bool GLProgram::compile(String * pError) {
+      GLuint shaderIDs[ShaderType_Count] = {0};
+
+      for (auto & [i, shader] : enumerate(shaders)) {
         if (!shader.has_value()) {
           continue;
         }
@@ -269,52 +339,6 @@ namespace bfc {
         reflect(glID, &attributes, &uniforms, &textures, &buffers);
 
       return status == GL_TRUE;
-    }
-
-    int64_t GLProgram::getAttributeCount() const {
-      return attributes.size();
-    }
-
-    int64_t GLProgram::getUniformCount() const {
-      return uniforms.size();
-    }
-
-    int64_t GLProgram::getBufferCount() const {
-      return buffers.size();
-    }
-
-    int64_t GLProgram::getTextureCount() const {
-      return textures.size();
-    }
-
-    void GLProgram::getAttributeDesc(int64_t attributeIndex, ProgramAttributeDesc * pDesc) const {
-      Attribute const & attributeDesc = attributes[attributeIndex];
-      pDesc->name                     = attributeDesc.name;
-      pDesc->cls                      = attributeDesc.cls;
-      pDesc->type                     = attributeDesc.type;
-      pDesc->width                    = attributeDesc.width;
-      pDesc->height                   = attributeDesc.height;
-    }
-
-    void GLProgram::getUniformDesc(int64_t uniformIndex, ProgramUniformDesc * pDesc) const {
-      Uniform const & uniformDesc = uniforms[uniformIndex];
-      pDesc->name                 = uniformDesc.name;
-      pDesc->cls                  = uniformDesc.cls;
-      pDesc->type                 = uniformDesc.type;
-      pDesc->width                = uniformDesc.width;
-      pDesc->height               = uniformDesc.height;
-    }
-
-    void GLProgram::getTextureDesc(int64_t textureIndex, ProgramTextureDesc * pDesc) const {
-      Texture const & textureDesc = textures[textureIndex];
-      pDesc->name                 = textureDesc.name;
-      pDesc->type                 = textureDesc.type;
-    }
-
-    void GLProgram::getBufferDesc(int64_t bufferIndex, ProgramBufferDesc * pDesc) const {
-      Buffer const & bufferDesc = buffers[bufferIndex];
-      pDesc->name               = bufferDesc.name;
-      pDesc->size               = bufferDesc.size;
     }
 
     void GLProgram::reflect(uint32_t glID, Vector<Attribute> * pAttributes, Vector<Uniform> * pUniforms, Vector<Texture> * pTextures,
@@ -553,12 +577,15 @@ namespace bfc {
                              [](auto && v) { BFC_FAIL("State is not suported (type: %s)", typeid(v).name()); }));
     }
 
-    CommandList_OpenGL::CommandList_OpenGL(GraphicsDevice *pDevice, RenderTargetRef defaultTarget, VertexArrayRef emptyVertexArray, uint32_t lastTextureUnit)
+    CommandList_OpenGL::CommandList_OpenGL(GraphicsDevice * pDevice, RenderTargetRef defaultTarget, VertexArrayRef emptyVertexArray, uint32_t lastTextureUnit)
       : m_pDevice(pDevice)
       , m_defaultTarget(defaultTarget)
       , m_emptyVertexArray(emptyVertexArray)
-      , m_lastTextureUnit(lastTextureUnit)
-    {}
+      , m_lastTextureUnit(lastTextureUnit) {}
+
+    void CommandList_OpenGL::execute() const {
+      m_commandBuffer.execute(m_pDevice);
+    }
 
     void CommandList_OpenGL::bindProgram(ProgramRef programID) {
       impl::OpenGL::BindProgram cmd;
@@ -575,7 +602,7 @@ namespace bfc {
         return;
       }
 
-      GLVertexArray & va = ToGL(vertexArrayID);
+      GLVertexArray &               va = ToGL(vertexArrayID);
       impl::OpenGL::BindVertexArray cmd;
       cmd.pVertexArray = &va;
       add(cmd);
@@ -597,12 +624,20 @@ namespace bfc {
       if (va.rebind) {
         impl::OpenGL::RebindVertexArray rebind;
         rebind.pVertexArray = &va;
-        rebind.numElements = va.layout.getAttributeCount();
+        rebind.numElements  = va.layout.getAttributeCount();
         for (int64_t i = 0; i < rebind.numElements; ++i) {
-          String const &                           semantic = va.layout.getAttributeSemantic(i);
+          String const & semantic = va.layout.getAttributeSemantic(i);
+          auto const &   element  = va.layout.getAttributeLayout(i);
+
           impl::OpenGL::RebindVertexArray::Element item;
-          strcpy_s(item.name, semantic.begin());
-          item.element = va.layout.getAttributeLayout(i);
+          item.glLoc = (GLuint)GetSemanticLocation(semantic);
+
+          item.dataType = ToGLDataType(element.dataType);
+          item.stride   = (GLsizei)element.stride;
+          item.size     = (GLint)(element.width * element.height);
+          item.slot     = (int32_t)element.slot;
+          item.offset   = element.offset;
+          item.flags    = element.flags;
 
           if (i == 0) // Store the first item
             rebind.elements = m_commandBuffer.serialize(item);
@@ -614,7 +649,7 @@ namespace bfc {
           rebind.vertexBuffers[i] = &ToGL(vb);
           track(vb);
         }
-       
+
         rebind.pIndexBuffer = &ToGL(va.indexBuffer);
         track(va.indexBuffer);
         va.rebind = false;
@@ -623,8 +658,8 @@ namespace bfc {
 
     void CommandList_OpenGL::bindTexture(TextureRef textureID, int64_t textureUnit) {
       impl::OpenGL::BindTexture cmd;
-      cmd.pTexture  = nullptr;
-      cmd.target    = GL_TEXTURE_2D;
+      cmd.pTexture = nullptr;
+      cmd.target   = GL_TEXTURE_2D;
 
       if (textureID != InvalidGraphicsResource) {
         cmd.pTexture = &ToGL(textureID);
@@ -649,7 +684,7 @@ namespace bfc {
 
         if (sampler.changed) {
           impl::OpenGL::UpdateSampler update;
-          update.pSampler = &sampler;
+          update.pSampler  = &sampler;
           update.minFilter = ToGLFilterMode(sampler.minFilter, sampler.minMipFilter);
           update.magFilter = ToGLFilterMode(sampler.magFilter, sampler.magMipFilter);
           update.minLOD    = sampler.minLOD;
@@ -728,8 +763,10 @@ namespace bfc {
           for (int64_t index = 0; index < MaxColourAttachments; ++index) {
             if (rt.textures.colour[index].texture != InvalidGraphicsResource) {
               cmd.colour[index].pTexture = &ToGL(rt.textures.colour[index].texture);
-              cmd.colour[index].layer    = rt.textures.colour[index].layer;
-              cmd.colour[index].mipLevel = rt.textures.colour[index].mipLevel;
+              cmd.colour[index].layer    = (GLint)rt.textures.colour[index].layer;
+              cmd.colour[index].mipLevel = (GLint)rt.textures.colour[index].mipLevel;
+              cmd.colour[index].slot     = (GLenum)(GL_COLOR_ATTACHMENT0 + index);
+              cmd.colour[index].target   = ToGLFramebufferTextureTarget(cmd.colour[index].pTexture->type, rt.textures.colour[index].layer);
               track(rt.textures.colour[index].texture);
 
               if (cmd.fbClass == TextureType_Unknown) {
@@ -742,8 +779,10 @@ namespace bfc {
 
           if (rt.textures.depth.texture != InvalidGraphicsResource) {
             cmd.depth.pTexture = &ToGL(rt.textures.depth.texture);
-            cmd.depth.layer    = rt.textures.depth.layer;
-            cmd.depth.mipLevel = rt.textures.depth.mipLevel;
+            cmd.depth.layer    = (GLint)rt.textures.depth.layer;
+            cmd.depth.mipLevel = (GLint)rt.textures.depth.mipLevel;
+            cmd.depth.target   = ToGLFramebufferTextureTarget(cmd.depth.pTexture->type, rt.textures.depth.layer);
+            cmd.depth.slot     = ToGLFramebufferAttachment(cmd.depth.pTexture->depthStencilFmt);
             track(rt.textures.depth.texture);
 
             if (cmd.fbClass == TextureType_Unknown) {
@@ -778,16 +817,16 @@ namespace bfc {
 
     void CommandList_OpenGL::draw(int64_t elementCount, int64_t elementOffset, PrimitiveType primType, int64_t instanceCount) {
       impl::OpenGL::Draw cmd;
-      cmd.elementCount = elementCount;
-      cmd.elementOffset = elementOffset;
+      cmd.elementCount  = (GLsizei)elementCount;
+      cmd.elementOffset = (GLint)elementOffset;
       cmd.primType      = ToGLPrimType(primType);
-      cmd.instanceCount = instanceCount;
+      cmd.instanceCount = (GLsizei)instanceCount;
 
       // Only validate elementCount if a vertex array has been bound.
       // This is to support shaders which may not take any vertex inputs.
       // However, you must explicity bind an Invalid vertex array.
       if (m_vertexCount >= 0) {
-        cmd.elementCount = std::min(elementCount, m_vertexCount - elementOffset);
+        cmd.elementCount = (GLsizei)std::min(elementCount, m_vertexCount - elementOffset);
         if (cmd.elementCount < 0)
           return;
       }
@@ -797,21 +836,27 @@ namespace bfc {
 
     void CommandList_OpenGL::drawIndexed(int64_t elementCount, int64_t elementOffset, PrimitiveType primType, int64_t instanceCount) {
       impl::OpenGL::DrawIndexed cmd;
-      cmd.elementCount = elementCount;
-      cmd.elementOffset = elementOffset * getDataTypeSize(m_vaIndexType);
+      cmd.elementCount  = (GLsizei)elementCount;
+      cmd.elementOffset = (uint64_t)(elementOffset * getDataTypeSize(m_vaIndexType));
       cmd.indexType     = ToGLPrimType(primType);
-      cmd.instanceCount = instanceCount;
+      cmd.instanceCount = (GLsizei)instanceCount;
 
       // Only validate elementCount if a vertex array has been bound.
       // This is to support shaders which may not take any vertex inputs.
       // However, you must explicity bind an Invalid vertex array.
       if (m_indexCount >= 0) {
-        cmd.elementCount = std::min(elementCount, m_indexCount - elementOffset);
+        cmd.elementCount = (GLsizei)std::min(elementCount, m_indexCount - elementOffset);
         if (cmd.elementCount < 0)
           return;
       }
 
       add(cmd);
+    }
+
+    void CommandList_OpenGL::track(bfc::Ref<void> pPtr) {
+      if (pPtr != nullptr) {
+        m_trackedResources.pushBack(pPtr);
+      }
     }
 
     void CommandList_OpenGL::clear(RGBAu8 colour) {
@@ -833,7 +878,7 @@ namespace bfc {
         return;
 
       impl::OpenGL::SetState cmd;
-      cmd.count = state.size();
+      cmd.count  = state.size();
       cmd.states = m_commandBuffer.serialize(state[0]);
       for (int64_t i = 1; i < cmd.count; ++i)
         m_commandBuffer.serialize(state[i]);
@@ -856,20 +901,18 @@ namespace bfc {
       add(impl::OpenGL::PopState{});
     }
 
-    bool CommandList_OpenGL::upload(BufferRef bufferID, int64_t size, void const * pData) {
+    void CommandList_OpenGL::upload(BufferRef bufferID, int64_t size, void const * pData) {
       impl::OpenGL::Upload cmd;
-      cmd.dataHandle = m_commandBuffer.write({(const uint8_t*)pData, size});
+      cmd.dataHandle = m_commandBuffer.write({(const uint8_t *)pData, size});
       cmd.dataSize   = size;
-      cmd.pGLBuffer    = &ToGL(bufferID);
+      cmd.pGLBuffer  = &ToGL(bufferID);
       add(cmd);
       track(bufferID);
 
       cmd.pGLBuffer->size = size;
-
-      return true;
     }
 
-    std::future<void*> CommandList_OpenGL::map(BufferRef bufferID, MapAccess access) {
+    std::future<void *> CommandList_OpenGL::map(BufferRef bufferID, MapAccess access) {
       return map(bufferID, 0, ToGL(bufferID).size, access);
     }
 
@@ -877,15 +920,17 @@ namespace bfc {
       auto pPromise = bfc::Ref<std::promise<void *>>();
 
       impl::OpenGL::Map cmd;
-      cmd.pBuffer = &ToGL(bufferID);
-      cmd.offset  = (GLintptr)offset;
-      cmd.size    = (GLsizeiptr)size;
-      cmd.access  = ToGLMapBits(access);
+      cmd.pBuffer  = &ToGL(bufferID);
+      cmd.offset   = (GLintptr)offset;
+      cmd.size     = (GLsizeiptr)size;
+      cmd.access   = ToGLMapBits(access);
       cmd.pPromise = pPromise.get();
 
       add(cmd);
       track(bufferID);
       track(pPromise);
+
+      return pPromise->get_future();
     }
 
     void CommandList_OpenGL::unmap(BufferRef bufferID) {
@@ -899,10 +944,10 @@ namespace bfc {
       auto pPromise = bfc::Ref<std::promise<void>>();
 
       impl::OpenGL::Download cmd;
-      cmd.pBuffer = &ToGL(bufferID);
+      cmd.pBuffer   = &ToGL(bufferID);
       cmd.pDownload = &ToGL(pDownload);
-      cmd.offset  = offset;
-      cmd.size    = size;
+      cmd.offset    = offset;
+      cmd.size      = size;
       if (cmd.size == 0)
         cmd.size = std::max(0ll, cmd.pBuffer->size - offset);
       cmd.pPromise            = pPromise.get();
@@ -944,7 +989,7 @@ namespace bfc {
       cmd.target          = ToGLTextureType(tex.type);
       cmd.surface         = src;
       cmd.surface.pBuffer = nullptr;
-      cmd.dataSize        = media::calculateSurfaceSize(src); 
+      cmd.dataSize        = media::calculateSurfaceSize(src);
       cmd.dataHandle      = m_commandBuffer.write({(const uint8_t *)src.pBuffer, cmd.dataSize});
 
       add(cmd);
@@ -982,13 +1027,14 @@ namespace bfc {
     }
 
     void CommandList_OpenGL::generateMipMaps(TextureRef textureID) {
-      impl::OpenGL::UploadTexture mips;
+      impl::OpenGL::GenerateMipMaps mips;
       mips.pTexture = &ToGL(textureID);
+      mips.target   = ToGLTextureType(mips.pTexture->type);
       add(mips);
       track(textureID);
     }
 
-    bool CommandList_OpenGL::downloadTexture(TextureRef textureID, TextureDownloadRef pDownload) {
+    void CommandList_OpenGL::downloadTexture(TextureRef textureID, TextureDownloadRef pDownload) {
       BFC_FAIL("Not implemented");
 
       impl::OpenGL::DownloadTexture cmd;
@@ -1006,32 +1052,61 @@ namespace bfc {
       add(cmd);
     }
 
-    void CommandList_OpenGL::setBufferBinding(int64_t bufferIndex, int64_t bindPoint) {
-      impl::OpenGL::SetBufferBinding cmd;
-      cmd.bufferIndex  = bufferIndex;
-      cmd.bindPoint    = bindPoint;
-      cmd.pProgram     = &ToGL(m_boundProgram);
+    void CommandList_OpenGL::setUniform(StringView const & name, void const * pBuffer, int64_t size) {
+      impl::OpenGL::SetNamedUniform cmd;
+      cmd.nameSize   = name.length();
+      cmd.nameHandle = m_commandBuffer.write({(const uint8_t *)name.begin(), name.length()});
+      cmd.dataSize   = size;
+      cmd.dataHandle = m_commandBuffer.write({(const uint8_t *)pBuffer, size});
+      cmd.pProgram   = &ToGL(m_boundProgram);
 
       add(cmd);
     }
 
-    void CommandList_OpenGL::setTextureBinding(int64_t textureIndex, int64_t bindPoint) {
+    void CommandList_OpenGL::setBufferBinding(int64_t bufferIndex, int64_t bindPoint) {
       impl::OpenGL::SetBufferBinding cmd;
-      cmd.bufferIndex = textureIndex;
+      cmd.bufferIndex = bufferIndex;
       cmd.bindPoint   = bindPoint;
       cmd.pProgram    = &ToGL(m_boundProgram);
 
       add(cmd);
     }
 
+    void CommandList_OpenGL::setBufferBinding(StringView const & name, int64_t bindPoint) {
+      impl::OpenGL::SetNamedBufferBinding cmd;
+      cmd.nameSize   = name.length();
+      cmd.nameHandle = m_commandBuffer.write({(const uint8_t *)name.begin(), name.length()});
+      cmd.bindPoint  = bindPoint;
+      cmd.pProgram   = &ToGL(m_boundProgram);
+
+      add(cmd);
+    }
+
+    void CommandList_OpenGL::setTextureBinding(int64_t textureIndex, int64_t bindPoint) {
+      impl::OpenGL::SetTextureBinding cmd;
+      cmd.textureIndex = textureIndex;
+      cmd.bindPoint    = bindPoint;
+      cmd.pProgram     = &ToGL(m_boundProgram);
+
+      add(cmd);
+    }
+
+    void CommandList_OpenGL::setTextureBinding(StringView const & name, int64_t bindPoint) {
+      impl::OpenGL::SetNamedTextureBinding cmd;
+      cmd.nameSize   = name.length();
+      cmd.nameHandle = m_commandBuffer.write({(const uint8_t *)name.begin(), name.length()});
+      cmd.bindPoint  = bindPoint;
+      cmd.pProgram   = &ToGL(m_boundProgram);
+    }
+
     // void CommandList_OpenGL::getUniform(int64_t uniformIndex, void * pBuffer, ProgramUniformDesc * pDesc) {
     //   GLProgram &          prog        = *((GLProgram *)m_boundProgram.get());
     //   GLProgram::Uniform & uniformDesc = prog.uniforms[uniformIndex];
-    // 
+    //
     //   if (pDesc != nullptr) {
     //     prog.getUniformDesc(uniformIndex, pDesc);
     //   }
-    // 
+    //
     //   if (pBuffer != nullptr) {
     //     switch (uniformDesc.type) {
     //     case DataType_Float32: glGetUniformfv(prog.glID, uniformDesc.glLoc, (float *)pBuffer); break;
@@ -1040,12 +1115,12 @@ namespace bfc {
     //     }
     //   }
     // }
-    // 
+    //
     // int64_t CommandList_OpenGL::getBufferBinding(int64_t bufferIndex) {
     //   GLProgram & prog = *((GLProgram *)m_boundProgram.get());
     //   return prog.buffers[bufferIndex].bindPoint;
     // }
-    // 
+    //
     // int64_t CommandList_OpenGL::getTextureBinding(int64_t textureIndex) {
     //   GLProgram & prog = *((GLProgram *)m_boundProgram.get());
     //   return prog.textures[textureIndex].bindPoint;
@@ -1060,6 +1135,155 @@ namespace bfc {
   GraphicsDevice_OpenGL::GraphicsDevice_OpenGL() {}
 
   bool GraphicsDevice_OpenGL::init(platform::Window * pWindow) {
+    auto initComplete = NewRef<std::promise<void>>();
+    auto initResult   = initComplete->get_future();
+    m_renderThread    = std::thread(&GraphicsDevice_OpenGL::RenderThread, this, pWindow, initComplete);
+
+    try {
+      initResult.wait();
+    } catch (std::exception) { return false; }
+
+    return true;
+  }
+
+  std::unique_ptr<graphics::CommandList> GraphicsDevice_OpenGL::createCommandList() {
+    return std::make_unique<graphics::CommandList_OpenGL>(this, m_defaultTarget, m_emptyVertexArray, m_lastTextureUnit);
+  }
+
+  graphics::BufferRef GraphicsDevice_OpenGL::createBuffer(BufferUsageHint usageHint) {
+    // TODO: Custom allocator?
+    Ref<graphics::GLBuffer> newBuffer(new graphics::GLBuffer, [this](graphics::GLBuffer * pPtr) {
+      m_destroyLock.lock();
+      m_destroy.buffers.pushBack(pPtr->glID);
+      m_destroyLock.unlock();
+
+      delete pPtr;
+    });
+
+    if ((usageHint & BufferUsageHint_Dynamic) > 0)
+      newBuffer->glUsage = GL_DYNAMIC_DRAW;
+    else
+      newBuffer->glUsage = GL_STATIC_DRAW;
+
+    if ((usageHint & BufferUsageHint_Uniform) > 0)
+      newBuffer->defaultTarget = GL_UNIFORM_BUFFER;
+    else if ((usageHint & BufferUsageHint_Storage) > 0)
+      newBuffer->defaultTarget = GL_SHADER_STORAGE_BUFFER;
+    else if ((usageHint & BufferUsageHint_Vertices) > 0 || (usageHint & BufferUsageHint_Indices) > 0)
+      newBuffer->defaultTarget = GL_ARRAY_BUFFER;
+    else
+      newBuffer->defaultTarget = GL_NONE;
+
+    return newBuffer;
+  }
+
+  graphics::VertexArrayRef GraphicsDevice_OpenGL::createVertexArray() {
+    Ref<graphics::GLVertexArray> va(new graphics::GLVertexArray, [this](graphics::GLVertexArray * pPtr) {
+      m_destroyLock.lock();
+      m_destroy.vertexArrays.pushBack(pPtr->glID);
+      m_destroyLock.unlock();
+      delete pPtr;
+    });
+
+    return va;
+  }
+
+  graphics::ProgramRef GraphicsDevice_OpenGL::createProgram() {
+    Ref<graphics::GLProgram> newProgram(new graphics::GLProgram, [this](graphics::GLProgram * pPtr) {
+      m_destroyLock.lock();
+      m_destroy.programs.pushBack(pPtr->glID);
+      m_destroyLock.unlock();
+
+      delete pPtr;
+    });
+
+    return newProgram;
+  }
+
+  graphics::TextureRef GraphicsDevice_OpenGL::createTexture(TextureType type) {
+    Ref<graphics::GLTexture> newTexture(new graphics::GLTexture, [this](graphics::GLTexture * pPtr) {
+      m_destroyLock.lock();
+      m_destroy.textures.pushBack(pPtr->glID);
+      m_destroyLock.unlock();
+
+      delete pPtr;
+    });
+
+    newTexture->type = type;
+    return newTexture;
+  }
+
+  graphics::SamplerRef GraphicsDevice_OpenGL::createSampler() {
+    Ref<graphics::GLSampler> newSampler(new graphics::GLSampler, [this](graphics::GLSampler * pPtr) {
+      m_destroyLock.lock();
+      m_destroy.samplers.pushBack(pPtr->glID);
+      m_destroyLock.unlock();
+
+      delete pPtr;
+    });
+
+    return newSampler;
+  }
+
+  graphics::RenderTargetRef GraphicsDevice_OpenGL::createRenderTarget(RenderTargetType type) {
+    Ref<graphics::GLRenderTarget> target(new graphics::GLRenderTarget, [this](graphics::GLRenderTarget * pPtr) {
+      if (pPtr->type == RenderTargetType_Texture) {
+        m_destroyLock.lock();
+        m_destroy.framebuffers.pushBack(pPtr->textures.glID);
+        m_destroyLock.unlock();
+      }
+
+      delete pPtr;
+    });
+
+    target->type = type;
+
+    return target;
+  }
+
+  void GraphicsDevice_OpenGL::destroy() {
+    delete this;
+  }
+
+  graphics::StateManager * GraphicsDevice_OpenGL::getStateManager() {
+    return &m_stateManager;
+  }
+
+  uint64_t GraphicsDevice_OpenGL::submit(std::unique_ptr<graphics::CommandList> && pCommandList) {
+    m_queueLock.lock();
+    uint64_t commandList = ++m_nextCommandListID;
+    m_commandListQueue.pushBack(std::move(pCommandList));
+    m_queueLock.unlock();
+    m_queueNotifier.notify_one();
+    return commandList;
+  }
+
+  bool GraphicsDevice_OpenGL::wait(uint64_t handle, std::optional<Timestamp> const & timeout) {
+    std::unique_lock guard{m_fenceLock};
+    if (timeout.has_value())
+      return m_fenceNotifier.wait_for(guard, (std::chrono::microseconds)timeout.value(), [=]() { return m_commandListFence >= handle; });
+
+    m_fenceNotifier.wait(guard, [=]() { return m_commandListFence >= handle; });
+    return true;
+  }
+
+  std::shared_future<bool> GraphicsDevice_OpenGL::compile(graphics::ProgramRef pProgram) {
+    std::promise<bool> promise;
+    std::future<bool>  result = promise.get_future();
+
+    auto & glProgram = ToGL(pProgram);
+
+    glProgram.compileResult = result.share();
+
+    m_queueLock.lock();
+    m_compileJobs.pushBack({pProgram, std::move(promise)});
+    m_queueLock.unlock();
+    m_queueNotifier.notify_one();
+
+    return glProgram.compileResult.value();
+  }
+
+  void GraphicsDevice_OpenGL::RenderThread(platform::Window * pWindow, Ref<std::promise<void>> initComplete) {
     // Create a temporary window to make our fake GL context
     HINSTANCE hInstance = GetModuleHandle(0);
 
@@ -1099,8 +1323,10 @@ namespace bfc {
                             WGL_CONTEXT_CORE_PROFILE_BIT_ARB, 0};
 
     m_defaultTarget = createRenderTarget(RenderTargetType_Window);
-    if (!m_defaultTarget->attachWindow(pWindow, DepthStencilFormat_D24S8))
-      return false;
+    if (!m_defaultTarget->attachWindow(pWindow, DepthStencilFormat_D24S8)) {
+      initComplete->set_exception(std::make_exception_ptr(std::exception{"Failed to create the default render target"}));
+      return;
+    }
 
     HDC hDC = ((graphics::GLRenderTarget *)m_defaultTarget.get())->window.hDC;
 
@@ -1132,128 +1358,53 @@ namespace bfc {
 
     m_emptyVertexArray = createVertexArray();
 
-    return true;
-  }
+    initComplete->set_value();
 
-  graphics::CommandListRef GraphicsDevice_OpenGL::createCommandList() {
-    return NewRef<graphics::CommandList_OpenGL>(this, m_defaultTarget, m_emptyVertexArray, m_lastTextureUnit);
-  }
-
-  graphics::BufferRef GraphicsDevice_OpenGL::createBuffer(BufferUsageHint usageHint) {
-    // TODO: Custom allocator?
-    Ref<graphics::GLBuffer> newBuffer(new graphics::GLBuffer, [this](graphics::GLBuffer * pBuffer) {
-      // TODO: Queue the glID for deletion.
-      glDeleteBuffers(1, &pBuffer->glID);
-      delete pBuffer;
-    });
-
-    if ((usageHint & BufferUsageHint_Dynamic) > 0)
-      newBuffer->glUsage = GL_DYNAMIC_DRAW;
-    else
-      newBuffer->glUsage = GL_STATIC_DRAW;
-
-    if ((usageHint & BufferUsageHint_Uniform) > 0)
-      newBuffer->defaultTarget = GL_UNIFORM_BUFFER;
-    else if ((usageHint & BufferUsageHint_Storage) > 0)
-      newBuffer->defaultTarget = GL_SHADER_STORAGE_BUFFER;
-    else if ((usageHint & BufferUsageHint_Vertices) > 0 || (usageHint & BufferUsageHint_Indices) > 0)
-      newBuffer->defaultTarget = GL_ARRAY_BUFFER;
-    else
-      newBuffer->defaultTarget = GL_NONE;
-
-    return newBuffer;
-  }
-
-  graphics::VertexArrayRef GraphicsDevice_OpenGL::createVertexArray() {
-    Ref<graphics::GLVertexArray> va(new graphics::GLVertexArray, [this](graphics::GLVertexArray * pPtr) {
-      glDeleteVertexArrays(1, &pPtr->glID);
-      delete pPtr;
-    });
-
-    return va;
-  }
-
-  graphics::ProgramRef GraphicsDevice_OpenGL::createProgram() {
-    Ref<graphics::GLProgram> newProgram(new graphics::GLProgram, [](graphics::GLProgram * pPtr) {
-      glDeleteProgram(pPtr->glID);
-      delete pPtr;
-    });
-
-    return newProgram;
-  }
-
-  graphics::TextureRef GraphicsDevice_OpenGL::createTexture(TextureType type) {
-    Ref<graphics::GLTexture> newTexture(new graphics::GLTexture, [](graphics::GLTexture * pPtr) {
-      glDeleteTextures(1, &pPtr->glID);
-      delete pPtr;
-    });
-
-    newTexture->type = type;
-    return newTexture;
-  }
-
-  graphics::SamplerRef GraphicsDevice_OpenGL::createSampler() {
-    Ref<graphics::GLSampler> newSampler(new graphics::GLSampler, [](graphics::GLSampler * pPtr) {
-      glDeleteSamplers(1, &pPtr->glID);
-      delete pPtr;
-    });
-
-    return newSampler;
-  }
-
-  graphics::RenderTargetRef GraphicsDevice_OpenGL::createRenderTarget(RenderTargetType type) {
-    Ref<graphics::GLRenderTarget> target(new graphics::GLRenderTarget, [this](graphics::GLRenderTarget * pPtr) {
-      if (pPtr->type == RenderTargetType_Texture) {
-        glDeleteFramebuffers(1, &pPtr->textures.glID);
-      }
-      delete pPtr;
-    });
-
-    target->type = type;
-
-    return target;
-  }
-
-  void GraphicsDevice_OpenGL::destroy() {
-    delete this;
-  }
-
-  graphics::StateManager * GraphicsDevice_OpenGL::getStateManager() {
-    return &m_stateManager;
-  }
-
-  uint64_t GraphicsDevice_OpenGL::submit(std::unique_ptr<graphics::CommandList> const & pCommandList) {
-    m_queueLock.lock();
-    uint64_t commandList = ++m_nextCommandListID;
-    m_commandListQueue.pushBack(std::move(pCommandList));
-    m_queueLock.unlock();
-    m_queueNotifier.notify_one();
-    return commandList;
-  }
-
-  bool GraphicsDevice_OpenGL::wait(uint64_t handle, std::optional<Timestamp> const & timeout) {
-    std::unique_lock guard{m_fenceLock};
-    if (timeout.has_value())
-      return m_fenceNotifier.wait_for(guard, (std::chrono::microseconds)timeout.value(), [=]() { return m_commandListFence >= handle; });
-
-    m_fenceNotifier.wait(guard, [=]() { return m_commandListFence >= handle; });
-    return true;
-  }
-
-  void GraphicsDevice_OpenGL::RenderThread() {
-    bool                                           running = false;
+    bool                                           running = m_running;
     Vector<std::unique_ptr<graphics::CommandList>> lists;
-    while (m_running) {
+    Vector<CompileProgramJob>                      compileJobs;
+    while (running) {
       std::unique_lock guard{m_queueLock};
       m_queueNotifier.wait(guard, [&]() {
-        running = m_running || m_commandListQueue.size() > 0;
-        lists   = std::move(m_commandListQueue);
-        return !running || lists.size() > 0;
+        running     = m_running || m_commandListQueue.size() > 0;
+        lists       = std::move(m_commandListQueue);
+        compileJobs = std::move(m_compileJobs);
+        return !running || lists.size() > 0 || compileJobs.size() > 0;
       });
 
-      for (auto &list : lists)
-        list->
+      for (auto & job : compileJobs) {
+        job.result.set_value(ToGL(job.pProgram).compile(nullptr));
+      }
+
+      for (auto & list : lists)
+        list->execute();
+
+      cleanupResources();
     }
+  }
+
+  void GraphicsDevice_OpenGL::cleanupResources() {
+    m_destroyLock.lock();
+    DestroyQueues queue = std::move(m_destroy);
+    m_destroyLock.unlock();
+
+    if (!queue.buffers.empty())
+      glDeleteBuffers((GLsizei)queue.buffers.size(), queue.buffers.begin());
+
+    if (!queue.samplers.empty())
+      glDeleteSamplers((GLsizei)queue.samplers.size(), queue.samplers.begin());
+
+    if (!queue.textures.empty())
+      glDeleteTextures((GLsizei)queue.textures.size(), queue.textures.begin());
+
+    if (!queue.framebuffers.empty())
+      glDeleteFramebuffers((GLsizei)queue.framebuffers.size(), queue.framebuffers.begin());
+
+    if (!queue.vertexArrays.empty())
+      glDeleteVertexArrays((GLsizei)queue.vertexArrays.size(), queue.vertexArrays.begin());
+
+    for (const uint32_t & program : queue.programs)
+      glDeleteProgram(program);
   }
 
   static graphics::GLBuffer & ToGL(graphics::BufferRef pBuffer) {
@@ -1506,10 +1657,6 @@ namespace bfc {
     case ComparisonFunction_Never: return GL_NEVER;
     }
     return GL_NONE;
-  }
-
-  GLenum ToGLCubeMapFace(CubeMapFace face) {
-    return face >= 0 && face < CubeMapFace_Count ? GL_TEXTURE_CUBE_MAP_POSITIVE_X + face : GL_NONE;
   }
 
   GLenum ToGLWrapMode(WrapMode mode) {

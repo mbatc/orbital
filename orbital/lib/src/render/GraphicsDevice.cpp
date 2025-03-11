@@ -15,7 +15,7 @@ namespace bfc {
     bool StateManager::beginGroup() {
       if (m_groupStart.has_value())
         return false;
-      
+
       m_groupStart = m_stack.size();
       return true;
     }
@@ -31,14 +31,20 @@ namespace bfc {
 
     void StateManager::push(Span<const State> const & states) {
       BFC_ASSERT(beginGroup(), "push cannot be called between beginGroup/endGroup. Use set() instead");
-      set(states);
+      for (auto & state : states) {
+        _set(state);
+      }
       BFC_ASSERT(endGroup(), "Failed to end the group");
     }
 
     void StateManager::push(State const & state) {
-      beginGroup();
-      set(state);
-      endGroup();
+      return _push(state);
+    }
+
+    void StateManager::_push(State const & state) {
+      BFC_ASSERT(beginGroup(), "push cannot be called between beginGroup/endGroup. Use set() instead");
+      _set(state);
+      BFC_ASSERT(endGroup(), "Failed to end the group");
     }
 
     void StateManager::pop() {
@@ -47,27 +53,17 @@ namespace bfc {
 
       int64_t count = m_groups.popBack();
       while (count-- > 0) {
-        State previous = m_stack.popBack();
+        State previous            = m_stack.popBack();
         m_state[previous.index()] = previous;
         m_changes.pushBack(previous);
       }
     }
 
-    void StateManager::set(Span<const State> const & states) {
-      if (m_groupStart.has_value()) {
-        for (auto & state : states) {
-          if (!m_state[state.index()].is<std::monostate>()) {
-            m_stack.pushBack(m_state[state.index()]);
-          }
-        }
-      }
-
-      for (auto & state : states)
-        m_state[state.index()] = state;
-      m_changes.pushBack(states);
+    void StateManager::set(State const & state) {
+      return _set(state);
     }
 
-    void StateManager::set(State const & state) {
+    void StateManager::_set(State const & state) {
       if (m_groupStart.has_value()) {
         if (!m_state[state.index()].is<std::monostate>()) {
           m_stack.pushBack(m_state[state.index()]);
@@ -84,7 +80,183 @@ namespace bfc {
 
       m_changes.clear();
     }
-  }
+
+    graphics::BufferRef CommandList::createBuffer(BufferUsageHint usageHint) {
+      return getDevice()->createBuffer();
+    }
+
+    graphics::VertexArrayRef CommandList::createVertexArray() {
+      return getDevice()->createVertexArray();
+    }
+
+    graphics::ProgramRef CommandList::createProgram() {
+      return getDevice()->createProgram();
+    }
+
+    graphics::TextureRef CommandList::createTexture(TextureType type) {
+      return getDevice()->createTexture(type);
+    }
+
+    graphics::SamplerRef CommandList::createSampler() {
+      return getDevice()->createSampler();
+    }
+
+    graphics::RenderTargetRef CommandList::createRenderTarget(RenderTargetType type) {
+      return getDevice()->createRenderTarget(type);
+    }
+
+    void Program::setSource(Map<ShaderType, String> const & sources) {
+      for (int64_t i = 0; i < ShaderType_Count; ++i) {
+        ShaderType type = ShaderType(i);
+        if (sources.contains(type))
+          setShader(type, ShaderDesc{
+                            std::nullopt,
+                            sources[type],
+                          });
+        else
+          setShader(type, std::nullopt);
+      }
+    }
+
+    void Program::setFiles(Map<ShaderType, URI> const & files) {
+      for (int64_t i = 0; i < ShaderType_Count; ++i) {
+        ShaderType type = ShaderType(i);
+        if (files.contains(type))
+          setShader(type, ShaderDesc{
+                            files[type],
+                            std::nullopt,
+                          });
+        else
+          setShader(type, std::nullopt);
+      }
+    }
+
+    void CommandList::setUniform(StringView const & name, Mat4 value) {
+      return setUniform(name, &value, sizeof(value));
+    }
+
+    void CommandList::setUniform(StringView const & name, float value) {
+      return setUniform(name, &value, sizeof(value));
+    }
+
+    void CommandList::setUniform(StringView const & name, Vec2 value) {
+      return setUniform(name, &value, sizeof(value));
+    }
+
+    void CommandList::setUniform(StringView const & name, Vec3 value) {
+      return setUniform(name, &value, sizeof(value));
+    }
+
+    void CommandList::setUniform(StringView const & name, Vec4 value) {
+      return setUniform(name, &value, sizeof(value));
+    }
+
+    void CommandList::setUniform(StringView const & name, Vec2i value) {
+      return setUniform(name, &value, sizeof(value));
+    }
+
+    void CommandList::setUniform(StringView const & name, Vec3i value) {
+      return setUniform(name, &value, sizeof(value));
+    }
+
+    void CommandList::setUniform(StringView const & name, Vec4i value) {
+      return setUniform(name, &value, sizeof(value));
+    }
+
+    void CommandList::setUniform(StringView const & name, int32_t value) {
+      return setUniform(name, &value, sizeof(value));
+    }
+
+    void loadTexture(CommandList * pCmdList, TextureRef * pTexture, TextureType const & type, media::Surface const & surface) {
+      if (*pTexture == nullptr || (*pTexture)->getType() != type)
+        *pTexture = pCmdList->createTexture(type);
+      pCmdList->uploadTexture(*pTexture, surface);
+    }
+
+    void loadTexture(CommandList * pCmdList, TextureRef * pTexture, TextureType const & type, Vec3i const & size, PixelFormat const & format,
+                     void const * pPixels, int64_t rowPitch) {
+      media::Surface surface;
+      surface.pBuffer = (void *)pPixels;
+      surface.format  = format;
+      surface.size    = size;
+      surface.pitch   = rowPitch;
+      return loadTexture(pCmdList, pTexture, type, surface);
+    }
+
+    void loadTexture(CommandList * pCmdList, TextureRef * pTexture, TextureType const & type, Vec3i const & size, DepthStencilFormat const & depthFormat) {
+      if (*pTexture == nullptr || (*pTexture)->getType() != type)
+        *pTexture = pCmdList->createTexture(type);
+      pCmdList->uploadTexture(*pTexture, depthFormat, size);
+    }
+
+    void loadTexture2D(CommandList * pCmdList, TextureRef * pTexture, media::Surface const & surface) {
+      loadTexture(pCmdList, pTexture, TextureType_2D, surface);
+    }
+
+    bool loadTexture2D(CommandList * pCmdList, TextureRef * pTexture, URI const & path) {
+      media::Surface surface;
+      if (!loadSurface(path, &surface)) {
+        return false;
+      }
+      loadTexture2D(pCmdList, pTexture, surface);
+      return true;
+    }
+
+    void loadTexture2D(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size, PixelFormat const & format, void const * pPixels, int64_t rowPitch) {
+      loadTexture(pCmdList, pTexture, TextureType_2D, {size, 1}, format, pPixels, rowPitch);
+    }
+
+    void loadTexture2D(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size, DepthStencilFormat const & depthFormat) {
+      loadTexture(pCmdList, pTexture, TextureType_2D, {size, 1}, depthFormat);
+    }
+
+    bool loadTextureSub2D(CommandList * pCmdList, TextureRef * pTexture, media::Surface const & surface, Vec2i offset) {
+      if (*pTexture == nullptr)
+        return false;
+      pCmdList->uploadTextureSubData(*pTexture, surface, {offset, 0});
+      return true;
+    }
+
+    void loadTexture2DArray(CommandList * pCmdList, TextureRef * pTexture, media::Surface const & surface) {
+      loadTexture(pCmdList, pTexture, TextureType_2DArray, surface);
+    }
+
+    void loadTexture2DArray(CommandList * pCmdList, TextureRef * pTexture, Vec3i const & size, PixelFormat const & format, void const * pPixels,
+                            int64_t rowPitch) {
+      loadTexture(pCmdList, pTexture, TextureType_2DArray, size, format, pPixels, rowPitch);
+    }
+
+    void loadTexture2DArray(CommandList * pCmdList, TextureRef * pTexture, Vec3i const & size, DepthStencilFormat const & depthFormat) {
+      loadTexture(pCmdList, pTexture, TextureType_2DArray, size, depthFormat);
+    }
+
+    void loadTexture3D(CommandList * pCmdList, TextureRef * pTexture, media::Surface const & surface) {
+      loadTexture(pCmdList, pTexture, TextureType_3D, surface);
+    }
+
+    void loadTexture3D(CommandList * pCmdList, TextureRef * pTexture, Vec3i const & size, PixelFormat const & format, void const * pPixels, int64_t rowPitch) {
+      loadTexture(pCmdList, pTexture, TextureType_3D, size, format, pPixels, rowPitch);
+    }
+
+    void loadTexture3D(CommandList * pCmdList, TextureRef * pTexture, Vec3i const & size, DepthStencilFormat const & depthFormat) {
+      loadTexture(pCmdList, pTexture, TextureType_3D, size, depthFormat);
+    }
+
+    void loadTextureCubeMap(CommandList * pCmdList, TextureRef * pTexture, media::Surface const & surface) {
+      BFC_ASSERT(surface.size.z == CubeMapFace_Count, "Surface must have a depth of 6");
+
+      loadTexture(pCmdList, pTexture, TextureType_CubeMap, surface);
+    }
+
+    void loadTextureCubeMap(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size, PixelFormat const & format, void const * pPixels,
+                            int64_t rowPitch) {
+      loadTexture(pCmdList, pTexture, TextureType_CubeMap, {size, CubeMapFace_Count}, format, pPixels, rowPitch);
+    }
+
+    void loadTextureCubeMap(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size, DepthStencilFormat const & depthFormat) {
+      loadTexture(pCmdList, pTexture, TextureType_CubeMap, {size, CubeMapFace_Count}, depthFormat);
+    }
+  } // namespace graphics
 
   int64_t getDepthStencilFormatStride(DepthStencilFormat const & type) {
     switch (type) {

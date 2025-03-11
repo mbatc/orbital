@@ -113,14 +113,14 @@ namespace engine {
     return projectionMat(aspect) * viewMat();
   }
 
-  LevelEditorViewport::LevelEditorViewport(GraphicsDevice * pGraphics, AssetManager * pAssets) 
-    : Viewport(pGraphics, pAssets, "LevelEditor")
+  LevelEditorViewport::LevelEditorViewport(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets) 
+    : Viewport(pCmdList, pAssets, "LevelEditor")
     , camera(&m_mouse, &m_keyboard) {
     m_mouse.attachTo(getEvents());
     m_keyboard.attachTo(getEvents());
   }
 
-  Vector<RenderView> LevelEditorViewport::collectViews(bfc::GraphicsResource renderTarget) const {
+  Vector<RenderView> LevelEditorViewport::collectViews(bfc::graphics::RenderTargetRef renderTarget) const {
     RenderView view;
     view.viewport         = {0, 0, 1, 1};
     view.viewMatrix       = camera.viewMat();

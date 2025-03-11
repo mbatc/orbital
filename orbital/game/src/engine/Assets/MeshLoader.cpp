@@ -63,10 +63,14 @@ namespace engine {
       return nullptr;
     }
 
-    Ref<Mesh> pMesh = NewRef<Mesh>();
-    if (!pMesh->load(m_pGraphics, *pData)) {
+    Ref<Mesh> pMesh    = NewRef<Mesh>();
+    auto      pCmdList = m_pGraphics->createCommandList();
+
+    if (!pMesh->load(pCmdList.get(), *pData)) {
       return nullptr;
     }
+
+    m_pGraphics->submit(std::move(pCmdList));
 
     return pMesh;
   }
@@ -94,16 +98,19 @@ namespace engine {
       return nullptr;
     }
 
+    auto pCmdList = m_pGraphics->createCommandList();
+
     Ref<Material> pMaterial = NewRef<Material>();
     pMaterial->load(
-      m_pGraphics,
+      pCmdList.get(),
       pData->materials[index],
-      [pContext](MeshData::Material const & data, String const & prop) -> Ref<Texture> {
-        return pContext->load<Texture>(URI::File(data.getTexture(prop)));
+      [pContext](MeshData::Material const & data, String const & prop) -> Ref<graphics::Texture> {
+        return pContext->load<graphics::Texture>(URI::File(data.getTexture(prop)));
       }
     );
+    pMaterial->upload(pCmdList.get());
 
-    pMaterial->upload(m_pGraphics);
+    m_pGraphics->submit(std::move(pCmdList));
 
     return pMaterial;
   }

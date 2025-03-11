@@ -54,9 +54,9 @@ namespace engine {
 
   class LevelEditorViewport : public Viewport {
   public:
-    LevelEditorViewport(bfc::GraphicsDevice * pGraphics, AssetManager * pAssets);
+    LevelEditorViewport(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets);
 
-    virtual bfc::Vector<RenderView> collectViews(bfc::GraphicsResource renderTarget) const override;
+    virtual bfc::Vector<RenderView> collectViews(bfc::graphics::RenderTargetRef renderTarget) const override;
 
     virtual bfc::Map<bfc::String, bfc::InputDevice *> getInputDevices() override;
 

@@ -17,7 +17,7 @@ namespace bfc {
         struct BindProgram {
           GLProgram * pProgram;
 
-          static void execute(BindProgram const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(BindProgram const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             if (pCmd->pProgram == InvalidGraphicsResource) {
               glUseProgram(0);
             } else {
@@ -29,7 +29,7 @@ namespace bfc {
         struct BindVertexArray {
           GLVertexArray * pVertexArray;
 
-          static void execute(BindVertexArray const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(BindVertexArray const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             if (pCmd->pVertexArray->glID == 0)
               glGenVertexArrays(1, &pCmd->pVertexArray->glID);
 
@@ -54,8 +54,13 @@ namespace bfc {
 
         struct RebindVertexArray {
           struct Element {
-            char                       name[64];
-            VertexInputLayout::Element element;
+            GLuint     glLoc;
+            GLenum     dataType;
+            GLsizei    stride;
+            GLint      size;
+            int32_t    slot;
+            int64_t    offset;
+            LayoutFlag flags;
           };
 
           GLVertexArray *                    pVertexArray;
@@ -64,7 +69,7 @@ namespace bfc {
           GLBuffer *                         vertexBuffers[MaxVertexBuffers];
           GLBuffer *                         pIndexBuffer;
 
-          static void execute(RebindVertexArray const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(RebindVertexArray const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             BFC_ASSERT(pCmd->pVertexArray->glID != 0, "Vertex array has not been created");
 
             auto & activeSlots = pCmd->pVertexArray->activeSlots;
@@ -76,27 +81,23 @@ namespace bfc {
             CommandBuffer::Serialized<Element> handle = pCmd->elements;
             for (int64_t i = 0; i < pCmd->numElements; ++i) {
               int64_t sz;
-              Element item = pBuffer->deserialize(handle, &sz);
+              Element elm = pBuffer->deserialize(handle, &sz);
               handle.offset += sz;
 
-              auto const & elm = item.element;
-              StringView   sem = item.name;
-
-              GLuint     loc           = (GLuint)GetSemanticLocation(sem);
               GLBuffer * pVertexBuffer = pCmd->vertexBuffers[elm.slot];
               if (pVertexBuffer == InvalidGraphicsResource)
                 continue;
 
               glBindBuffer(GL_ARRAY_BUFFER, pVertexBuffer->glID);
-              glEnableVertexAttribArray(loc);
+              glEnableVertexAttribArray(elm.glLoc);
 
               bool normalized = (elm.flags & LayoutFlag_Normalize) > 0;
               if ((elm.flags & LayoutFlag_Integer) > 0)
-                glVertexAttribIPointer(loc, (GLint)(elm.width * elm.height), ToGLDataType(elm.dataType), (GLsizei)elm.stride, (void *)elm.offset);
+                glVertexAttribIPointer(elm.glLoc, elm.size, elm.dataType, elm.stride, (void *)elm.offset);
               else
-                glVertexAttribPointer(loc, (GLint)(elm.width * elm.height), ToGLDataType(elm.dataType), normalized, (GLsizei)elm.stride, (void *)elm.offset);
+                glVertexAttribPointer(elm.glLoc, elm.size, elm.dataType, normalized, elm.stride, (void *)elm.offset);
 
-              activeSlots.pushBack(loc);
+              activeSlots.pushBack(elm.glLoc);
             }
 
             if (pCmd->pIndexBuffer != InvalidGraphicsResource) {
@@ -112,7 +113,7 @@ namespace bfc {
           GLenum      target;
           GLTexture * pTexture;
 
-          static void execute(BindTexture const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(BindTexture const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             uint32_t glID = pCmd->pTexture == InvalidGraphicsResource ? 0 : pCmd->pTexture->glID;
             glActiveTexture(GL_TEXTURE0 + pCmd->textureUnit);
             glBindTexture(pCmd->target, glID);
@@ -132,7 +133,7 @@ namespace bfc {
 
           Vector3<GLenum> wrapMode;
 
-          static void execute(UpdateSampler const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(UpdateSampler const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             if (pCmd->pSampler->glID == 0) {
               glCreateSamplers(1, &pCmd->pSampler->glID);
             }
@@ -152,7 +153,7 @@ namespace bfc {
           GLuint      textureUnit;
           GLSampler * pSampler;
 
-          static void execute(BindSampler const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(BindSampler const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             if (pCmd->pSampler != InvalidGraphicsResource) {
               glBindSampler(pCmd->textureUnit, 0);
             } else {
@@ -168,7 +169,7 @@ namespace bfc {
           GLsizeiptr size;
           GLenum     target;
 
-          static void execute(BindUniformBuffer const * pCmd, GraphicsDevice_OpenGL * pDevice, CommandBuffer * pBuffer) {
+          static void execute(BindUniformBuffer const * pCmd, GraphicsDevice_OpenGL * pDevice, CommandBuffer const * pBuffer) {
             GLuint glID = pCmd->pBuffer == nullptr ? 0 : pCmd->pBuffer->glID;
             glBindBufferRange(pCmd->target, pCmd->bindPoint, glID, pCmd->offset, pCmd->size);
           }
@@ -178,7 +179,7 @@ namespace bfc {
           GLRenderTarget * pRenderTarget;
           MapAccess        access;
 
-          static void execute(BindTextureRenderTarget const * pCmd, GraphicsDevice_OpenGL * pDevice, CommandBuffer * pBuffer) {
+          static void execute(BindTextureRenderTarget const * pCmd, GraphicsDevice_OpenGL * pDevice, CommandBuffer const * pBuffer) {
             bool write = (pCmd->access & MapAccess_Write) > 0;
             bool read  = (pCmd->access & MapAccess_Read) > 0;
 
@@ -202,9 +203,11 @@ namespace bfc {
 
         struct RebindTextureRenderTarget {
           struct Attachment {
-            GLint       layer    = 0; // Level/Face for 3D textures
-            GLint       mipLevel = 0;
-            GLTexture * pTexture = nullptr;
+            GLint       layer; // Level/Face for 3D textures
+            GLint       mipLevel;
+            GLenum      slot;
+            GLenum      target;
+            GLTexture * pTexture;
           };
 
           GLRenderTarget * pRenderTarget;
@@ -214,7 +217,7 @@ namespace bfc {
           GLenum           colourReadAttachment;
           MapAccess        access;
 
-          static void execute(RebindTextureRenderTarget const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(RebindTextureRenderTarget const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             bool write = (pCmd->access & MapAccess_Write) > 0;
             bool read  = (pCmd->access & MapAccess_Read) > 0;
 
@@ -237,29 +240,27 @@ namespace bfc {
             }
 
             for (int64_t index = 0; index < MaxColourAttachments; ++index) {
-              GLenum attachmentID = (GLenum)(GL_COLOR_ATTACHMENT0 + index);
               auto & attachment   = pCmd->colour[index];
               if (attachment.pTexture != InvalidGraphicsResource) {
                 auto & glTex         = *attachment.pTexture;
-                GLenum textureTarget = ToGLFramebufferTextureTarget(glTex.type, attachment.layer);
-
+                attachment.target;
                 switch (glTex.type) {
                 case TextureType_2D:
-                case TextureType_CubeMap: glFramebufferTexture2D(fboTarget, attachmentID, textureTarget, glTex.glID, (GLint)attachment.mipLevel); break;
+                case TextureType_CubeMap: glFramebufferTexture2D(fboTarget, attachment.slot, attachment.target, glTex.glID, (GLint)attachment.mipLevel); break;
                 case TextureType_2DArray:
-                  glFramebufferTextureLayer(fboTarget, attachmentID, glTex.glID, (GLint)attachment.mipLevel, (GLint)attachment.layer);
+                  glFramebufferTextureLayer(fboTarget, attachment.slot, glTex.glID, (GLint)attachment.mipLevel, (GLint)attachment.layer);
                   break;
                 case TextureType_3D:
-                  glFramebufferTexture3D(fboTarget, attachmentID, textureTarget, glTex.glID, (GLint)attachment.mipLevel, (GLint)attachment.layer);
+                  glFramebufferTexture3D(fboTarget, attachment.slot, attachment.target, glTex.glID, (GLint)attachment.mipLevel, (GLint)attachment.layer);
                   break;
                 }
-                activeAttachments[numAttachments++] = attachmentID;
+                activeAttachments[numAttachments++] = attachment.slot;
               } else {
                 switch (pCmd->fbClass) {
-                case TextureType_2D: glFramebufferTexture2D(fboTarget, attachmentID, GL_TEXTURE_2D, 0, 0); break;
+                case TextureType_2D: glFramebufferTexture2D(fboTarget, attachment.slot, GL_TEXTURE_2D, 0, 0); break;
                 case TextureType_3D:
-                case TextureType_2DArray: glFramebufferTextureLayer(fboTarget, attachmentID, 0, 0, 0); break;
-                case TextureType_CubeMap: glFramebufferTexture3D(fboTarget, attachmentID, GL_TEXTURE_3D, 0, 0, 0); break;
+                case TextureType_2DArray: glFramebufferTextureLayer(fboTarget, attachment.slot, 0, 0, 0); break;
+                case TextureType_CubeMap: glFramebufferTexture3D(fboTarget, attachment.slot, GL_TEXTURE_3D, 0, 0, 0); break;
                 }
               }
             }
@@ -267,16 +268,14 @@ namespace bfc {
             if (pCmd->depth.pTexture != InvalidGraphicsResource) {
               auto & attachment    = pCmd->depth;
               auto & glTex         = *attachment.pTexture;
-              GLenum textureTarget = ToGLFramebufferTextureTarget(glTex.type, attachment.layer);
-              GLenum attachmentID  = ToGLFramebufferAttachment(glTex.depthStencilFmt);
               switch (glTex.type) {
               case TextureType_2D:
-              case TextureType_CubeMap: glFramebufferTexture2D(fboTarget, attachmentID, textureTarget, glTex.glID, (GLint)attachment.mipLevel); break;
+              case TextureType_CubeMap: glFramebufferTexture2D(fboTarget, attachment.slot, attachment.target, glTex.glID, (GLint)attachment.mipLevel); break;
               case TextureType_2DArray:
-                glFramebufferTextureLayer(fboTarget, attachmentID, glTex.glID, (GLint)attachment.mipLevel, (GLint)attachment.layer);
+                glFramebufferTextureLayer(fboTarget, attachment.slot, glTex.glID, (GLint)attachment.mipLevel, (GLint)attachment.layer);
                 break;
               case TextureType_3D:
-                glFramebufferTexture3D(fboTarget, attachmentID, textureTarget, glTex.glID, (GLint)attachment.mipLevel, (GLint)attachment.layer);
+                glFramebufferTexture3D(fboTarget, attachment.slot, attachment.target, glTex.glID, (GLint)attachment.mipLevel, (GLint)attachment.layer);
                 break;
               }
             } else {
@@ -310,7 +309,7 @@ namespace bfc {
           HDC       hDC;
           MapAccess access;
 
-          static void execute(BindWindowRenderTarget const * pCmd, GraphicsDevice_OpenGL * pDevice, CommandBuffer * pBuffer) {
+          static void execute(BindWindowRenderTarget const * pCmd, GraphicsDevice_OpenGL * pDevice, CommandBuffer const * pBuffer) {
             bool write = (pCmd->access & MapAccess_Write) > 0;
             bool read  = (pCmd->access & MapAccess_Read) > 0;
 
@@ -333,7 +332,7 @@ namespace bfc {
           int64_t                          count;
           CommandBuffer::Serialized<State> states;
 
-          static void execute(SetState const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(SetState const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             auto                             pStateManager = pDevice->getStateManager();
             CommandBuffer::Serialized<State> stateHandle   = pCmd->states;
 
@@ -349,7 +348,7 @@ namespace bfc {
           int64_t                          count;
           CommandBuffer::Serialized<State> states;
 
-          static void execute(PushState const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(PushState const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             auto                             pStateManager = pDevice->getStateManager();
             CommandBuffer::Serialized<State> stateHandle   = pCmd->states;
 
@@ -364,7 +363,7 @@ namespace bfc {
         };
 
         struct PopState {
-          static void execute(PopState const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(PopState const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             pDevice->getStateManager()->pop();
           }
         };
@@ -399,7 +398,7 @@ namespace bfc {
           GLsizeiptr size;
           GLbitfield access;
           std::promise<void *> * pPromise;
-          static void execute(Map const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(Map const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             const GLenum bindPoint = pCmd->pBuffer->getBindTarget(false);
 
             glBindBuffer(bindPoint, pCmd->pBuffer->glID);
@@ -411,7 +410,7 @@ namespace bfc {
         struct Unmap {
           GLBuffer * pBuffer;
 
-          static void execute(Unmap const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(Unmap const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             const GLenum bindPoint = pCmd->pBuffer->getBindTarget(false);
 
             glBindBuffer(bindPoint, pCmd->pBuffer->glID);
@@ -429,7 +428,7 @@ namespace bfc {
           GLsizeiptr           size;
           std::promise<void> * pPromise;
 
-          static void execute(Download const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(Download const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             auto & buf = *pCmd->pBuffer;
             glBindBuffer(pCmd->bindPoint, buf.glID);
             glGetBufferSubData(pCmd->bindPoint, pCmd->offset, pCmd->size, pCmd->pDownload->storage.begin());
@@ -446,7 +445,7 @@ namespace bfc {
           GLenum      target;
           Vec3i       size;
 
-          static void execute(AllocateTexture const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(AllocateTexture const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             auto & tex = *pCmd->pTexture;
 
             GLenum const & glFormat         = pCmd->format;
@@ -477,6 +476,10 @@ namespace bfc {
           }
         };
 
+        static GLenum ToGLCubeMapFace(CubeMapFace face) {
+          return face >= 0 && face < CubeMapFace_Count ? GL_TEXTURE_CUBE_MAP_POSITIVE_X + face : GL_NONE;
+        }
+
         struct UploadTexture {
           GLTexture * pTexture;
           GLenum      format;
@@ -488,7 +491,7 @@ namespace bfc {
           int64_t        dataSize;
           media::Surface surface;
 
-          static void execute(UploadTexture const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(UploadTexture const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             auto & tex = *pCmd->pTexture;
 
             GLenum const &      glFormat         = pCmd->format;
@@ -538,7 +541,7 @@ namespace bfc {
           int64_t        dataSize;
           media::Surface surface;
 
-          static void execute(UploadTextureSubData const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(UploadTextureSubData const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             BFC_ASSERT(pCmd->pTexture != nullptr, "pTexture cannot be nullptr");
 
             auto & tex = *pCmd->pTexture;
@@ -567,20 +570,20 @@ namespace bfc {
 
         struct GenerateMipMaps {
           GLTexture * pTexture;
+          GLenum      target;
 
-          static void execute(GenerateMipMaps const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(GenerateMipMaps const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             auto & tex = *pCmd->pTexture;
             if (glGenerateTextureMipmap != 0 && glTextureParameteri != 0) { // Use 'named' function if available
               glGenerateTextureMipmap(tex.glID);
               glTextureParameteri(tex.glID, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
               glTextureParameteri(tex.glID, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             } else {
-              GLenum texTarget = ToGLTextureType(tex.type);
-              glBindTexture(texTarget, tex.glID);
-              glGenerateMipmap(texTarget);
-              glTexParameteri(texTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-              glTexParameteri(texTarget, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-              glBindTexture(texTarget, 0);
+              glBindTexture(pCmd->target, tex.glID);
+              glGenerateMipmap(pCmd->target);
+              glTexParameteri(pCmd->target, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+              glTexParameteri(pCmd->target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+              glBindTexture(pCmd->target, 0);
             }
           }
         };
@@ -588,7 +591,7 @@ namespace bfc {
         struct DownloadTexture {
           GLTexture * pTexture;
           GLTextureDownload * pDownload;
-          static void execute(DownloadTexture const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(DownloadTexture const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             
           }
         };
@@ -599,7 +602,7 @@ namespace bfc {
           int64_t     dataHandle;
           int64_t     dataSize;
 
-          static void execute(SetUniform const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(SetUniform const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             Span<const uint8_t> data = pBuffer->read(pCmd->dataHandle, pCmd->dataSize);
             const float *       f32  = (const float *)data.begin();
             const int32_t *     i32  = (const int32_t *)data.begin();
@@ -676,12 +679,38 @@ namespace bfc {
           }
         };
 
+        struct SetNamedUniform {
+          GLProgram * pProgram;
+          int64_t     nameHandle;
+          int64_t     nameSize;
+          int64_t     dataHandle;
+          int64_t     dataSize;
+
+          static void execute(SetNamedUniform const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
+            Span<const char> name = (bfc::Span<const char>)pBuffer->read(pCmd->nameHandle, pCmd->nameSize);
+
+            SetUniform cmd;
+            cmd.pProgram   = pCmd->pProgram;
+            cmd.dataHandle = pCmd->dataHandle;
+            cmd.dataSize   = pCmd->dataSize;
+
+            for (int64_t i = 0; i < cmd.pProgram->getUniformCount(); ++i) {
+              ProgramUniformDesc desc;
+              cmd.pProgram->getUniformDesc(i, &desc);
+              if (desc.name == StringView(name.begin(), name.end())) {
+                cmd.uniformIndex = i;
+                return SetUniform::execute(&cmd, pDevice, pBuffer);
+              }
+            }
+          }
+        };
+
         struct SetBufferBinding {
           GLProgram * pProgram;
           int64_t     bufferIndex;
           int64_t     bindPoint;
 
-          static void execute(SetBufferBinding const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(SetBufferBinding const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             GLProgram &         prog       = *pCmd->pProgram;
             GLProgram::Buffer & bufferDesc = prog.buffers[pCmd->bufferIndex];
 
@@ -695,11 +724,36 @@ namespace bfc {
           }
         };
 
+        struct SetNamedBufferBinding {
+          GLProgram * pProgram;
+          int64_t     nameHandle;
+          int64_t     nameSize;
+          int64_t     bufferIndex;
+          int64_t     bindPoint;
+
+          static void execute(SetNamedBufferBinding const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
+            Span<const char> name = (bfc::Span<const char>)pBuffer->read(pCmd->nameHandle, pCmd->nameSize);
+
+            SetBufferBinding cmd;
+            cmd.pProgram   = pCmd->pProgram;
+            cmd.bindPoint = pCmd->bindPoint;
+
+            for (int64_t i = 0; i < cmd.pProgram->getBufferCount(); ++i) {
+              ProgramBufferDesc desc;
+              cmd.pProgram->getBufferDesc(i, &desc);
+              if (desc.name == StringView(name.begin(), name.end())) {
+                cmd.bufferIndex = i;
+                return SetBufferBinding::execute(&cmd, pDevice, pBuffer);
+              }
+            }
+          }
+        };
+
         struct SetTextureBinding {
           GLProgram * pProgram;
           int64_t     textureIndex;
           int64_t     bindPoint;
-          static void execute(SetTextureBinding const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(SetTextureBinding const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             GLProgram &          prog        = *pCmd->pProgram;
             GLProgram::Texture & textureDesc = prog.textures[pCmd->textureIndex];
 
@@ -710,10 +764,35 @@ namespace bfc {
           }
         };
 
+        struct SetNamedTextureBinding {
+          GLProgram * pProgram;
+          int64_t     nameHandle;
+          int64_t     nameSize;
+          int64_t     textureIndex;
+          int64_t     bindPoint;
+
+          static void execute(SetNamedTextureBinding const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
+            Span<const char> name = (bfc::Span<const char>)pBuffer->read(pCmd->nameHandle, pCmd->nameSize);
+
+            SetTextureBinding cmd;
+            cmd.pProgram   = pCmd->pProgram;
+            cmd.bindPoint    = pCmd->bindPoint;
+
+            for (int64_t i = 0; i < cmd.pProgram->getTextureCount(); ++i) {
+              ProgramTextureDesc desc;
+              cmd.pProgram->getTextureDesc(i, &desc);
+              if (desc.name == StringView(name.begin(), name.end())) {
+                cmd.textureIndex = i;
+                return SetTextureBinding::execute(&cmd, pDevice, pBuffer);
+              }
+            }
+          }
+        };
+
         struct Clear {
           RGBAu8 colour;
 
-          static void execute(Clear const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(Clear const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             pDevice->getStateManager()->apply();
 
             glClearColor(pCmd->colour.r / 255.0f, pCmd->colour.g / 255.0f, pCmd->colour.b / 255.0f, pCmd->colour.a / 255.0f);
@@ -725,7 +804,7 @@ namespace bfc {
 
         struct Swap {
           HDC         hDC;
-          static void execute(Swap const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(Swap const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             SwapBuffers(pCmd->hDC);
           }
         };
@@ -736,7 +815,7 @@ namespace bfc {
           GLenum  primType;
           GLsizei instanceCount;
 
-          static void execute(Draw const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(Draw const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             pDevice->getStateManager()->apply();
 
             if (pCmd->instanceCount == 1) {
@@ -748,13 +827,13 @@ namespace bfc {
         };
 
         struct DrawIndexed {
-          GLsizei elementCount;
-          GLint   elementOffset;
-          GLsizei instanceCount;
-          GLenum  indexType;
-          GLenum  primType;
+          GLsizei  elementCount;
+          uint64_t elementOffset;
+          GLsizei  instanceCount;
+          GLenum   indexType;
+          GLenum   primType;
 
-          static void execute(DrawIndexed const * pCmd, GraphicsDevice * pDevice, CommandBuffer * pBuffer) {
+          static void execute(DrawIndexed const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             pDevice->getStateManager()->apply();
 
             if (pCmd->instanceCount == 1) {

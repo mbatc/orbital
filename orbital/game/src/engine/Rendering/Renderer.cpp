@@ -21,32 +21,32 @@ namespace engine {
     position = Vec3d(inverseViewMatrix[3]);
   }
 
-  void FeatureRenderer::onAdded(Renderer * pRenderer) {
-    BFC_UNUSED(pRenderer);
+  void FeatureRenderer::onAdded(graphics::CommandList * pCmdList, Renderer * pRenderer) {
+    BFC_UNUSED(pCmdList, pRenderer);
   }
 
-  void FeatureRenderer::onResize(Renderer * pRenderer, Vec2i const & size) {
-    BFC_UNUSED(pRenderer, size);
+  void FeatureRenderer::onResize(graphics::CommandList * pCmdList, Renderer * pRenderer, Vec2i const & size) {
+    BFC_UNUSED(pCmdList, pRenderer, size);
   }
 
-  void FeatureRenderer::beginFrame(Renderer * pRenderer, Vector<RenderView> const & views) {
-    BFC_UNUSED(pRenderer, views);
+  void FeatureRenderer::beginFrame(graphics::CommandList * pCmdList, Renderer * pRenderer, Vector<RenderView> const & views) {
+    BFC_UNUSED(pCmdList, pRenderer, views);
   }
 
-  void FeatureRenderer::endFrame(Renderer * pRenderer, Vector<RenderView> const & views) {
-    BFC_UNUSED(pRenderer, views);
+  void FeatureRenderer::endFrame(graphics::CommandList * pCmdList, Renderer * pRenderer, Vector<RenderView> const & views) {
+    BFC_UNUSED(pCmdList, pRenderer, views);
   }
 
-  void FeatureRenderer::beginView(Renderer * pRenderer, RenderView const & view) {
-    BFC_UNUSED(pRenderer, view);
+  void FeatureRenderer::beginView(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) {
+    BFC_UNUSED(pCmdList, pRenderer, view);
   }
 
-  void FeatureRenderer::renderView(Renderer * pRenderer, RenderView const & view) {
-    BFC_UNUSED(pRenderer, view);
+  void FeatureRenderer::renderView(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) {
+    BFC_UNUSED(pCmdList, pRenderer, view);
   }
 
-  void FeatureRenderer::endView(Renderer * pRenderer, RenderView const & view) {
-    BFC_UNUSED(pRenderer, view);
+  void FeatureRenderer::endView(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) {
+    BFC_UNUSED(pCmdList, pRenderer, view);
   }
 
   Renderer::Renderer(GraphicsDevice * pDevice)
@@ -68,48 +68,47 @@ namespace engine {
     return m_features[index];
   }
 
-  void Renderer::render(Vector<RenderView> const & views) {
+  void Renderer::render(bfc::graphics::CommandList * pCmdList, Vector<RenderView> const & views) {
     for (FeatureRenderer * pNewFeature : m_added) {
-      pNewFeature->onAdded(this);
+      pNewFeature->onAdded(pCmdList, this);
     }
     m_added.clear();
 
     for (FeatureRenderer * pFeature : m_features) {
-      pFeature->beginFrame(this, views);
+      pFeature->beginFrame(pCmdList, this, views);
     }
 
     GraphicsDevice * pDevice = getGraphicsDevice();
     for (RenderView const & view : views) {
       /// Bind render target and set viewport
-      graphics::RenderTargetManager * pRenderTargets = pDevice->getRenderTargetManager();
-      graphics::StateManager *        pState         = pDevice->getStateManager();
-
-      pDevice->bindRenderTarget(view.renderTarget);
-      Vec2  renderTargetSize = pRenderTargets->getSize(view.renderTarget);
+      pCmdList->bindRenderTarget(view.renderTarget);
+      Vec2  renderTargetSize = view.renderTarget->getSize();
       Vec2i viewportPos      = Vec2i(renderTargetSize * Vec2{view.viewport.x, view.viewport.y});
       Vec2i viewportSize     = Vec2i(renderTargetSize * Vec2{view.viewport.z, view.viewport.w});
 
-      pState->setViewport(viewportPos, viewportSize);
+      pCmdList->pushState(graphics::State::Viewport{viewportPos, viewportSize});
 
-      beginView(view);
+      beginView(pCmdList, view);
 
       for (FeatureRenderer * pFeature : m_features) {
-        pFeature->beginView(this, view);
+        pFeature->beginView(pCmdList, this, view);
       }
 
       for (FeatureRenderer * pFeature : m_features) {
-        pFeature->renderView(this, view);
+        pFeature->renderView(pCmdList, this, view);
       }
 
       for (FeatureRenderer * pFeature : m_features) {
-        pFeature->endView(this, view);
+        pFeature->endView(pCmdList, this, view);
       }
 
-      endView(view);
+      endView(pCmdList, view);
+
+      pCmdList->popState();
     }
 
     for (FeatureRenderer * pFeature : m_features) {
-      pFeature->endFrame(this, views);
+      pFeature->endFrame(pCmdList, this, views);
     }
   }
 
@@ -117,11 +116,11 @@ namespace engine {
     return m_pDevice;
   }
 
-  void Renderer::beginView(RenderView const & view) {
-    BFC_UNUSED(view);
+  void Renderer::beginView(bfc::graphics::CommandList * pCmdList, RenderView const & view) {
+    BFC_UNUSED(pCmdList, view);
   }
 
-  void Renderer::endView(RenderView const & view) {
-    BFC_UNUSED(view);
+  void Renderer::endView(bfc::graphics::CommandList * pCmdList, RenderView const & view) {
+    BFC_UNUSED(pCmdList, view);
   }
 } // namespace engine

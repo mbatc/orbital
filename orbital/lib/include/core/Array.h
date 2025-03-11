@@ -9,6 +9,8 @@ namespace bfc {
 
   template<typename T, int64_t N>
   class Array {
+    template<typename... Args>
+    inline static constexpr bool IsConstructible = (std::is_constructible_v<T, Args> && ...);
   public:
     using ElementType = T;
 
@@ -17,6 +19,11 @@ namespace bfc {
     template<int64_t N>
     constexpr Array(T const (&elements)[N])
       : Array(elements, elements + N) {}
+
+    template<typename... Args, std::enable_if_t<IsConstructible<Args...>>* = 0>
+    constexpr Array(Args &&... values)
+      : m_data{std::forward<Args>(values)...}
+    {}
 
     constexpr Array(std::initializer_list<T> const & il)
       : Array(il.begin(), il.end()) {}
@@ -153,7 +160,7 @@ namespace bfc {
     }
 
     constexpr T * data() {
-      return m_pData;
+      return m_data;
     }
 
     constexpr T const * begin() const {
