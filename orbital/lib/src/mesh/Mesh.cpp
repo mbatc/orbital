@@ -56,7 +56,7 @@ namespace bfc {
     Index * pNext  = indexData.begin();
     for (Vector<Index> & indices : subMeshIndexData) {
       SubMesh sm;
-      sm.elmOffset = indexData.begin() - pBegin;
+      sm.elmOffset = pNext - pBegin;
       sm.elmCount  = indices.size();
       m_meshes.pushBack(sm);
       memcpy(pNext, indices.begin(), sizeof(Index) * indices.size());

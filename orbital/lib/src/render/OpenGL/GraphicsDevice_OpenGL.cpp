@@ -291,6 +291,10 @@ namespace bfc {
     }
 
     bool GLProgram::compile(String * pError) {
+      if (glID == 0) {
+        glID = glCreateProgram();
+      }
+
       GLuint shaderIDs[ShaderType_Count] = {0};
 
       for (auto & [i, shader] : enumerate(shaders)) {
@@ -301,12 +305,19 @@ namespace bfc {
         GLuint shaderID = glCreateShader(ToGLShaderType((ShaderType)i));
         if (!compileShader(shaderID, shader.value(), pError)) {
           glDeleteShader(shaderID);
+
+          for (auto & cleanup : shaderIDs) {
+            if (cleanup != 0) {
+              glDetachShader(glID, cleanup);
+              glDeleteShader(cleanup);
+            }
+          }
+
           return false;
         }
 
         shaderIDs[i] = shaderID;
         glAttachShader(glID, shaderID);
-        return true;
       }
 
       GLint status = GL_FALSE;
@@ -332,7 +343,7 @@ namespace bfc {
         }
 
         glDetachShader(glID, shaderIDs[i]);
-        glDeleteShader(glID);
+        glDeleteShader(shaderIDs[i]);
       }
 
       if (status != GL_FALSE)
@@ -559,10 +570,10 @@ namespace bfc {
                                GLenum glDstColourFactor = ToGLBlendFunction(state.destColourFactor);
                                GLenum glDstAlphaFactor  = ToGLBlendFunction(state.destAlphaFactor);
                                if (state.colourAttachment.has_value())
-                                 glBlendFuncSeparatei((GLuint)state.colourAttachment.value(), glSrcColourFactor, glSrcAlphaFactor, glDstColourFactor,
+                                 glBlendFuncSeparatei((GLuint)state.colourAttachment.value(), glSrcColourFactor, glDstColourFactor, glSrcAlphaFactor,
                                                       glDstAlphaFactor);
                                else
-                                 glBlendFuncSeparate(glSrcColourFactor, glSrcAlphaFactor, glDstColourFactor, glDstAlphaFactor);
+                                 glBlendFuncSeparate(glSrcColourFactor, glDstColourFactor, glSrcAlphaFactor, glDstAlphaFactor);
                              },
                              [](State::BlendEq const & state) {
                                GLenum glColourEq = ToGLEquation(state.colour);
@@ -653,6 +664,8 @@ namespace bfc {
         rebind.pIndexBuffer = &ToGL(va.indexBuffer);
         track(va.indexBuffer);
         va.rebind = false;
+
+        add(rebind);
       }
     }
 
@@ -677,7 +690,7 @@ namespace bfc {
       if (samplerID == InvalidGraphicsResource) {
         impl::OpenGL::BindSampler cmd;
         cmd.pSampler    = nullptr;
-        cmd.textureUnit = (GLenum)(GL_TEXTURE0 + textureUnit);
+        cmd.textureUnit = (GLenum)textureUnit;
         add(cmd);
       } else {
         auto & sampler = ToGL(samplerID);
@@ -701,7 +714,7 @@ namespace bfc {
 
         impl::OpenGL::BindSampler cmd;
         cmd.pSampler    = &sampler;
-        cmd.textureUnit = (GLenum)(GL_TEXTURE0 + textureUnit);
+        cmd.textureUnit = (GLuint)textureUnit;
 
         add(cmd);
         track(samplerID);
@@ -756,16 +769,18 @@ namespace bfc {
       if (rt.type == RenderTargetType_Texture) {
         if (rt.textures.rebind) {
           impl::OpenGL::RebindTextureRenderTarget cmd;
+          cmd.pRenderTarget        = &rt;
           cmd.fbClass              = TextureType_Unknown;
           cmd.colourReadAttachment = GLenum(GL_COLOR_ATTACHMENT0 + rt.textures.colourReadAttachment);
           cmd.access               = renderTargetAccess;
 
           for (int64_t index = 0; index < MaxColourAttachments; ++index) {
+            cmd.colour[index].slot = (GLenum)(GL_COLOR_ATTACHMENT0 + index);
+
             if (rt.textures.colour[index].texture != InvalidGraphicsResource) {
               cmd.colour[index].pTexture = &ToGL(rt.textures.colour[index].texture);
               cmd.colour[index].layer    = (GLint)rt.textures.colour[index].layer;
               cmd.colour[index].mipLevel = (GLint)rt.textures.colour[index].mipLevel;
-              cmd.colour[index].slot     = (GLenum)(GL_COLOR_ATTACHMENT0 + index);
               cmd.colour[index].target   = ToGLFramebufferTextureTarget(cmd.colour[index].pTexture->type, rt.textures.colour[index].layer);
               track(rt.textures.colour[index].texture);
 
@@ -838,7 +853,8 @@ namespace bfc {
       impl::OpenGL::DrawIndexed cmd;
       cmd.elementCount  = (GLsizei)elementCount;
       cmd.elementOffset = (uint64_t)(elementOffset * getDataTypeSize(m_vaIndexType));
-      cmd.indexType     = ToGLPrimType(primType);
+      cmd.indexType     = ToGLDataType(m_vaIndexType);
+      cmd.primType      = ToGLPrimType(primType);
       cmd.instanceCount = (GLsizei)instanceCount;
 
       // Only validate elementCount if a vertex array has been bound.
@@ -1245,6 +1261,10 @@ namespace bfc {
     delete this;
   }
 
+  graphics::RenderTargetRef GraphicsDevice_OpenGL::getDefaultRenderTarget() {
+    return m_defaultTarget;
+  }
+
   graphics::StateManager * GraphicsDevice_OpenGL::getStateManager() {
     return &m_stateManager;
   }
@@ -1269,11 +1289,13 @@ namespace bfc {
 
   std::shared_future<bool> GraphicsDevice_OpenGL::compile(graphics::ProgramRef pProgram) {
     std::promise<bool> promise;
-    std::future<bool>  result = promise.get_future();
+    std::shared_future<bool>  result = promise.get_future();
 
     auto & glProgram = ToGL(pProgram);
+    if (glProgram.compileResult.has_value())
+      glProgram.compileResult->wait();
 
-    glProgram.compileResult = result.share();
+    glProgram.compileResult = result;
 
     m_queueLock.lock();
     m_compileJobs.pushBack({pProgram, std::move(promise)});
@@ -1371,13 +1393,20 @@ namespace bfc {
         compileJobs = std::move(m_compileJobs);
         return !running || lists.size() > 0 || compileJobs.size() > 0;
       });
+      guard.unlock();
 
       for (auto & job : compileJobs) {
-        job.result.set_value(ToGL(job.pProgram).compile(nullptr));
+        bool success = ToGL(job.pProgram).compile(nullptr);
+        job.result.set_value(success);
       }
 
-      for (auto & list : lists)
+      for (auto & list : lists) {
         list->execute();
+        m_fenceLock.lock();
+        ++m_commandListFence;
+        m_fenceLock.unlock();
+        m_fenceNotifier.notify_all();
+      }
 
       cleanupResources();
     }

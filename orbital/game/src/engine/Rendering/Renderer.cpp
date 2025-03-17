@@ -79,6 +79,7 @@ namespace engine {
     }
 
     GraphicsDevice * pDevice = getGraphicsDevice();
+
     for (RenderView const & view : views) {
       /// Bind render target and set viewport
       pCmdList->bindRenderTarget(view.renderTarget);

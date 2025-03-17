@@ -294,6 +294,8 @@ namespace bfc {
   namespace graphics {
     class BFC_API Buffer {
     public:
+      virtual ~Buffer() = default;
+
       /// Get the size of a buffer in bytes.
       virtual int64_t getSize() const = 0;
     };
@@ -301,6 +303,8 @@ namespace bfc {
 
     class BFC_API VertexArray {
     public:
+      virtual ~VertexArray() = default;
+
       virtual void setLayout(VertexInputLayout const & layout) = 0;
 
       virtual bool setVertexBuffer(int64_t slot, BufferRef vertexBufferID) = 0;
@@ -319,6 +323,8 @@ namespace bfc {
 
     class BFC_API Texture {
     public:
+      virtual ~Texture() = default;
+
       virtual TextureType        getType() const                     = 0;
       virtual Vec3i              getSize(int64_t mipLevel = 0) const = 0;
       virtual bool               isDepthTexture() const              = 0;
@@ -329,6 +335,8 @@ namespace bfc {
 
     class BFC_API Sampler {
     public:
+      virtual ~Sampler() = default;
+
       virtual void setSamplerMinFilter(FilterMode filter, FilterMode mipFilter) = 0;
       virtual void setSamplerMagFilter(FilterMode filter, FilterMode mipFilter) = 0;
       virtual void setSamplerMinLOD(float level)                                = 0;
@@ -352,6 +360,8 @@ namespace bfc {
 
     class BFC_API Program {
     public:
+      virtual ~Program() = default;
+
       void setSource(Map<ShaderType, String> const & source);
       void setFiles(Map<ShaderType, URI> const & files);
 
@@ -372,6 +382,8 @@ namespace bfc {
 
     class BFC_API RenderTarget {
     public:
+      virtual ~RenderTarget() = default;
+
       virtual RenderTargetType getType() const = 0;
 
       virtual Vec2i getSize() const = 0;
@@ -549,6 +561,8 @@ namespace bfc {
 
     class BFC_API StateManager {
     public:
+      virtual ~StateManager() = default;
+
       StateManager();
 
       /// Push states, recording the previously known value.
@@ -612,6 +626,8 @@ namespace bfc {
 
     class BFC_API BufferDownload {
     public:
+      virtual ~BufferDownload() = default;
+
       /// Wait for the download to complete.
       virtual bool wait(std::optional<Timestamp> const & timeout = std::nullopt) = 0;
 
@@ -625,6 +641,8 @@ namespace bfc {
 
     class BFC_API TextureDownload {
     public:
+      virtual ~TextureDownload() = default;
+
       /// Wait for the download to complete.
       virtual bool wait(std::optional<Timestamp> const & timeout = std::nullopt) = 0;
       /// View the downloaded data.
@@ -636,6 +654,8 @@ namespace bfc {
 
     class BFC_API CommandList {
     public:
+      virtual ~CommandList() = default;
+
       /// Execute all commands in the list.
       /// Should only be called from a render thread.
       virtual void execute() const = 0;
@@ -806,8 +826,15 @@ namespace bfc {
 
   class BFC_API GraphicsDevice {
   public:
+    virtual ~GraphicsDevice() = default;
+
     virtual bool init(platform::Window * pWindow) = 0;
     virtual void destroy()                        = 0;
+
+    /// Get the default render target that was created during initialisation.
+    /// This render target is for the window passed to the Init() function.
+    /// @returns A reference to the default render target.
+    virtual graphics::RenderTargetRef getDefaultRenderTarget() = 0;
 
     /// Get the state manager
     virtual std::unique_ptr<graphics::CommandList> createCommandList() = 0;

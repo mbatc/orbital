@@ -27,7 +27,11 @@ namespace engine {
 
       view.projectionMatrix = camera.projectionMat(renderSize.x / renderSize.y);
       view.viewMatrix       = transform.globalTransformInverse(pLevel);
-      view.renderTarget     = camera.renderTarget;
+
+      if (camera.renderTarget != InvalidGraphicsResource) {
+        view.renderTarget = camera.renderTarget;
+      }
+
       view.viewport         = { camera.viewportPosition, camera.viewportSize };
 
       ret.pushBack(view);

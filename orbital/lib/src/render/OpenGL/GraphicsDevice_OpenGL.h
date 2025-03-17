@@ -56,7 +56,7 @@ namespace bfc {
 
         Span<const uint8_t> read(int64_t offset, int64_t size) const {
           if (offset == -1)
-            return { nullptr, size };
+            return {nullptr, size};
           else
             return {m_stream.storage().begin() + offset, size};
         }
@@ -75,7 +75,7 @@ namespace bfc {
 
         template<typename T>
         T deserialize(Serialized<T> const & handle, int64_t * pSize) const {
-          MemoryReader reader(m_stream.storage().getView(handle.offset));
+          MemoryReader          reader(m_stream.storage().getView(handle.offset));
           bfc::Uninitialized<T> buffer;
           reader.read(buffer.ptr());
           if (pSize != nullptr)
@@ -157,9 +157,9 @@ namespace bfc {
       virtual void setSamplerWrapV(WrapMode mode) override;
       virtual void setSamplerWrapW(WrapMode mode) override;
 
-      uint32_t glID    = 0;
+      uint32_t glID = 0;
 
-      bool     changed = false;
+      bool changed = false;
 
       FilterMode minFilter    = FilterMode_Linear;
       FilterMode magFilter    = FilterMode_Linear;
@@ -211,7 +211,7 @@ namespace bfc {
 
       virtual void                      setShader(ShaderType type, std::optional<ShaderDesc> desc) override;
       virtual std::optional<ShaderDesc> getShader(ShaderType type) const override;
-      
+
       virtual int64_t getAttributeCount() const override;
       virtual int64_t getUniformCount() const override;
       virtual int64_t getBufferCount() const override;
@@ -226,7 +226,7 @@ namespace bfc {
       bool        compile(String * pError);
       static void reflect(uint32_t glID, Vector<Attribute> * pAttributes, Vector<Uniform> * pUniforms, Vector<Texture> * pTextures, Vector<Buffer> * pBuffers);
 
-      uint32_t   glID = 0;
+      uint32_t                  glID = 0;
       std::optional<ShaderDesc> shaders[ShaderType_Count];
 
       Vector<Attribute> attributes;
@@ -306,13 +306,9 @@ namespace bfc {
         return true;
       }
 
-      virtual media::Surface view() const override {
-      
-      }
+      virtual media::Surface view() const override {}
 
-      virtual std::tuple<media::Surface, Vector<uint8_t>> take() override {
-        
-      }
+      virtual std::tuple<media::Surface, Vector<uint8_t>> take() override {}
 
       Vector<uint8_t>   storage;
       std::future<bool> complete;
@@ -345,7 +341,7 @@ namespace bfc {
       /// @param bufferID The buffer to map.
       /// @param access   Type of access needed (read, write, read/write).
       /// @returns A pointer to the mapped buffer.
-      virtual std::future<void*> map(BufferRef bufferID, MapAccess access = MapAccess_ReadWrite) override;
+      virtual std::future<void *> map(BufferRef bufferID, MapAccess access = MapAccess_ReadWrite) override;
 
       /// Map part of a buffer to client memory.
       /// @param bufferID The buffer to map.
@@ -353,7 +349,7 @@ namespace bfc {
       /// @param size     The number of bytes to map, starting at `offset`.
       /// @param access   Type of access needed (read, write, read/write).
       /// @returns A pointer to the mapped buffer.
-      virtual std::future<void*> map(BufferRef bufferID, int64_t offset, int64_t size, MapAccess access = MapAccess_ReadWrite) override;
+      virtual std::future<void *> map(BufferRef bufferID, int64_t offset, int64_t size, MapAccess access = MapAccess_ReadWrite) override;
 
       virtual void unmap(BufferRef bufferID) override;
 
@@ -367,12 +363,12 @@ namespace bfc {
       virtual void downloadTexture(TextureRef textureID, TextureDownloadRef pDownload) override;
 
       // Shaders
-      virtual void    setUniform(int64_t uniformIndex, void const * pBuffer, int64_t size) override;
-      virtual void    setUniform(StringView const & name, void const * pBuffer, int64_t size) override;
-      virtual void    setBufferBinding(int64_t bufferIndex, int64_t bindPoint) override;
-      virtual void    setBufferBinding(StringView const & name, int64_t bindPoint) override;
-      virtual void    setTextureBinding(int64_t textureIndex, int64_t bindPoint) override;
-      virtual void    setTextureBinding(StringView const & name, int64_t bindPoint) override;
+      virtual void setUniform(int64_t uniformIndex, void const * pBuffer, int64_t size) override;
+      virtual void setUniform(StringView const & name, void const * pBuffer, int64_t size) override;
+      virtual void setBufferBinding(int64_t bufferIndex, int64_t bindPoint) override;
+      virtual void setBufferBinding(StringView const & name, int64_t bindPoint) override;
+      virtual void setTextureBinding(int64_t textureIndex, int64_t bindPoint) override;
+      virtual void setTextureBinding(StringView const & name, int64_t bindPoint) override;
       // virtual void    getUniform(int64_t uniformIndex, void * pBuffer, ProgramUniformDesc * pDesc) override;
       // virtual int64_t getBufferBinding(int64_t bufferIndex) override;
       // virtual int64_t getTextureBinding(int64_t bufferIndex) override;
@@ -391,6 +387,7 @@ namespace bfc {
 
       /// Get the graphics device that created this command list.
       virtual GraphicsDevice * getDevice() const override;
+
     private:
       template<typename Cmd>
       void add(Cmd const & cmd) {
@@ -427,15 +424,16 @@ namespace bfc {
     virtual bool init(platform::Window * pWindow) override;
     virtual void destroy() override;
 
-    virtual std::unique_ptr<graphics::CommandList> createCommandList() override;
-    virtual graphics::BufferRef       createBuffer(BufferUsageHint usageHint) override;
-    virtual graphics::VertexArrayRef  createVertexArray() override;
-    virtual graphics::ProgramRef      createProgram() override;
-    virtual graphics::TextureRef      createTexture(TextureType type) override;
-    virtual graphics::SamplerRef      createSampler() override;
-    virtual graphics::RenderTargetRef createRenderTarget(RenderTargetType type) override;
+    virtual graphics::RenderTargetRef getDefaultRenderTarget() override;
 
-    virtual graphics::StateManager * getStateManager() override;
+    virtual std::unique_ptr<graphics::CommandList> createCommandList() override;
+    virtual graphics::BufferRef                    createBuffer(BufferUsageHint usageHint) override;
+    virtual graphics::VertexArrayRef               createVertexArray() override;
+    virtual graphics::ProgramRef                   createProgram() override;
+    virtual graphics::TextureRef                   createTexture(TextureType type) override;
+    virtual graphics::SamplerRef                   createSampler() override;
+    virtual graphics::RenderTargetRef              createRenderTarget(RenderTargetType type) override;
+    virtual graphics::StateManager *               getStateManager() override;
 
     virtual std::shared_future<bool> compile(graphics::ProgramRef pProgram) override;
 
@@ -482,8 +480,8 @@ namespace bfc {
     std::condition_variable m_fenceNotifier;
 
     struct CompileProgramJob {
-      graphics::ProgramRef  pProgram;
-      std::promise<bool>    result;
+      graphics::ProgramRef pProgram;
+      std::promise<bool>   result;
     };
 
     std::mutex                                     m_queueLock;

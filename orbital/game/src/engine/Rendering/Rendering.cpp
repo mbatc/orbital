@@ -63,12 +63,12 @@ namespace engine {
     auto pCmdList = m_pDevice->createCommandList();
 
     BFC_UNUSED(pApp);
-    pCmdList->bindRenderTarget(InvalidGraphicsResource);
+    pCmdList->bindRenderTarget(m_pDevice->getDefaultRenderTarget());
     pCmdList->swap();
     pCmdList->clear({0, 0, 0, 1});
 
     m_pMainViewport->setSize(pCmdList.get(), m_pWindow->getSize());
-    m_pMainViewport->render(pCmdList.get(), InvalidGraphicsResource);
+    m_pMainViewport->render(pCmdList.get(), m_pDevice->getDefaultRenderTarget());
     uint64_t thisFrameFence = m_pDevice->submit(std::move(pCmdList));
 
     m_pDevice->wait(m_lastFrameFence);

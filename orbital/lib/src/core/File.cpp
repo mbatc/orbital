@@ -66,7 +66,6 @@ namespace bfc {
   }
 
   File::File(File && o) {
-    std::swap(m_pInfo, o.m_pInfo);
     std::swap(m_length, o.m_length);
     std::swap(m_mode, o.m_mode);
     std::swap(m_pHandle, o.m_pHandle);
@@ -78,7 +77,6 @@ namespace bfc {
   }
 
   File & File::operator=(File && o) {
-    std::swap(m_pInfo, o.m_pInfo);
     std::swap(m_length, o.m_length);
     std::swap(m_mode, o.m_mode);
     std::swap(m_pHandle, o.m_pHandle);
@@ -92,16 +90,17 @@ namespace bfc {
       return false;
     if (m_pHandle == nullptr)
       return false;
-    m_pInfo = new FileInfo(file);
-    m_mode = mode;
-    m_length = m_pInfo->length();
+    m_mode  = mode;
+
+    fseek(m_pHandle, 0, SEEK_END);
+    m_length = ftell(m_pHandle);
+    fseek(m_pHandle, 0, SEEK_SET);
     return true;
   }
 
   void File::close() {
     if (m_pHandle != nullptr) {
       fclose(m_pHandle);
-      delete m_pInfo;
     }
 
     m_mode = FileMode_Closed;
@@ -190,7 +189,7 @@ namespace bfc {
   }
 
   int64_t File::length() const {
-    return m_pInfo ? m_pInfo->length() : 0;
+    return m_length;
   }
 
   FileMode File::mode() const {
@@ -216,8 +215,9 @@ namespace bfc {
 
     int64_t len = f.length();
     Vector<char> data(len + 1, 0);
-    bool success = f.read(data.data(), data.size()) == len;
-    *pContent = String(data.data());
+    int64_t bytes = f.read(data.data(), data.size()) == len;
+    data.resize(bytes + 1, 0);
+    *pContent = String(std::move(data));
     return true;
   }
 

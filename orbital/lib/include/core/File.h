@@ -69,7 +69,7 @@ namespace bfc {
 
     virtual bool flush() override;
 
-    int64_t length() const;
+    virtual int64_t length() const override;
 
     FileMode mode() const;
 
@@ -78,7 +78,6 @@ namespace bfc {
     FileMode m_mode = FileMode_Closed;
     int64_t m_streamPos = 0;
     int64_t m_length = 0;
-    FileInfo* m_pInfo = nullptr;
   };
 
   BFC_API bool readFile(Filename const& path, Vector<uint8_t> *pContent);

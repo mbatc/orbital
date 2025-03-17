@@ -49,6 +49,7 @@ namespace bfc {
     }
 
     Vector & operator=(Vector && o) {
+      clear();
       std::swap(m_pData, o.m_pData);
       std::swap(m_size, o.m_size);
       std::swap(m_capacity, o.m_capacity);

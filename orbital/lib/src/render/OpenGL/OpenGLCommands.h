@@ -35,20 +35,6 @@ namespace bfc {
 
             GLVertexArray & va = *pCmd->pVertexArray;
             glBindVertexArray(va.glID);
-
-            // TODO: Move to command list
-            // int64_t numElements = va.layout.getAttributeCount();
-            // m_vertexCount       = std::numeric_limits<int64_t>::max();
-            // for (int64_t i = 0; i < numElements; ++i) {
-            //   auto const & elm          = va.layout.getAttributeLayout(i);
-            //   auto         vertexBuffer = ToGL(va.vertexBuffers[elm.slot]);
-            //   m_vertexCount             = std::min(m_vertexCount, vertexBuffer.size / elm.stride);
-            // }
-            //
-            // if (va.indexBuffer != InvalidGraphicsResource) {
-            //   m_vaIndexType = va.indexBufferType;
-            //   m_indexCount  = ToGL(va.indexBuffer).size / getDataTypeSize(m_vaIndexType);
-            // }
           }
         };
 
@@ -115,7 +101,7 @@ namespace bfc {
 
           static void execute(BindTexture const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             uint32_t glID = pCmd->pTexture == InvalidGraphicsResource ? 0 : pCmd->pTexture->glID;
-            glActiveTexture(GL_TEXTURE0 + pCmd->textureUnit);
+            glActiveTexture(pCmd->textureUnit);
             glBindTexture(pCmd->target, glID);
             glActiveTexture(GL_TEXTURE0 + ((GraphicsDevice_OpenGL *)pDevice)->getReservedTextureUnit());
             glBindTexture(pCmd->target, 0);
@@ -154,7 +140,7 @@ namespace bfc {
           GLSampler * pSampler;
 
           static void execute(BindSampler const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
-            if (pCmd->pSampler != InvalidGraphicsResource) {
+            if (pCmd->pSampler == InvalidGraphicsResource) {
               glBindSampler(pCmd->textureUnit, 0);
             } else {
               glBindSampler(pCmd->textureUnit, pCmd->pSampler->glID);

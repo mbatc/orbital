@@ -209,7 +209,7 @@ namespace bfc {
     }
   }
 
-  BFC_API bool readUntilEof(Stream * pStream, Vector<uint8_t> * pContent) {
+  BFC_API bool readUntilEof(Stream * pStream, Vector<uint8_t> *pContent) {
     if (pStream == nullptr) {
       return false;
     }
@@ -217,7 +217,9 @@ namespace bfc {
     if (pStream->length() != -1) {
       int64_t len = pStream->length();
       pContent->resize(len, 0);
-      return pStream->read(pContent->data(), len) == len;
+      int64_t bytes = pStream->read(pContent->data(), len);
+      pContent->resize(bytes);
+      return true;
     }
 
     const int64_t readSize  = 32ll * 1024 * 1024;
@@ -237,8 +239,10 @@ namespace bfc {
 
   BFC_API bool readTextURI(URI const & uri, String * pContent) {
     Vector<uint8_t> data;
-    if (!readUntilEof(openURI(uri, FileMode_ReadBinary).get(), &data))
+    if (!readUntilEof(openURI(uri, FileMode_Read).get(), &data))
       return false;
+    if (data.back() != 0)
+      data.pushBack(0);
     *pContent = String(std::move((Vector<char>&)data));
     return true;
   }
