@@ -60,14 +60,19 @@ namespace engine {
 
   void Rendering::loop(Application * pApp)
   {
+    auto pCmdList = m_pDevice->createCommandList();
+
     BFC_UNUSED(pApp);
-    m_pDevice->bindRenderTarget(InvalidGraphicsResource);
-    m_pDevice->swap();
-    m_pDevice->clear({ 0, 0, 0, 1 });
+    pCmdList->bindRenderTarget(m_pDevice->getDefaultRenderTarget());
+    pCmdList->swap();
+    pCmdList->clear({0, 0, 0, 1});
 
-    m_pMainViewport->setSize(m_pWindow->getSize());
-    m_pMainViewport->render(InvalidGraphicsResource);
+    m_pMainViewport->setSize(pCmdList.get(), m_pWindow->getSize());
+    m_pMainViewport->render(pCmdList.get(), m_pDevice->getDefaultRenderTarget());
+    uint64_t thisFrameFence = m_pDevice->submit(std::move(pCmdList));
 
+    m_pDevice->wait(m_lastFrameFence);
+    m_lastFrameFence = thisFrameFence;
     {
       events::OnRenderViewport e;
       e.pViewport = m_pMainViewport.get();

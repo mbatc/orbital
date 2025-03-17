@@ -13,6 +13,10 @@
 #include "core/URI.h"
 #include "core/Stream.h"
 
+#include <variant>
+
+#include <stdio.h>
+
 int main(int argc, char **argv)
 {
   if (!bfc::test::run())

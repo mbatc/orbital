@@ -3,9 +3,22 @@
 #include "Core.h"
 
 namespace bfc {
+  namespace impl {
+    template<typename T>
+    struct SpanDetail {
+      static constexpr int64_t Stride = sizeof(T);
+    };
+
+    template<>
+    struct SpanDetail<void> {
+      static constexpr int64_t Stride = 1;
+    };
+  }
   template <typename T>
   class Span {
   public:
+    static constexpr int64_t Stride = impl::SpanDetail<T>::Stride;
+
     constexpr Span() {}
 
     template <int64_t N>
@@ -19,7 +32,20 @@ namespace bfc {
     constexpr Span(T const * first, T const * last)
         : Span(first, last - first) {}
 
-    operator Span<const T>() { return Span<const T>(m_pData, m_size); }
+    template<typename U, std::enable_if_t<std::is_convertible_v<T*, U*>>* = 0>
+    operator Span<U>() {
+      return Span<U>((U *)m_pData, m_size * Stride / Span<U>::Stride);
+    }
+
+    template<typename U>
+    explicit operator Span<U>() {
+      return Span<U>((U *)m_pData, m_size * Stride / Span<U>::Stride);
+    }
+
+    // template<typename U, std::enable_if_t<std::is_convertible_v<T*, U*>>* = 0>
+    // operator Span<U>() {
+    //   return Span<U>((U *)m_pData, m_size * sizeof(T) / sizeof(U));
+    // }
 
     constexpr int64_t size() const { return m_size; }
     constexpr T& front() const { return *begin(); }

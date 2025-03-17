@@ -246,7 +246,7 @@ namespace bfc {
 
     Vector<int64_t> waitFor(Vector<SystemEvent *> const & events, bool waitForAll, Timestamp timeout) {
       Vector<HANDLE>  handles  = events.map([](SystemEvent * pNotification) { return pNotification->impl()->hEvent; });
-      DWORD           signaled = WaitForMultipleObjects((DWORD)handles.size(), handles.data(), FALSE, (DWORD)timeout.mills());
+      DWORD           signaled = WaitForMultipleObjects((DWORD)handles.size(), handles.data(), FALSE, (DWORD)timeout.millis());
       Vector<int64_t> ret;
       ret.reserve(handles.size());
       for (int64_t i = signaled; i < handles.size(); ++i) {
@@ -259,7 +259,7 @@ namespace bfc {
     }
 
     bool waitFor(SystemEvent * const & pEvent, Timestamp timeout) {
-      return WaitForSingleObjectEx(pEvent->impl()->hEvent, (DWORD)timeout.mills(), FALSE) == WAIT_OBJECT_0;
+      return WaitForSingleObjectEx(pEvent->impl()->hEvent, (DWORD)timeout.millis(), FALSE) == WAIT_OBJECT_0;
     }
 
     bool getKnownID(FolderID folder, KNOWNFOLDERID * pID) {

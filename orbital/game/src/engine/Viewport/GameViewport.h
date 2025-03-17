@@ -9,9 +9,9 @@ namespace engine {
   class AssetManager;
   class GameViewport : public Viewport {
   public:
-    GameViewport(bfc::GraphicsDevice * pGraphics, AssetManager * pAssets);
+    GameViewport(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets);
 
-    virtual bfc::Vector<RenderView> collectViews(bfc::GraphicsResource renderTarget) const override;
+    virtual bfc::Vector<RenderView> collectViews(bfc::graphics::RenderTargetRef renderTarget) const override;
 
     virtual bfc::Map<bfc::String, bfc::InputDevice *> getInputDevices() override;
 

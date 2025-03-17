@@ -6,6 +6,13 @@
 
 #include <optional>
 
+namespace bfc {
+  namespace graphics {
+    class CommandList;
+  }
+  class GraphicsDevice;
+}
+
 namespace engine {
   struct AssetHandle;
   class AssetManager;
@@ -62,10 +69,12 @@ namespace engine {
     
     bfc::Span<const AssetHandle> getDependencies() const;
 
-    VirtualFileSystem * getFileSystem() const;
+    VirtualFileSystem *   getFileSystem() const;
+    bfc::GraphicsDevice * getGraphicsDevice() const;
 
   private:
     bfc::Vector<AssetHandle> m_dependencies;
+    bfc::Vector<std::unique_ptr<bfc::graphics::CommandList>> m_cmdLists;
 
     AssetManager * m_pAssetManager = nullptr;
   };

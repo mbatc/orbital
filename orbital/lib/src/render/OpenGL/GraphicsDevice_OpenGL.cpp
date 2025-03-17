@@ -1,12 +1,22 @@
 #include "GraphicsDevice_OpenGL.h"
+#include "OpenGLCommands.h"
+
 #include "core/File.h"
 #include "platform/Window.h"
 
 namespace bfc {
-  bool graphicsDevice_registerOpenGL()
-  {
+  bool graphicsDevice_registerOpenGL() {
     return registerGraphicsDevice("OpenGL", []() -> Ref<GraphicsDevice> { return NewRef<GraphicsDevice_OpenGL>(); });
   }
+
+  static graphics::GLBuffer &          ToGL(graphics::BufferRef pBuffer);
+  static graphics::GLBufferDownload &  ToGL(graphics::BufferDownloadRef pBuffer);
+  static graphics::GLTexture &         ToGL(graphics::TextureRef pBuffer);
+  static graphics::GLTextureDownload & ToGL(graphics::TextureDownloadRef pBuffer);
+  static graphics::GLSampler &         ToGL(graphics::SamplerRef pBuffer);
+  static graphics::GLRenderTarget &    ToGL(graphics::RenderTargetRef pBuffer);
+  static graphics::GLProgram &         ToGL(graphics::ProgramRef pBuffer);
+  static graphics::GLVertexArray &     ToGL(graphics::VertexArrayRef pBuffer);
 
   static GLenum ToGLShaderType(ShaderType type);
   static GLenum ToGLTextureType(TextureType type);
@@ -25,7 +35,6 @@ namespace bfc {
   static GLenum ToGLEquation(BlendEquation blendEquation);
   static GLenum ToGLBlendFunction(BlendFunction function);
   static GLenum ToGLComparison(ComparisonFunction function);
-  static GLenum ToGLCubeMapFace(CubeMapFace face);
   static GLenum ToGLWrapMode(WrapMode mode);
   static GLenum ToGLFilterMode(FilterMode filter, FilterMode mipFilter);
 
@@ -44,547 +53,165 @@ namespace bfc {
   static PFNWGLCREATECONTEXTATTRIBSARBPROC glCreateContextAttribsARB = nullptr;
 
   namespace graphics {
-    GraphicsResource BufferManager_OpenGL::createBuffer(BufferUsageHint usageHint) {
-      GLBuffer newBuffer;
+    int64_t GLBuffer::getSize() const {
+      return size;
+    }
 
-      glGenBuffers(1, &newBuffer.glID);
-      if (newBuffer.glID == 0) {
-        // failed to create buffer
-        return InvalidGraphicsResource;
-      }
-
-      if ((usageHint & BufferUsageHint_Dynamic) > 0)
-        newBuffer.glUsage = GL_DYNAMIC_DRAW;
+    GLenum GLBuffer::getBindTarget(bool read) const {
+      if (defaultTarget != GL_NONE)
+        return defaultTarget;
       else
-        newBuffer.glUsage = GL_STATIC_DRAW;
-
-      if ((usageHint & BufferUsageHint_Uniform) > 0)
-        newBuffer.defaultTarget = GL_UNIFORM_BUFFER;
-      else if ((usageHint & BufferUsageHint_Storage) > 0)
-        newBuffer.defaultTarget = GL_SHADER_STORAGE_BUFFER;
-      else if ((usageHint & BufferUsageHint_Vertices) > 0 || (usageHint & BufferUsageHint_Indices) > 0)
-        newBuffer.defaultTarget = GL_ARRAY_BUFFER;
-      else
-        newBuffer.defaultTarget = GL_NONE;
-
-      return {(uint32_t)buffers.emplace(newBuffer), GraphicsResourceType_Buffer};
+        return read ? GL_COPY_READ_BUFFER : GL_COPY_WRITE_BUFFER;
     }
 
-    GraphicsResource BufferManager_OpenGL::refBuffer(GraphicsResource bufferID) {
-      buffers.addRef(bufferID.id);
-      return bufferID;
+    void GLVertexArray::setLayout(VertexInputLayout const & layout) {
+      this->layout = layout;
+      this->rebind = true;
     }
 
-    void BufferManager_OpenGL::releaseBuffer(GraphicsResource * pResource) {
-      if (buffers.release(pResource->id) == 0) {
-        GLBuffer & buf = getBuffer(*pResource);
-        glDeleteBuffers(1, &buf.glID);
-        buf.glID = 0;
-        buffers.erase(pResource->id);
-      }
-
-      *pResource = InvalidGraphicsResource;
-    }
-
-    int64_t BufferManager_OpenGL::getBufferReferences(GraphicsResource bufferID) {
-      return buffers.getReferenceCount(bufferID.id);
-    }
-
-    int64_t BufferManager_OpenGL::getSize(GraphicsResource bufferID) {
-      return getBuffer(bufferID).size;
-    }
-
-    void * BufferManager_OpenGL::map(GraphicsResource bufferID, MapAccess access) {
-      GLBuffer & buf     = getBuffer(bufferID);
-      void *     pMapped = glMapNamedBuffer(buf.glID, ToGLAccess(access));
-      return pMapped;
-    }
-
-    void * BufferManager_OpenGL::map(GraphicsResource bufferID, int64_t offset, int64_t size, MapAccess access) {
-      GLBuffer & buf       = getBuffer(bufferID);
-      GLenum     bindPoint = buf.getBindTarget(false);
-      glBindBuffer(bindPoint, buf.glID);
-      void * pMapped = glMapBufferRange(bindPoint, offset, size, ToGLMapBits(access));
-      glBindBuffer(bindPoint, 0);
-      return pMapped;
-    }
-
-    void BufferManager_OpenGL::unmap(GraphicsResource bufferID) {
-      GLBuffer & buf       = getBuffer(bufferID);
-      GLenum     bindPoint = buf.getBindTarget(false);
-      glBindBuffer(bindPoint, buf.glID);
-      glUnmapBuffer(bindPoint);
-      glBindBuffer(bindPoint, 0);
-    }
-
-    bool BufferManager_OpenGL::upload(GraphicsResource bufferID, int64_t size, void const * pData) {
-      GLBuffer & buf = getBuffer(bufferID);
-      GLenum     bindPoint = buf.getBindTarget(false);
-      glBindBuffer(bindPoint, buf.glID);
-
-      if (buf.allocated < size) {
-        glBufferData(bindPoint, size, pData, buf.glUsage);
-        buf.allocated = size;
-      } else {
-        glBufferSubData(bindPoint, 0, size, pData);
-      }
-
-      buf.size = size;
-      glBindBuffer(bindPoint, 0);
-
-      return false;
-    }
-
-    int64_t BufferManager_OpenGL::download(GraphicsResource bufferID, void * pDst, int64_t offset, int64_t size) {
-      GLBuffer & buf       = getBuffer(bufferID);
-      GLenum     bindPoint = buf.getBindTarget(true);
-      glBindBuffer(bindPoint, buf.glID);
-
-      if (size == 0) {
-        size = buf.size;
-      }
-      int64_t start = offset;
-      int64_t end   = std::min(buf.size, offset + size);
-      glGetBufferSubData(bindPoint, (GLintptr)start, (GLsizeiptr)(end - start), pDst);
-      glBindBuffer(bindPoint, 0);
-      return false;
-    }
-
-    GraphicsResource BufferManager_OpenGL::createVertexArray() {
-      GLVertexArray va;
-      glGenVertexArrays(1, &va.glID);
-      if (va.glID == 0) {
-        // Failed to create vao
-        return InvalidGraphicsResource;
-      }
-
-      for (GraphicsResource & vb : va.vertexBuffers)
-        vb = InvalidGraphicsResource;
-
-      return {(uint32_t)vertexArrays.emplace(va), GraphicsResourceType_VertexArray};
-    }
-
-    GraphicsResource BufferManager_OpenGL::refVertexArray(GraphicsResource vaID) {
-      vertexArrays.addRef(vaID.id);
-      return vaID;
-    }
-
-    void BufferManager_OpenGL::releaseVertexArray(GraphicsResource * pResource) {
-      if (vertexArrays.release(pResource->id) == 0) {
-        GLVertexArray & va = getVertexArray(*pResource);
-        glDeleteVertexArrays(1, &va.glID);
-        va.glID = 0;
-        vertexArrays.erase(pResource->id);
-      }
-
-      *pResource = InvalidGraphicsResource;
-    }
-
-    int64_t BufferManager_OpenGL::getVertexArrayReferences(GraphicsResource vaID) {
-      return vertexArrays.getReferenceCount(vaID.id);
-    }
-
-    void BufferManager_OpenGL::setLayout(GraphicsResource vaID, VertexInputLayout const & layout) {
-      GLVertexArray & va = getVertexArray(vaID);
-      va.layout          = layout;
-      va.rebind          = true;
-    }
-
-    bool BufferManager_OpenGL::setVertexBuffer(GraphicsResource vaID, int64_t slot, GraphicsResource vertexBufferID) {
-      GLVertexArray & va     = getVertexArray(vaID);
-      va.vertexBuffers[slot] = vertexBufferID;
-      va.rebind              = true;
+    bool GLVertexArray::setVertexBuffer(int64_t slot, BufferRef vertexBufferID) {
+      this->vertexBuffers[slot] = vertexBufferID;
+      this->rebind              = true;
       return true;
     }
 
-    bool BufferManager_OpenGL::setIndexBuffer(GraphicsResource vaID, GraphicsResource indexBufferID, DataType indexType) {
-      GLVertexArray & va = getVertexArray(vaID);
-      va.indexBufferType = indexType;
-      va.indexBuffer     = indexBufferID;
-      va.rebind          = true;
+    bool GLVertexArray::setIndexBuffer(BufferRef indexBufferID, DataType indexType) {
+      this->indexBufferType = indexType;
+      this->indexBuffer     = indexBufferID;
+      this->rebind          = true;
       return true;
     }
 
-    VertexInputLayout BufferManager_OpenGL::getLayout(GraphicsResource vaID) {
-      return getVertexArray(vaID).layout;
+    VertexInputLayout GLVertexArray::getLayout() const {
+      return layout;
     }
 
-    GraphicsResource BufferManager_OpenGL::getVertexBuffer(GraphicsResource vaID, int64_t slot) {
-      return getVertexArray(vaID).vertexBuffers[slot];
+    BufferRef GLVertexArray::getVertexBuffer(int64_t slot) const {
+      return vertexBuffers[slot];
     }
 
-    GraphicsResource BufferManager_OpenGL::getIndexBuffer(GraphicsResource vaID) {
-      return getVertexArray(vaID).indexBuffer;
+    BufferRef GLVertexArray::getIndexBuffer() const {
+      return indexBuffer;
     }
 
-    DataType BufferManager_OpenGL::getIndexType(GraphicsResource vaID) {
-      return getVertexArray(vaID).indexBufferType;
+    DataType GLVertexArray::getIndexType() const {
+      return indexBufferType;
     }
 
-    BufferManager_OpenGL::GLBuffer & BufferManager_OpenGL::getBuffer(GraphicsResource bufferID) {
-      return buffers[bufferID.id];
-    }
-    BufferManager_OpenGL::GLVertexArray & BufferManager_OpenGL::getVertexArray(GraphicsResource bufferID) {
-      return vertexArrays[bufferID.id];
+    TextureType GLTexture::getType() const {
+      return type;
     }
 
-    GraphicsResource TextureManager_OpenGL::createTexture(TextureType type) {
-      GLTexture newTexture;
-      newTexture.type = type;
-      GLenum target   = ToGLTextureType(type);
-
-      if (target == GL_NONE) {
-        // Invalid texture type
-        return InvalidGraphicsResource;
-      }
-
-      glGenTextures(1, &newTexture.glID);
-
-      if (newTexture.glID == 0) {
-        // Failed to create texture
-        return InvalidGraphicsResource;
-      }
-
-      glBindTexture(target, newTexture.glID);
-
-      glTexParameteri(target, GL_TEXTURE_WRAP_S, GL_REPEAT);
-      glTexParameteri(target, GL_TEXTURE_WRAP_T, GL_REPEAT);
-      glTexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-      glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-      glBindTexture(target, 0);
-
-      return {(uint32_t)textures.emplace(newTexture), GraphicsResourceType_Texture};
+    bool GLTexture::isDepthTexture() const {
+      return depthStencilFmt != DepthStencilFormat_None;
     }
 
-    GraphicsResource TextureManager_OpenGL::refTexture(GraphicsResource textureID) {
-      textures.addRef(textureID.id);
-      return textureID;
+    DepthStencilFormat GLTexture::getDepthStencilFormat() const {
+      return depthStencilFmt;
     }
 
-    void TextureManager_OpenGL::releaseTexture(GraphicsResource * pResource) {
-      if (textures.release(pResource->id) == 0) {
-        GLTexture & tex = getTexture(*pResource);
-        glDeleteTextures(1, &tex.glID);
-        tex.glID = 0;
-        textures.erase(pResource->id);
-      }
-
-      *pResource = InvalidGraphicsResource;
+    PixelFormat GLTexture::getColourFormat() const {
+      return format;
     }
 
-    int64_t TextureManager_OpenGL::getTextureReferences(GraphicsResource textureID) {
-      return textures.getReferenceCount(textureID.id);
-    }
-
-    TextureType TextureManager_OpenGL::getType(GraphicsResource textureID) {
-      return getTexture(textureID).type;
-    }
-
-    bool TextureManager_OpenGL::isDepthTexture(GraphicsResource textureID) {
-      return getTexture(textureID).depthStencilFmt != DepthStencilFormat_None;
-    }
-
-    DepthStencilFormat TextureManager_OpenGL::getDepthStencilFormat(GraphicsResource textureID) {
-      return getTexture(textureID).depthStencilFmt;
-    }
-
-    PixelFormat TextureManager_OpenGL::getColourFormat(GraphicsResource textureID) {
-      return getTexture(textureID).format;
-    }
-
-    Vec3i TextureManager_OpenGL::getSize(GraphicsResource textureID, int64_t mipLevel) {
-      Vec3i size = getTexture(textureID).size;
+    Vec3i GLTexture::getSize(int64_t mipLevel) const {
+      Vec3i size = this->size;
       size /= (1 << (int32_t)mipLevel);
       return {std::max(1, size.x), std::max(1, size.y), std::max(1, size.z)};
     }
 
-    bool TextureManager_OpenGL::upload(GraphicsResource textureID, DepthStencilFormat format, Vec3i size) {
-      GLTexture & tex = getTexture(textureID);
-
-      GLenum glFormat         = ToGLFormat(format);
-      GLenum glType           = ToGLType(format);
-      GLenum glInternalFormat = ToGLInternalFormat(format);
-      GLenum glTarget         = ToGLTextureType(tex.type);
-
-      glBindTexture(glTarget, tex.glID);
-
-      switch (tex.type) {
-      case TextureType_2D: glTexImage2D(glTarget, 0, glInternalFormat, size.x, size.y, GL_NONE, glFormat, glType, nullptr); break;
-      case TextureType_2DArray: // Fall-through
-      case TextureType_3D: glTexImage3D(glTarget, 0, glInternalFormat, size.x, size.y, size.z, GL_NONE, glFormat, glType, nullptr); break;
-      case TextureType_CubeMap:
-        BFC_ASSERT(size.z == 6, "A cubemap must have a depth of 6.");
-        break;
-      }
-
-      glBindTexture(glTarget, 0);
-
-      tex.depthStencilFmt = format;
-      tex.format          = PixelFormat_Unknown;
-      tex.size            = size;
-
-      return true;
-    }
-
-    bool TextureManager_OpenGL::upload(GraphicsResource textureID, media::Surface const & src) {
-      GLTexture & tex = getTexture(textureID);
-
-      GLenum glFormat         = ToGLFormat(src.format);
-      GLenum glType           = ToGLType(src.format);
-      GLenum glInternalFormat = ToGLInternalFormat(src.format);
-      GLenum glTarget         = ToGLTextureType(tex.type);
-      glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-      glBindTexture(glTarget, tex.glID);
-      switch (tex.type) {
-      case TextureType_2D:      glTexImage2D(glTarget, 0, glInternalFormat, src.size.x, src.size.y, GL_NONE, glFormat, glType, src.pBuffer); break;
-      case TextureType_2DArray: // Fall-through
-      case TextureType_3D:      glTexImage3D(glTarget, 0, glInternalFormat, src.size.x, src.size.y, src.size.z, GL_NONE, glFormat, glType, src.pBuffer); break;
-      case TextureType_CubeMap:
-        BFC_ASSERT(src.size.z == 6, "A cubemap must have a depth of 6.");
-        for (int64_t i = 0; i < src.size.z; ++i) {
-          void * pPixels = getSurfacePixel(src, {0, 0, i});
-          glTexImage2D(ToGLCubeMapFace((CubeMapFace)i), 0, glInternalFormat, src.size.x, src.size.y, GL_NONE, glFormat, glType, pPixels);
-        }
-        break;
-      }
-      glBindTexture(glTarget, 0);
-      
-      if (src.pBuffer != nullptr) {
-        generateMipMaps(textureID);
-      }
-
-      tex.depthStencilFmt = DepthStencilFormat_Unknown;
-      tex.format          = src.format;
-      tex.size            = src.size;
-
-      return true;
-    }
-
-    bool TextureManager_OpenGL::uploadSubData(GraphicsResource textureID, media::Surface const & src, Vec3i offset) {
-      GLTexture & tex = getTexture(textureID);
-
-      GLenum glFormat = ToGLFormat(src.format);
-      GLenum glType   = ToGLType(src.format);
-      GLenum glTarget = ToGLTextureType(tex.type);
-
-      glBindTexture(glTarget, tex.glID);
-      switch (tex.type) {
-      case TextureType_2D: glTexSubImage2D(glTarget, 0, offset.x, offset.y, src.size.x, src.size.y, glFormat, glType, src.pBuffer); break;
-      case TextureType_3D: glTexSubImage3D(glTarget, 0, offset.x, offset.y, offset.z, src.size.x, src.size.y, src.size.z, glFormat, glType, src.pBuffer); break;
-      case TextureType_CubeMap: break;
-      }
-      glBindTexture(glTarget, 0);
-      return true;
-    }
-
-    void TextureManager_OpenGL::generateMipMaps(GraphicsResource textureID) {
-      GLTexture & tex = getTexture(textureID);
-      if (glGenerateTextureMipmap != 0 && glTextureParameteri != 0) { // Use 'named' function if available
-        glGenerateTextureMipmap(tex.glID);
-        glTextureParameteri(tex.glID, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glTextureParameteri(tex.glID, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-      } else {
-        GLenum texTarget = ToGLTextureType(tex.type);
-        glBindTexture(texTarget, tex.glID);
-        glGenerateMipmap(texTarget);
-        glTexParameteri(texTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glTexParameteri(texTarget, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glBindTexture(texTarget, 0);
+    void GLSampler::setSamplerMinFilter(FilterMode filter, FilterMode mipFilter) {
+      if (minFilter != filter || minMipFilter != mipFilter) {
+        minFilter    = filter;
+        minMipFilter = mipFilter;
+        changed      = true;
       }
     }
 
-    bool TextureManager_OpenGL::download(GraphicsResource textureID, media::Surface * pDest) {
-      return false;
-    }
-
-    GraphicsResource TextureManager_OpenGL::createSampler() {
-      GLSampler newSampler;
-
-      glCreateSamplers(1, &newSampler.glID);
-      glSamplerParameteri(newSampler.glID, GL_TEXTURE_MIN_FILTER, ToGLFilterMode(newSampler.minFilter, newSampler.minMipFilter));
-      glSamplerParameteri(newSampler.glID, GL_TEXTURE_MAG_FILTER, ToGLFilterMode(newSampler.magFilter, newSampler.magMipFilter));
-      glSamplerParameterf(newSampler.glID, GL_TEXTURE_MIN_LOD, newSampler.minLOD);
-      glSamplerParameterf(newSampler.glID, GL_TEXTURE_MAX_LOD, newSampler.maxLOD);
-      glSamplerParameteri(newSampler.glID, GL_TEXTURE_WRAP_S, ToGLWrapMode(newSampler.wrapMode.x));
-      glSamplerParameteri(newSampler.glID, GL_TEXTURE_WRAP_T, ToGLWrapMode(newSampler.wrapMode.y));
-      glSamplerParameteri(newSampler.glID, GL_TEXTURE_WRAP_R, ToGLWrapMode(newSampler.wrapMode.z));
-
-      return {(uint32_t)samplers.emplace(newSampler), GraphicsResourceType_Sampler};
-    }
-
-    GraphicsResource TextureManager_OpenGL::refSampler(GraphicsResource samplerID) {
-      samplers.addRef(samplerID.id);
-      return samplerID;
-    }
-
-    void TextureManager_OpenGL::releaseSampler(GraphicsResource * pResource) {
-      if (samplers.release(pResource->id) == 0) {
-        GLSampler & sampler = getSampler(*pResource);
-        glDeleteSamplers(1, &sampler.glID);
-        samplers.erase(pResource->id);
+    void GLSampler::setSamplerMagFilter(FilterMode filter, FilterMode mipFilter) {
+      if (magFilter != filter || magMipFilter != mipFilter) {
+        magFilter    = filter;
+        magMipFilter = mipFilter;
+        changed      = true;
       }
-
-      *pResource = InvalidGraphicsResource;
     }
 
-    int64_t TextureManager_OpenGL::getSamplerReferences(GraphicsResource samplerID) {
-      return samplers.getReferenceCount(samplerID.id);
-    }
-
-    void TextureManager_OpenGL::setSamplerMinFilter(GraphicsResource samplerID, FilterMode filter, FilterMode mipFilter) {
-      GLSampler & sampler = getSampler(samplerID);
-      if (sampler.minFilter != filter || sampler.minMipFilter != mipFilter) {
-        glSamplerParameteri(sampler.glID, GL_TEXTURE_MIN_FILTER, ToGLFilterMode(filter, mipFilter));
+    void GLSampler::setSamplerMinLOD(float level) {
+      if (minLOD != level) {
+        minLOD  = level;
+        changed = true;
       }
-
-      sampler.minFilter    = filter;
-      sampler.minMipFilter = mipFilter;
     }
 
-    void TextureManager_OpenGL::setSamplerMagFilter(GraphicsResource samplerID, FilterMode filter, FilterMode mipFilter) {
-      GLSampler & sampler = getSampler(samplerID);
-      if (sampler.magFilter != filter || sampler.magMipFilter != mipFilter) {
-        glSamplerParameteri(sampler.glID, GL_TEXTURE_MAG_FILTER, ToGLFilterMode(filter, mipFilter));
+    void GLSampler::setSamplerMaxLOD(float level) {
+      if (minLOD != level) {
+        minLOD  = level;
+        changed = true;
       }
-
-      sampler.magFilter    = filter;
-      sampler.magMipFilter = mipFilter;
     }
 
-    void TextureManager_OpenGL::setSamplerMinLOD(GraphicsResource samplerID, float level) {
-      GLSampler & sampler = getSampler(samplerID);
-      if (sampler.minLOD != level) {
-        glSamplerParameterf(sampler.glID, GL_TEXTURE_MIN_LOD, level);
+    void GLSampler::setSamplerWrapU(WrapMode mode) {
+      if (wrapMode.x != mode) {
+        wrapMode.x = mode;
+        changed    = true;
       }
-      sampler.minLOD = level;
     }
 
-    void TextureManager_OpenGL::setSamplerMaxLOD(GraphicsResource samplerID, float level) {
-      GLSampler & sampler = getSampler(samplerID);
-      if (sampler.minLOD != level) {
-        glSamplerParameterf(sampler.glID, GL_TEXTURE_MAX_LOD, level);
+    void GLSampler::setSamplerWrapV(WrapMode mode) {
+      if (wrapMode.y != mode) {
+        wrapMode.y = mode;
+        changed    = true;
       }
-      sampler.minLOD = level;
     }
 
-    void TextureManager_OpenGL::setSamplerWrapU(GraphicsResource samplerID, WrapMode mode) {
-      GLSampler & sampler = getSampler(samplerID);
-      if (sampler.wrapMode.x != mode) {
-        glSamplerParameteri(sampler.glID, GL_TEXTURE_WRAP_S, ToGLWrapMode(mode));
+    void GLSampler::setSamplerWrapW(WrapMode mode) {
+      if (wrapMode.z != mode) {
+        wrapMode.z = mode;
+        changed    = true;
       }
-      sampler.wrapMode.x  = mode;
     }
 
-    void TextureManager_OpenGL::setSamplerWrapV(GraphicsResource samplerID, WrapMode mode) {
-      GLSampler & sampler = getSampler(samplerID);
-      if (sampler.wrapMode.y != mode) {
-        glSamplerParameteri(sampler.glID, GL_TEXTURE_WRAP_T, ToGLWrapMode(mode));
-      }
-      sampler.wrapMode.y  = mode;
+    void GLProgram::setShader(ShaderType type, std::optional<ShaderDesc> desc) {
+      waitForCompilation();
+
+      shaders[type] = desc;
     }
 
-    void TextureManager_OpenGL::setSamplerWrapW(GraphicsResource samplerID, WrapMode mode) {
-      GLSampler & sampler = getSampler(samplerID);
-      if (sampler.wrapMode.z != mode) {
-        glSamplerParameteri(sampler.glID, GL_TEXTURE_WRAP_R, ToGLWrapMode(mode));
-      }
-      sampler.wrapMode.z    = mode;
+    std::optional<ShaderDesc> GLProgram::getShader(ShaderType shaderType) const {
+      return shaders[shaderType];
     }
 
-    TextureManager_OpenGL::GLTexture & TextureManager_OpenGL::getTexture(GraphicsResource textureID) {
-      return textures[textureID.id];
-    }
-
-    TextureManager_OpenGL::GLSampler & TextureManager_OpenGL::getSampler(GraphicsResource samplerID) {
-      return samplers[samplerID.id];
-    }
-
-    GraphicsResource ShaderManager_OpenGL::createShader(ShaderType type) {
-      GLShader newShader;
-      GLenum   glType = ToGLShaderType(type);
-
-      if (glType == GL_NONE) {
-        // Invalid shader type
-        return InvalidGraphicsResource;
-      }
-      newShader.type = type;
-      newShader.glID = glCreateShader(glType);
-
-      if (newShader.glID == 0) {
-        // Failed to create shader, maybe invalid shader type
-        return InvalidGraphicsResource;
-      }
-
-      return {(uint32_t)shaders.emplace(newShader), GraphicsResourceType_Shader};
-    }
-
-    GraphicsResource ShaderManager_OpenGL::refShader(GraphicsResource shaderID) {
-      shaders.addRef(shaderID.id);
-      return shaderID;
-    }
-
-    void ShaderManager_OpenGL::releaseShader(GraphicsResource * pShaderID) {
-      if (shaders.release(pShaderID->id) == 0) {
-        GLShader & shader = getShader(*pShaderID);
-        glDeleteShader(shader.glID);
-        shader.glID = 0;
-        shaders.erase(pShaderID->id);
-      }
-
-      *pShaderID = InvalidGraphicsResource;
-    }
-
-    int64_t ShaderManager_OpenGL::getShaderReferences(GraphicsResource shaderID) {
-      return shaders.getReferenceCount(shaderID.id);
-    }
-
-    ShaderType ShaderManager_OpenGL::getType(GraphicsResource shaderID) {
-      return getShader(shaderID).type;
-    }
-
-    void ShaderManager_OpenGL::setSource(GraphicsResource shaderID, StringView src) {
-      GLShader & shader = getShader(shaderID);
-      shader.source     = src;
-      shader.file       = "";
-    }
-
-    void ShaderManager_OpenGL::setFile(GraphicsResource shaderID, StringView path) {
-      GLShader & shader = getShader(shaderID);
-      shader.file       = path;
-      shader.source     = "";
-    }
-
-    bool ShaderManager_OpenGL::compile(GraphicsResource shaderID, String * pError) {
-      GLShader & shader = getShader(shaderID);
-
-      if (shader.file.length() > 0) {
-        if (!readTextFile(shader.file, &shader.source)) {
-          *pError = String("Failed to read source file ").concat(shader.file);
+    static bool compileShader(GLint glID, ShaderDesc const & desc, String * pError) {
+      String src;
+      if (desc.resource.has_value()) {
+        if (!readTextURI(desc.resource.value(), &src)) {
+          *pError = String("Failed to read source file ").concat(desc.resource.value().str());
           return false;
         }
+      } else if (desc.src.has_value()) {
+        src = desc.src.value();
       }
 
-      if (shader.source.empty()) {
+      if (src.empty()) {
         if (pError != nullptr) {
           *pError = "Source was empty";
         }
         return false;
       }
 
-      char const * src = shader.source.c_str();
-      GLint        len = (GLint)shader.source.length();
-      glShaderSource(shader.glID, 1, &src, &len);
-      glCompileShader(shader.glID);
+      char const * srcPtr = src.c_str();
+      GLint        len    = (GLint)src.length();
+      glShaderSource(glID, 1, &srcPtr, &len);
+      glCompileShader(glID);
       int status = 1;
-      glGetShaderiv(shader.glID, GL_COMPILE_STATUS, &status);
+      glGetShaderiv(glID, GL_COMPILE_STATUS, &status);
 
       if (status == GL_FALSE) {
         // Compilation failed
         int logLen = 0;
-        glGetShaderiv(shader.glID, GL_INFO_LOG_LENGTH, &logLen);
+        glGetShaderiv(glID, GL_INFO_LOG_LENGTH, &logLen);
         Vector<char> log(logLen + 1, 0);
-        glGetShaderInfoLog(shader.glID, (GLsizei)log.size(), 0, log.data());
+        glGetShaderInfoLog(glID, (GLsizei)log.size(), 0, log.data());
 
         if (pError != nullptr) {
           *pError = log.data();
@@ -596,77 +223,112 @@ namespace bfc {
       return true;
     }
 
-    GraphicsResource ShaderManager_OpenGL::createProgram() {
-      GLProgram newProgram;
-      newProgram.glID = glCreateProgram();
-      for (GraphicsResource & shaderID : newProgram.shaders) {
-        shaderID = InvalidGraphicsResource;
+    int64_t GLProgram::getAttributeCount() const {
+      waitForCompilation();
+
+      return attributes.size();
+    }
+
+    int64_t GLProgram::getUniformCount() const {
+      waitForCompilation();
+
+      return uniforms.size();
+    }
+
+    int64_t GLProgram::getBufferCount() const {
+      waitForCompilation();
+
+      return buffers.size();
+    }
+
+    int64_t GLProgram::getTextureCount() const {
+      waitForCompilation();
+
+      return textures.size();
+    }
+
+    void GLProgram::getAttributeDesc(int64_t attributeIndex, ProgramAttributeDesc * pDesc) const {
+      waitForCompilation();
+
+      Attribute const & attributeDesc = attributes[attributeIndex];
+      pDesc->name                     = attributeDesc.name;
+      pDesc->cls                      = attributeDesc.cls;
+      pDesc->type                     = attributeDesc.type;
+      pDesc->width                    = attributeDesc.width;
+      pDesc->height                   = attributeDesc.height;
+    }
+
+    void GLProgram::getUniformDesc(int64_t uniformIndex, ProgramUniformDesc * pDesc) const {
+      waitForCompilation();
+
+      Uniform const & uniformDesc = uniforms[uniformIndex];
+      pDesc->name                 = uniformDesc.name;
+      pDesc->cls                  = uniformDesc.cls;
+      pDesc->type                 = uniformDesc.type;
+      pDesc->width                = uniformDesc.width;
+      pDesc->height               = uniformDesc.height;
+    }
+
+    void GLProgram::getTextureDesc(int64_t textureIndex, ProgramTextureDesc * pDesc) const {
+      waitForCompilation();
+
+      Texture const & textureDesc = textures[textureIndex];
+      pDesc->name                 = textureDesc.name;
+      pDesc->type                 = textureDesc.type;
+    }
+
+    void GLProgram::getBufferDesc(int64_t bufferIndex, ProgramBufferDesc * pDesc) const {
+      waitForCompilation();
+
+      Buffer const & bufferDesc = buffers[bufferIndex];
+      pDesc->name               = bufferDesc.name;
+      pDesc->size               = bufferDesc.size;
+    }
+
+    void GLProgram::waitForCompilation() const {
+      if (compileResult.has_value())
+        compileResult->wait();
+    }
+
+    bool GLProgram::compile(String * pError) {
+      if (glID == 0) {
+        glID = glCreateProgram();
       }
 
-      return {(uint32_t)programs.emplace(newProgram), GraphicsResourceType_Program};
-    }
+      GLuint shaderIDs[ShaderType_Count] = {0};
 
-    GraphicsResource ShaderManager_OpenGL::refProgram(GraphicsResource programID) {
-      programs.addRef(programID.id);
-      return programID;
-    }
+      for (auto & [i, shader] : enumerate(shaders)) {
+        if (!shader.has_value()) {
+          continue;
+        }
 
-    void ShaderManager_OpenGL::releaseProgram(GraphicsResource * pResource) {
-      if (programs.release(pResource->id) == 0) {
-        GLProgram & prog = getProgram(*pResource);
-        glDeleteProgram(prog.glID);
-        prog.glID = 0;
-        for (GraphicsResource & resource : prog.shaders) {
-          if (resource != InvalidGraphicsResource) {
-            releaseShader(&resource);
+        GLuint shaderID = glCreateShader(ToGLShaderType((ShaderType)i));
+        if (!compileShader(shaderID, shader.value(), pError)) {
+          glDeleteShader(shaderID);
+
+          for (auto & cleanup : shaderIDs) {
+            if (cleanup != 0) {
+              glDetachShader(glID, cleanup);
+              glDeleteShader(cleanup);
+            }
           }
+
+          return false;
         }
-        programs.erase(pResource->id);
+
+        shaderIDs[i] = shaderID;
+        glAttachShader(glID, shaderID);
       }
 
-      *pResource = InvalidGraphicsResource;
-    }
-
-    int64_t ShaderManager_OpenGL::getProgramReferences(GraphicsResource programID) {
-      return programs.getReferenceCount(programID.id);
-    }
-
-    void ShaderManager_OpenGL::addShader(GraphicsResource programID, GraphicsResource shaderID) {
-      GLProgram & prog   = getProgram(programID);
-      GLShader &  shader = getShader(shaderID);
-
-      if (shaderID != InvalidGraphicsResource) {
-        refShader(shaderID);
-      }
-
-      if (prog.shaders[shader.type] != InvalidGraphicsResource) {
-        releaseShader(&prog.shaders[shader.type]);
-      }
-
-      prog.shaders[shader.type] = shaderID;
-    }
-
-    GraphicsResource ShaderManager_OpenGL::getShader(GraphicsResource programID, ShaderType shaderType) {
-      return getProgram(programID).shaders[shaderType];
-    }
-
-    bool ShaderManager_OpenGL::linkProgram(GraphicsResource programID, String * pError) {
-      GLProgram & prog = getProgram(programID);
-      for (GraphicsResource & shaderID : prog.shaders) {
-        if (shaderID != InvalidGraphicsResource) {
-          glAttachShader(prog.glID, getShader(shaderID).glID);
-        }
-      }
-
-      glLinkProgram(prog.glID);
-      GLint status;
-      glGetProgramiv(prog.glID, GL_LINK_STATUS, &status);
+      GLint status = GL_FALSE;
+      glLinkProgram(glID);
+      glGetProgramiv(glID, GL_LINK_STATUS, &status);
 
       if (status == GL_FALSE) {
         int logLen = 0;
-        glGetProgramiv(prog.glID, GL_INFO_LOG_LENGTH, &logLen);
+        glGetProgramiv(glID, GL_INFO_LOG_LENGTH, &logLen);
         Vector<char> log(logLen + 1, 0);
-        glGetProgramInfoLog(prog.glID, (GLsizei)log.size(), 0, log.data());
+        glGetProgramInfoLog(glID, (GLsizei)log.size(), 0, log.data());
 
         printf("%s\n", log.data());
 
@@ -675,189 +337,23 @@ namespace bfc {
         }
       }
 
-      for (GraphicsResource & shaderID : prog.shaders) {
-        if (shaderID != InvalidGraphicsResource) {
-          glDetachShader(prog.glID, getShader(shaderID).glID);
+      for (auto & [i, shader] : enumerate(shaders)) {
+        if (!shader.has_value()) {
+          continue;
         }
+
+        glDetachShader(glID, shaderIDs[i]);
+        glDeleteShader(shaderIDs[i]);
       }
 
       if (status != GL_FALSE)
-        reflect(prog.glID, &prog.attributes, &prog.uniforms, &prog.textures, &prog.buffers);
+        reflect(glID, &attributes, &uniforms, &textures, &buffers);
 
       return status == GL_TRUE;
     }
 
-    void ShaderManager_OpenGL::setUniform(GraphicsResource programID, int64_t uniformIndex, void const * pBuffer) {
-      float *    f32  = (float *)pBuffer;
-      int32_t *  i32  = (int32_t *)pBuffer;
-      uint32_t * ui32 = (uint32_t *)pBuffer;
-
-      GLProgram & prog        = getProgram(programID);
-      Uniform &   uniformDesc = prog.uniforms[uniformIndex];
-      uint32_t    pid         = prog.glID;
-      uint32_t    l           = uniformDesc.glLoc;
-
-      switch (uniformDesc.cls) {
-      case DataClass_Matrix:
-        if (uniformDesc.type != DataType_Float32)
-          return;
-
-        switch (uniformDesc.width) {
-        case 2:
-          switch (uniformDesc.height) {
-          case 2: glProgramUniformMatrix2fv(pid, l, 1, GL_TRUE, f32); break;
-          case 3: glProgramUniformMatrix2x3fv(pid, l, 1, GL_TRUE, f32); break;
-          case 4: glProgramUniformMatrix2x4fv(pid, l, 1, GL_TRUE, f32); break;
-          }
-          break;
-        case 3:
-          switch (uniformDesc.height) {
-          case 2: glProgramUniformMatrix3x2fv(pid, l, 1, GL_TRUE, f32); break;
-          case 3: glProgramUniformMatrix3fv(pid, l, 1, GL_TRUE, f32); break;
-          case 4: glProgramUniformMatrix3x4fv(pid, l, 1, GL_TRUE, f32); break;
-          }
-          break;
-        case 4:
-          switch (uniformDesc.height) {
-          case 2: glProgramUniformMatrix4x2fv(pid, l, 1, GL_TRUE, f32); break;
-          case 3: glProgramUniformMatrix4x3fv(pid, l, 1, GL_TRUE, f32); break;
-          case 4: glProgramUniformMatrix4fv(pid, l, 1, GL_TRUE, f32); break;
-          }
-          break;
-        }
-        break;
-      case DataClass_Vector:
-        switch (uniformDesc.width) {
-        case 2:
-          switch (uniformDesc.type) {
-          case DataType_Float32: glProgramUniform2f(pid, l, f32[0], f32[1]); break;
-          case DataType_UInt32: glProgramUniform2ui(pid, l, ui32[0], i32[1]); break;
-          case DataType_Int32: glProgramUniform2i(pid, l, i32[0], ui32[1]); break;
-          }
-          break;
-        case 3:
-          switch (uniformDesc.type) {
-          case DataType_Float32: glProgramUniform3f(pid, l, f32[0], f32[1], f32[2]); break;
-          case DataType_UInt32: glProgramUniform3ui(pid, l, ui32[0], ui32[1], ui32[2]); break;
-          case DataType_Int32: glProgramUniform3i(pid, l, i32[0], i32[1], i32[2]); break;
-          }
-          break;
-        case 4:
-          switch (uniformDesc.type) {
-          case DataType_Float32: glProgramUniform4f(pid, l, f32[0], f32[1], f32[2], f32[3]); break;
-          case DataType_UInt32: glProgramUniform4ui(pid, l, ui32[0], ui32[1], ui32[2], ui32[3]); break;
-          case DataType_Int32: glProgramUniform4i(pid, l, i32[0], i32[1], i32[2], i32[3]); break;
-          }
-        }
-        break;
-      case DataClass_Scalar:
-        if (uniformDesc.width != 1 || uniformDesc.height != 1)
-          return; // Scalar should not have width/height != 1
-        switch (uniformDesc.type) {
-        case DataType_Float32: glProgramUniform1f(pid, l, f32[0]); break;
-        case DataType_UInt32: glProgramUniform1ui(pid, l, ui32[0]); break;
-        case DataType_Int32: glProgramUniform1i(pid, l, i32[0]); break;
-        }
-        break;
-      }
-    }
-
-    void ShaderManager_OpenGL::setBufferBinding(GraphicsResource programID, int64_t bufferIndex, int64_t bindPoint) {
-      GLProgram & prog       = getProgram(programID);
-      Buffer &    bufferDesc = prog.buffers[bufferIndex];
-
-      if (bindPoint != bufferDesc.bindPoint) {
-        bufferDesc.bindPoint = (uint32_t)bindPoint;
-        if (bufferDesc.isStorageBuffer)
-          glShaderStorageBlockBinding(prog.glID, bufferDesc.bufferIndex, bufferDesc.bindPoint);
-        else
-          glUniformBlockBinding(prog.glID, bufferDesc.bufferIndex, bufferDesc.bindPoint);
-      }
-    }
-
-    void ShaderManager_OpenGL::setTextureBinding(GraphicsResource programID, int64_t textureIndex, int64_t bindPoint) {
-      GLProgram & prog        = getProgram(programID);
-      Texture &   textureDesc = prog.textures[textureIndex];
-
-      if (bindPoint != textureDesc.bindPoint) {
-        textureDesc.bindPoint = (int32_t)bindPoint;
-        glProgramUniform1i(prog.glID, textureDesc.glLoc, textureDesc.bindPoint);
-      }
-    }
-
-    void ShaderManager_OpenGL::getUniform(GraphicsResource programID, int64_t uniformIndex, void * pBuffer, ProgramUniformDesc * pDesc) {
-      GLProgram & prog        = getProgram(programID);
-      Uniform &   uniformDesc = prog.uniforms[uniformIndex];
-
-      if (pDesc != nullptr) {
-        getUniformDesc(programID, uniformIndex, pDesc);
-      }
-
-      if (pBuffer != nullptr) {
-        switch (uniformDesc.type) {
-        case DataType_Float32: glGetUniformfv(prog.glID, uniformDesc.glLoc, (float *)pBuffer); break;
-        case DataType_Int32: glGetUniformiv(prog.glID, uniformDesc.glLoc, (int32_t *)pBuffer); break;
-        case DataType_UInt32: glGetUniformuiv(prog.glID, uniformDesc.glLoc, (uint32_t *)pBuffer); break;
-        }
-      }
-    }
-
-    int64_t ShaderManager_OpenGL::getBufferBinding(GraphicsResource programID, int64_t bufferIndex) {
-      return getProgram(programID).buffers[bufferIndex].bindPoint;
-    }
-
-    int64_t ShaderManager_OpenGL::getTextureBinding(GraphicsResource programID, int64_t textureIndex) {
-      return getProgram(programID).textures[textureIndex].bindPoint;
-    }
-
-    int64_t ShaderManager_OpenGL::getAttributeCount(GraphicsResource programID) {
-      return getProgram(programID).attributes.size();
-    }
-
-    int64_t ShaderManager_OpenGL::getUniformCount(GraphicsResource programID) {
-      return getProgram(programID).uniforms.size();
-    }
-
-    int64_t ShaderManager_OpenGL::getBufferCount(GraphicsResource programID) {
-      return getProgram(programID).buffers.size();
-    }
-
-    int64_t ShaderManager_OpenGL::getTextureCount(GraphicsResource programID) {
-      return getProgram(programID).textures.size();
-    }
-
-    void ShaderManager_OpenGL::getAttributeDesc(GraphicsResource programID, int64_t attributeIndex, ProgramAttributeDesc * pDesc) {
-      Attribute & attributeDesc = getProgram(programID).attributes[attributeIndex];
-      pDesc->name               = attributeDesc.name;
-      pDesc->cls                = attributeDesc.cls;
-      pDesc->type               = attributeDesc.type;
-      pDesc->width              = attributeDesc.width;
-      pDesc->height             = attributeDesc.height;
-    }
-
-    void ShaderManager_OpenGL::getUniformDesc(GraphicsResource programID, int64_t uniformIndex, ProgramUniformDesc * pDesc) {
-      Uniform & uniformDesc = getProgram(programID).uniforms[uniformIndex];
-      pDesc->name           = uniformDesc.name;
-      pDesc->cls            = uniformDesc.cls;
-      pDesc->type           = uniformDesc.type;
-      pDesc->width          = uniformDesc.width;
-      pDesc->height         = uniformDesc.height;
-    }
-
-    void ShaderManager_OpenGL::getTextureDesc(GraphicsResource programID, int64_t textureIndex, ProgramTextureDesc * pDesc) {
-      Texture & textureDesc = getProgram(programID).textures[textureIndex];
-      pDesc->name           = textureDesc.name;
-      pDesc->type           = textureDesc.type;
-    }
-
-    void ShaderManager_OpenGL::getBufferDesc(GraphicsResource programID, int64_t bufferIndex, ProgramBufferDesc * pDesc) {
-      Buffer & bufferDesc = getProgram(programID).buffers[bufferIndex];
-      pDesc->name         = bufferDesc.name;
-      pDesc->size         = bufferDesc.size;
-    }
-
-    void ShaderManager_OpenGL::reflect(uint32_t glID, Vector<Attribute> * pAttributes, Vector<Uniform> * pUniforms, Vector<Texture> * pTextures,
-                                       Vector<Buffer> * pBuffers) {
+    void GLProgram::reflect(uint32_t glID, Vector<Attribute> * pAttributes, Vector<Uniform> * pUniforms, Vector<Texture> * pTextures,
+                            Vector<Buffer> * pBuffers) {
       int32_t numUniformBlocks   = 0;
       int32_t numUniforms        = 0;
       int32_t numAttributes      = 0;
@@ -963,64 +459,26 @@ namespace bfc {
       }
     }
 
-    ShaderManager_OpenGL::GLShader & ShaderManager_OpenGL::getShader(GraphicsResource shaderID) {
-      return shaders[shaderID.id];
+    RenderTargetType GLRenderTarget::getType() const {
+      return type;
     }
 
-    ShaderManager_OpenGL::GLProgram & ShaderManager_OpenGL::getProgram(GraphicsResource programID) {
-      return programs[programID.id];
-    }
-
-    RenderTargetManager_OpenGL::RenderTargetManager_OpenGL(TextureManager * pTextures)
-      : m_pTextures(pTextures) {}
-
-    GraphicsResource RenderTargetManager_OpenGL::createRenderTarget(RenderTargetType type) {
-      GLRenderTarget target;
-
-      if (type == RenderTargetType_Texture) {
-        glGenFramebuffers(1, &target.textures.glID);
-      }
-
-      target.type = type;
-
-      return {(uint32_t)renderTargets.emplace(target), GraphicsResourceType_RenderTarget};
-    }
-
-    GraphicsResource RenderTargetManager_OpenGL::refRenderTarget(GraphicsResource renderTargetID) {
-      renderTargets.addRef(renderTargetID.id);
-      return renderTargetID;
-    }
-
-    void RenderTargetManager_OpenGL::releaseRenderTarget(GraphicsResource * pResource) {
-      if (renderTargets.release(pResource->id) == 0) {
-        GLRenderTarget & rt = getRenderTarget(*pResource);
-        glDeleteFramebuffers(1, &rt.textures.glID);
-        renderTargets.erase(pResource->id);
-      }
-      *pResource = InvalidGraphicsResource;
-    }
-
-    RenderTargetType RenderTargetManager_OpenGL::getType(GraphicsResource renderTargetID) {
-      return getRenderTarget(renderTargetID).type;
-    }
-
-    Vec2i RenderTargetManager_OpenGL::getSize(GraphicsResource renderTargetID) {
-      GLRenderTarget & rt = getRenderTarget(renderTargetID);
-      switch (rt.type) {
+    Vec2i GLRenderTarget::getSize() const {
+      switch (type) {
       case RenderTargetType_Texture:
-        for (auto & [i, colour] : enumerate(rt.textures.colour)) {
+        for (auto & [i, colour] : enumerate(textures.colour)) {
           if (colour.texture != InvalidGraphicsResource) {
-            return m_pTextures->getSize(colour.texture, colour.mipLevel);
+            return colour.texture->getSize(colour.mipLevel);
           }
         }
 
-        if (rt.textures.depth.texture != InvalidGraphicsResource) {
-          return m_pTextures->getSize(rt.textures.depth.texture, rt.textures.depth.mipLevel);
+        if (textures.depth.texture != InvalidGraphicsResource) {
+          return textures.depth.texture->getSize(textures.depth.mipLevel);
         }
         break;
       case RenderTargetType_Window: {
         RECT rect;
-        GetClientRect(rt.window.hWnd, &rect);
+        GetClientRect(window.hWnd, &rect);
         return {rect.right - rect.left, rect.bottom - rect.top};
       } break;
       }
@@ -1028,11 +486,10 @@ namespace bfc {
       return Vec2i(0);
     }
 
-    bool RenderTargetManager_OpenGL::attachWindow(GraphicsResource renderTargetID, platform::Window * pWindow, DepthStencilFormat depthStencilFormat) {
-      GLRenderTarget & rt   = getRenderTarget(renderTargetID);
-      rt.window.hWnd        = (HWND)pWindow->getPlatformHandle();
-      rt.window.hDC         = GetDC(rt.window.hWnd);
-      rt.window.depthFormat = depthStencilFormat;
+    bool GLRenderTarget::attachWindow(platform::Window * pWindow, DepthStencilFormat depthStencilFormat) {
+      window.hWnd        = (HWND)pWindow->getPlatformHandle();
+      window.hDC         = GetDC(window.hWnd);
+      window.depthFormat = depthStencilFormat;
 
       int64_t numDepthBits   = 0;
       int64_t numStencilBits = 0;
@@ -1058,139 +515,797 @@ namespace bfc {
       int  pixelFormat     = 0;
       UINT numFormatsFound = 0;
 
-      if (!glChoosePixelFormatARB(rt.window.hDC, attribList.data(), 0, 1, &pixelFormat, &numFormatsFound))
+      if (!glChoosePixelFormatARB(window.hDC, attribList.data(), 0, 1, &pixelFormat, &numFormatsFound))
         return false;
 
       PIXELFORMATDESCRIPTOR pfd = {0};
       memset(&pfd, 0, sizeof(pfd));
-      DescribePixelFormat(rt.window.hDC, pixelFormat, sizeof(pfd), &pfd);
+      DescribePixelFormat(window.hDC, pixelFormat, sizeof(pfd), &pfd);
 
-      return SetPixelFormat(rt.window.hDC, pixelFormat, &pfd);
+      return SetPixelFormat(window.hDC, pixelFormat, &pfd);
     }
 
-    void RenderTargetManager_OpenGL::attachColour(GraphicsResource renderTargetID, GraphicsResource textureID, int64_t slot, int64_t mipLevel, int64_t layer) {
-      GLRenderTarget & rt      = getRenderTarget(renderTargetID);
-      bool             changed = false;
-      changed |= rt.textures.colour[slot].texture != textureID;
-      changed |= rt.textures.colour[slot].mipLevel != mipLevel;
-      changed |= rt.textures.colour[slot].layer != layer;
-      rt.textures.colour[slot].texture  = textureID;
-      rt.textures.colour[slot].mipLevel = mipLevel;
-      rt.textures.colour[slot].layer    = layer;
-      rt.textures.rebind |= changed;
+    void GLRenderTarget::attachColour(TextureRef textureID, int64_t slot, int64_t mipLevel, int64_t layer) {
+      bool changed = false;
+      changed |= textures.colour[slot].texture != textureID;
+      changed |= textures.colour[slot].mipLevel != mipLevel;
+      changed |= textures.colour[slot].layer != layer;
+      textures.colour[slot].texture  = textureID;
+      textures.colour[slot].mipLevel = mipLevel;
+      textures.colour[slot].layer    = layer;
+      textures.rebind |= changed;
     }
 
-    void RenderTargetManager_OpenGL::attachDepth(GraphicsResource renderTargetID, GraphicsResource textureID, int64_t mipLevel, int64_t layer) {
-      GLRenderTarget & rt      = getRenderTarget(renderTargetID);
-      bool             changed = false;
-      changed |= rt.textures.depth.texture != textureID;
-      changed |= rt.textures.depth.mipLevel != mipLevel;
-      changed |= rt.textures.depth.layer != layer;
-      rt.textures.depth.texture  = textureID;
-      rt.textures.depth.mipLevel = mipLevel;
-      rt.textures.depth.layer    = layer;
-      rt.textures.rebind |= changed;
+    void GLRenderTarget::attachDepth(TextureRef textureID, int64_t mipLevel, int64_t layer) {
+      bool changed = false;
+      changed |= textures.depth.texture != textureID;
+      changed |= textures.depth.mipLevel != mipLevel;
+      changed |= textures.depth.layer != layer;
+      textures.depth.texture  = textureID;
+      textures.depth.mipLevel = mipLevel;
+      textures.depth.layer    = layer;
+      textures.rebind |= changed;
     }
 
-    void RenderTargetManager_OpenGL::setReadAttachment(GraphicsResource renderTargetID, int64_t slot) {
-      GLRenderTarget & rt      = getRenderTarget(renderTargetID);
-      bool             changed = false;
-      changed |= rt.textures.colourReadAttachment != slot;
-      rt.textures.colourReadAttachment = slot;
-      rt.textures.rebind               = changed;
+    void GLRenderTarget::setReadAttachment(int64_t slot) {
+      bool changed = false;
+      changed |= textures.colourReadAttachment != slot;
+      textures.colourReadAttachment = slot;
+      textures.rebind               = changed;
     }
 
-    int64_t RenderTargetManager_OpenGL::getRenderTargetReferences(GraphicsResource renderTargetID) {
-      return renderTargets.getReferenceCount(renderTargetID.id);
+    void StateManager_OpenGL::apply(State const & state) {
+      state.visit(overloaded([](State::EnableBlend const & state) { SetGLStateEnabled(GL_BLEND, state.enabled); },
+                             [](State::EnableStencilTest const & state) { SetGLStateEnabled(GL_STENCIL_TEST, state.enabled); },
+                             [](State::EnableScissorTest const & state) { SetGLStateEnabled(GL_SCISSOR_TEST, state.enabled); },
+                             [](State::EnableDepthRead const & state) { SetGLStateEnabled(GL_DEPTH_TEST, state.enabled); },
+                             [](State::EnableDepthWrite const & state) { glDepthMask(state.enabled ? GL_TRUE : GL_FALSE); },
+                             [](State::Viewport const & state) { glViewport(state.position.x, state.position.y, state.size.x, state.size.y); },
+                             [](State::Scissor const & state) { glScissor(state.position.x, state.position.y, state.size.x, state.size.y); },
+                             [](State::DepthRange const & state) { glDepthRange(state.min, state.max); },
+                             [](State::DepthFunc const & state) { glDepthFunc(ToGLComparison(state.comparison)); },
+                             [](State::BlendFunc const & state) {
+                               GLenum glSrcColourFactor = ToGLBlendFunction(state.sourceColourFactor);
+                               GLenum glSrcAlphaFactor  = ToGLBlendFunction(state.sourceAlphaFactor);
+                               GLenum glDstColourFactor = ToGLBlendFunction(state.destColourFactor);
+                               GLenum glDstAlphaFactor  = ToGLBlendFunction(state.destAlphaFactor);
+                               if (state.colourAttachment.has_value())
+                                 glBlendFuncSeparatei((GLuint)state.colourAttachment.value(), glSrcColourFactor, glDstColourFactor, glSrcAlphaFactor,
+                                                      glDstAlphaFactor);
+                               else
+                                 glBlendFuncSeparate(glSrcColourFactor, glDstColourFactor, glSrcAlphaFactor, glDstAlphaFactor);
+                             },
+                             [](State::BlendEq const & state) {
+                               GLenum glColourEq = ToGLEquation(state.colour);
+                               GLenum glAlphaEq  = ToGLEquation(state.alpha);
+                               if (state.colourAttachment.has_value())
+                                 glBlendEquationSeparatei((GLuint)state.colourAttachment.value(), glColourEq, glAlphaEq);
+                               else
+                                 glBlendEquationSeparate(glColourEq, glAlphaEq);
+                             },
+                             [](State::ColourWrite const & state) { glColorMask(state.r, state.g, state.b, state.a); },
+                             [](State::ColourFactor const & state) { glBlendColor(state.r, state.g, state.b, state.a); },
+                             [](auto && v) { BFC_FAIL("State is not suported (type: %s)", typeid(v).name()); }));
     }
 
-    RenderTargetManager_OpenGL::GLRenderTarget & RenderTargetManager_OpenGL::getRenderTarget(GraphicsResource renderTargetID) {
-      return renderTargets[renderTargetID.id];
+    CommandList_OpenGL::CommandList_OpenGL(GraphicsDevice * pDevice, RenderTargetRef defaultTarget, VertexArrayRef emptyVertexArray, uint32_t lastTextureUnit)
+      : m_pDevice(pDevice)
+      , m_defaultTarget(defaultTarget)
+      , m_emptyVertexArray(emptyVertexArray)
+      , m_lastTextureUnit(lastTextureUnit) {}
+
+    void CommandList_OpenGL::execute() const {
+      m_commandBuffer.execute(m_pDevice);
     }
 
-    void StateManager_OpenGL::setFeatureEnabled(GraphicsState state, bool enabled) {
-      switch (state) {
-      case GraphicsState_Blend: SetGLStateEnabled(GL_BLEND, enabled); break;
-      case GraphicsState_DepthTest: SetGLStateEnabled(GL_DEPTH_TEST, enabled); break;
-      case GraphicsState_DepthWrite: glDepthMask(enabled ? GL_TRUE : GL_FALSE); break;
-      case GraphicsState_StencilTest: SetGLStateEnabled(GL_STENCIL_TEST, enabled); break;
-      case GraphicsState_ScissorTest: SetGLStateEnabled(GL_SCISSOR_TEST, enabled); break;
+    void CommandList_OpenGL::bindProgram(ProgramRef programID) {
+      impl::OpenGL::BindProgram cmd;
+      cmd.pProgram = &ToGL(programID);
+      add(cmd);
+      track(programID);
+
+      m_boundProgram = programID;
+    }
+
+    void CommandList_OpenGL::bindVertexArray(VertexArrayRef vertexArrayID) {
+      if (vertexArrayID == InvalidGraphicsResource) {
+        bindVertexArray(m_emptyVertexArray);
+        return;
+      }
+
+      GLVertexArray &               va = ToGL(vertexArrayID);
+      impl::OpenGL::BindVertexArray cmd;
+      cmd.pVertexArray = &va;
+      add(cmd);
+      track(vertexArrayID);
+
+      int64_t numElements = va.layout.getAttributeCount();
+      m_vertexCount       = std::numeric_limits<int64_t>::max();
+      for (int64_t i = 0; i < numElements; ++i) {
+        auto const & elm          = va.layout.getAttributeLayout(i);
+        auto         vertexBuffer = ToGL(va.vertexBuffers[elm.slot]);
+        m_vertexCount             = std::min(m_vertexCount, vertexBuffer.size / elm.stride);
+      }
+
+      if (va.indexBuffer != InvalidGraphicsResource) {
+        m_vaIndexType = va.indexBufferType;
+        m_indexCount  = ToGL(va.indexBuffer).size / getDataTypeSize(m_vaIndexType);
+      }
+
+      if (va.rebind) {
+        impl::OpenGL::RebindVertexArray rebind;
+        rebind.pVertexArray = &va;
+        rebind.numElements  = va.layout.getAttributeCount();
+        for (int64_t i = 0; i < rebind.numElements; ++i) {
+          String const & semantic = va.layout.getAttributeSemantic(i);
+          auto const &   element  = va.layout.getAttributeLayout(i);
+
+          impl::OpenGL::RebindVertexArray::Element item;
+          item.glLoc = (GLuint)GetSemanticLocation(semantic);
+
+          item.dataType = ToGLDataType(element.dataType);
+          item.stride   = (GLsizei)element.stride;
+          item.size     = (GLint)(element.width * element.height);
+          item.slot     = (int32_t)element.slot;
+          item.offset   = element.offset;
+          item.flags    = element.flags;
+
+          if (i == 0) // Store the first item
+            rebind.elements = m_commandBuffer.serialize(item);
+          else
+            m_commandBuffer.serialize(item);
+        }
+
+        for (auto const & [i, vb] : enumerate(va.vertexBuffers)) {
+          rebind.vertexBuffers[i] = &ToGL(vb);
+          track(vb);
+        }
+
+        rebind.pIndexBuffer = &ToGL(va.indexBuffer);
+        track(va.indexBuffer);
+        va.rebind = false;
+
+        add(rebind);
       }
     }
 
-    void StateManager_OpenGL::setViewport(Vec2i position, Vec2i size) {
-      glViewport(position.x, position.y, size.x, size.y);
+    void CommandList_OpenGL::bindTexture(TextureRef textureID, int64_t textureUnit) {
+      impl::OpenGL::BindTexture cmd;
+      cmd.pTexture = nullptr;
+      cmd.target   = GL_TEXTURE_2D;
+
+      if (textureID != InvalidGraphicsResource) {
+        cmd.pTexture = &ToGL(textureID);
+        cmd.target   = ToGLTextureType(cmd.pTexture->type);
+      }
+
+      cmd.pTexture    = textureID == InvalidGraphicsResource ? nullptr : &ToGL(textureID);
+      cmd.textureUnit = (GLenum)(GL_TEXTURE0 + textureUnit);
+
+      add(cmd);
+      track(textureID);
     }
 
-    void StateManager_OpenGL::setScissor(Vec2i position, Vec2i size) {
-      glScissor(position.x, position.y, size.x, size.y);
+    void CommandList_OpenGL::bindSampler(SamplerRef samplerID, int64_t textureUnit) {
+      if (samplerID == InvalidGraphicsResource) {
+        impl::OpenGL::BindSampler cmd;
+        cmd.pSampler    = nullptr;
+        cmd.textureUnit = (GLenum)textureUnit;
+        add(cmd);
+      } else {
+        auto & sampler = ToGL(samplerID);
+
+        if (sampler.changed) {
+          impl::OpenGL::UpdateSampler update;
+          update.pSampler  = &sampler;
+          update.minFilter = ToGLFilterMode(sampler.minFilter, sampler.minMipFilter);
+          update.magFilter = ToGLFilterMode(sampler.magFilter, sampler.magMipFilter);
+          update.minLOD    = sampler.minLOD;
+          update.maxLOD    = sampler.maxLOD;
+          update.wrapMode  = {
+            ToGLWrapMode(sampler.wrapMode.x),
+            ToGLWrapMode(sampler.wrapMode.y),
+            ToGLWrapMode(sampler.wrapMode.z),
+          };
+          add(update);
+
+          sampler.changed = false;
+        }
+
+        impl::OpenGL::BindSampler cmd;
+        cmd.pSampler    = &sampler;
+        cmd.textureUnit = (GLuint)textureUnit;
+
+        add(cmd);
+        track(samplerID);
+      }
     }
 
-    void StateManager_OpenGL::setDepthRange(float min, float max) {
-      glDepthRange(min, max);
+    void CommandList_OpenGL::bindUniformBuffer(BufferRef bufferID, int64_t bindPoint, int64_t offset, int64_t size) {
+      impl::OpenGL::BindUniformBuffer cmd;
+      cmd.pBuffer   = nullptr;
+      cmd.bindPoint = (GLint)bindPoint;
+      cmd.offset    = (GLintptr)offset;
+      cmd.size      = (GLintptr)size;
+      cmd.target    = GL_UNIFORM_BUFFER;
+      if (bufferID != InvalidGraphicsResource) {
+        if (cmd.size == 0) {
+          cmd.size = bufferID->getSize() - offset;
+        }
+        if (cmd.size >= 0) {
+          cmd.pBuffer = &ToGL(bufferID);
+        }
+      }
+      add(cmd);
+      track(bufferID);
     }
 
-    void StateManager_OpenGL::setDepthFunction(ComparisonFunction function) {
-      glDepthFunc(ToGLComparison(function));
+    void CommandList_OpenGL::bindShaderStorageBuffer(BufferRef bufferID, int64_t bindPoint, int64_t offset, int64_t size) {
+      impl::OpenGL::BindUniformBuffer cmd;
+      cmd.pBuffer   = nullptr;
+      cmd.bindPoint = (GLint)bindPoint;
+      cmd.offset    = (GLintptr)offset;
+      cmd.size      = (GLintptr)size;
+      cmd.target    = GL_SHADER_STORAGE_BUFFER;
+      if (bufferID != InvalidGraphicsResource) {
+        if (cmd.size == 0) {
+          cmd.size = bufferID->getSize() - offset;
+        }
+        if (cmd.size >= 0) {
+          cmd.pBuffer = &ToGL(bufferID);
+        }
+      }
+      add(cmd);
+      track(bufferID);
     }
 
-    void StateManager_OpenGL::setBlendEquation(BlendEquation colourAndAlpha, int64_t colourAttachment) {
-      GLenum glEq = ToGLEquation(colourAndAlpha);
-      if (colourAttachment == -1)
-        glBlendEquation(glEq);
-      else
-        glBlendEquationi((GLuint)colourAttachment, glEq);
+    void CommandList_OpenGL::bindRenderTarget(RenderTargetRef renderTargetID, MapAccess renderTargetAccess) {
+      if (renderTargetID == InvalidGraphicsResource) {
+        return bindRenderTarget(m_defaultTarget, renderTargetAccess);
+      }
+
+      auto & rt = ToGL(renderTargetID);
+
+      if (rt.type == RenderTargetType_Texture) {
+        if (rt.textures.rebind) {
+          impl::OpenGL::RebindTextureRenderTarget cmd;
+          cmd.pRenderTarget        = &rt;
+          cmd.fbClass              = TextureType_Unknown;
+          cmd.colourReadAttachment = GLenum(GL_COLOR_ATTACHMENT0 + rt.textures.colourReadAttachment);
+          cmd.access               = renderTargetAccess;
+
+          for (int64_t index = 0; index < MaxColourAttachments; ++index) {
+            cmd.colour[index].slot = (GLenum)(GL_COLOR_ATTACHMENT0 + index);
+
+            if (rt.textures.colour[index].texture != InvalidGraphicsResource) {
+              cmd.colour[index].pTexture = &ToGL(rt.textures.colour[index].texture);
+              cmd.colour[index].layer    = (GLint)rt.textures.colour[index].layer;
+              cmd.colour[index].mipLevel = (GLint)rt.textures.colour[index].mipLevel;
+              cmd.colour[index].target   = ToGLFramebufferTextureTarget(cmd.colour[index].pTexture->type, rt.textures.colour[index].layer);
+              track(rt.textures.colour[index].texture);
+
+              if (cmd.fbClass == TextureType_Unknown) {
+                cmd.fbClass = rt.textures.colour[index].texture->getType();
+              }
+            } else {
+              cmd.colour[index].pTexture = InvalidGraphicsResource;
+            }
+          }
+
+          if (rt.textures.depth.texture != InvalidGraphicsResource) {
+            cmd.depth.pTexture = &ToGL(rt.textures.depth.texture);
+            cmd.depth.layer    = (GLint)rt.textures.depth.layer;
+            cmd.depth.mipLevel = (GLint)rt.textures.depth.mipLevel;
+            cmd.depth.target   = ToGLFramebufferTextureTarget(cmd.depth.pTexture->type, rt.textures.depth.layer);
+            cmd.depth.slot     = ToGLFramebufferAttachment(cmd.depth.pTexture->depthStencilFmt);
+            track(rt.textures.depth.texture);
+
+            if (cmd.fbClass == TextureType_Unknown) {
+              cmd.fbClass = rt.textures.depth.texture->getType();
+            }
+          } else {
+            cmd.depth.pTexture = InvalidGraphicsResource;
+          }
+
+          add(cmd);
+        } else {
+          impl::OpenGL::BindTextureRenderTarget cmd;
+          cmd.pRenderTarget = &rt;
+          cmd.access        = renderTargetAccess;
+          add(cmd);
+        }
+      } else {
+        impl::OpenGL::BindWindowRenderTarget cmd;
+        cmd.hDC    = rt.window.hDC;
+        cmd.access = renderTargetAccess;
+        add(cmd);
+
+        m_activeWindowTarget = renderTargetID;
+      }
+
+      track(renderTargetID);
     }
 
-    void StateManager_OpenGL::setBlendEquation(BlendEquation colour, BlendEquation alpha, int64_t colourAttachment) {
-      GLenum glColourEq = ToGLEquation(colour);
-      GLenum glAlphaEq  = ToGLEquation(alpha);
-      if (colourAttachment == -1)
-        glBlendEquationSeparate(glColourEq, glAlphaEq);
-      else
-        glBlendEquationSeparatei((GLuint)colourAttachment, glColourEq, glAlphaEq);
+    void CommandList_OpenGL::bindScreen(MapAccess renderTargetAccess) {
+      bindRenderTarget(m_defaultTarget, renderTargetAccess);
     }
 
-    void StateManager_OpenGL::setBlendFunction(BlendFunction sourceFactor, BlendFunction destFactor, int64_t colourAttachment) {
-      GLenum glSrcFactor = ToGLBlendFunction(sourceFactor);
-      GLenum glDstFactor = ToGLBlendFunction(destFactor);
-      if (colourAttachment == -1)
-        glBlendFunc(glSrcFactor, glDstFactor);
-      else
-        glBlendFunci((GLuint)colourAttachment, glSrcFactor, glDstFactor);
+    void CommandList_OpenGL::draw(int64_t elementCount, int64_t elementOffset, PrimitiveType primType, int64_t instanceCount) {
+      impl::OpenGL::Draw cmd;
+      cmd.elementCount  = (GLsizei)elementCount;
+      cmd.elementOffset = (GLint)elementOffset;
+      cmd.primType      = ToGLPrimType(primType);
+      cmd.instanceCount = (GLsizei)instanceCount;
+
+      // Only validate elementCount if a vertex array has been bound.
+      // This is to support shaders which may not take any vertex inputs.
+      // However, you must explicity bind an Invalid vertex array.
+      if (m_vertexCount >= 0) {
+        cmd.elementCount = (GLsizei)std::min(elementCount, m_vertexCount - elementOffset);
+        if (cmd.elementCount < 0)
+          return;
+      }
+
+      add(cmd);
     }
 
-    void StateManager_OpenGL::setBlendFunction(BlendFunction sourceColourFactor, BlendFunction sourceAlphaFactor, BlendFunction destColourFactor,
-                                               BlendFunction destAlphaFactor, int64_t colourAttachment) {
-      GLenum glSrcColourFactor = ToGLBlendFunction(sourceColourFactor);
-      GLenum glSrcAlphaFactor  = ToGLBlendFunction(sourceAlphaFactor);
-      GLenum glDstColourFactor = ToGLBlendFunction(destColourFactor);
-      GLenum glDstAlphaFactor  = ToGLBlendFunction(destAlphaFactor);
-      if (colourAttachment == -1)
-        glBlendFuncSeparate(glSrcColourFactor, glSrcAlphaFactor, glDstColourFactor, glDstAlphaFactor);
-      else
-        glBlendFuncSeparatei((GLuint)colourAttachment, glSrcColourFactor, glSrcAlphaFactor, glDstColourFactor, glDstAlphaFactor);
+    void CommandList_OpenGL::drawIndexed(int64_t elementCount, int64_t elementOffset, PrimitiveType primType, int64_t instanceCount) {
+      impl::OpenGL::DrawIndexed cmd;
+      cmd.elementCount  = (GLsizei)elementCount;
+      cmd.elementOffset = (uint64_t)(elementOffset * getDataTypeSize(m_vaIndexType));
+      cmd.indexType     = ToGLDataType(m_vaIndexType);
+      cmd.primType      = ToGLPrimType(primType);
+      cmd.instanceCount = (GLsizei)instanceCount;
+
+      // Only validate elementCount if a vertex array has been bound.
+      // This is to support shaders which may not take any vertex inputs.
+      // However, you must explicity bind an Invalid vertex array.
+      if (m_indexCount >= 0) {
+        cmd.elementCount = (GLsizei)std::min(elementCount, m_indexCount - elementOffset);
+        if (cmd.elementCount < 0)
+          return;
+      }
+
+      add(cmd);
     }
 
-    void StateManager_OpenGL::setColourWriteEnabled(bool red, bool green, bool blue, bool alpha) {
-      glColorMask(red, green, blue, alpha);
+    void CommandList_OpenGL::track(bfc::Ref<void> pPtr) {
+      if (pPtr != nullptr) {
+        m_trackedResources.pushBack(pPtr);
+      }
     }
 
-    void StateManager_OpenGL::setColourFactor(float red, float green, float blue, float alpha) {
-      glBlendColor(red, green, blue, alpha);
+    void CommandList_OpenGL::clear(RGBAu8 colour) {
+      impl::OpenGL::Clear cmd;
+      cmd.colour = colour;
+
+      add(cmd);
     }
-    GLenum BufferManager_OpenGL::GLBuffer::getBindTarget(bool read) const {
-      if (defaultTarget != GL_NONE)
-        return defaultTarget;
-      else
-        return read ? GL_COPY_READ_BUFFER : GL_COPY_WRITE_BUFFER;
+
+    void CommandList_OpenGL::swap() {
+      impl::OpenGL::Swap cmd;
+      cmd.hDC = ToGL(m_activeWindowTarget).window.hDC;
+
+      add(cmd);
     }
+
+    void CommandList_OpenGL::setState(Span<const State> const & state) {
+      if (state.size() == 0)
+        return;
+
+      impl::OpenGL::SetState cmd;
+      cmd.count  = state.size();
+      cmd.states = m_commandBuffer.serialize(state[0]);
+      for (int64_t i = 1; i < cmd.count; ++i)
+        m_commandBuffer.serialize(state[i]);
+      add(cmd);
+    }
+
+    void CommandList_OpenGL::pushState(Span<const State> const & state) {
+      if (state.size() == 0)
+        return;
+
+      impl::OpenGL::PushState cmd;
+      cmd.count  = state.size();
+      cmd.states = m_commandBuffer.serialize(state[0]);
+      for (int64_t i = 1; i < cmd.count; ++i)
+        m_commandBuffer.serialize(state[i]);
+      add(cmd);
+    }
+
+    void CommandList_OpenGL::popState() {
+      add(impl::OpenGL::PopState{});
+    }
+
+    void CommandList_OpenGL::upload(BufferRef bufferID, int64_t size, void const * pData) {
+      impl::OpenGL::Upload cmd;
+      cmd.dataHandle = m_commandBuffer.write({(const uint8_t *)pData, size});
+      cmd.dataSize   = size;
+      cmd.pGLBuffer  = &ToGL(bufferID);
+      add(cmd);
+      track(bufferID);
+
+      cmd.pGLBuffer->size = size;
+    }
+
+    std::future<void *> CommandList_OpenGL::map(BufferRef bufferID, MapAccess access) {
+      return map(bufferID, 0, ToGL(bufferID).size, access);
+    }
+
+    std::future<void *> CommandList_OpenGL::map(BufferRef bufferID, int64_t offset, int64_t size, MapAccess access) {
+      auto pPromise = bfc::Ref<std::promise<void *>>();
+
+      impl::OpenGL::Map cmd;
+      cmd.pBuffer  = &ToGL(bufferID);
+      cmd.offset   = (GLintptr)offset;
+      cmd.size     = (GLsizeiptr)size;
+      cmd.access   = ToGLMapBits(access);
+      cmd.pPromise = pPromise.get();
+
+      add(cmd);
+      track(bufferID);
+      track(pPromise);
+
+      return pPromise->get_future();
+    }
+
+    void CommandList_OpenGL::unmap(BufferRef bufferID) {
+      impl::OpenGL::Unmap cmd;
+      cmd.pBuffer = &ToGL(bufferID);
+      add(cmd);
+      track(bufferID);
+    }
+
+    void CommandList_OpenGL::download(BufferRef bufferID, BufferDownloadRef pDownload, int64_t offset, int64_t size) {
+      auto pPromise = bfc::Ref<std::promise<void>>();
+
+      impl::OpenGL::Download cmd;
+      cmd.pBuffer   = &ToGL(bufferID);
+      cmd.pDownload = &ToGL(pDownload);
+      cmd.offset    = offset;
+      cmd.size      = size;
+      if (cmd.size == 0)
+        cmd.size = std::max(0ll, cmd.pBuffer->size - offset);
+      cmd.pPromise            = pPromise.get();
+      cmd.pDownload->complete = pPromise->get_future();
+      cmd.pDownload->storage.resize(cmd.size);
+
+      add(cmd);
+      track(bufferID);
+      track(pPromise);
+    }
+
+    bool CommandList_OpenGL::uploadTexture(TextureRef textureID, DepthStencilFormat format, Vec3i size) {
+      impl::OpenGL::AllocateTexture cmd;
+      cmd.pTexture       = &ToGL(textureID);
+      cmd.format         = ToGLFormat(format);
+      cmd.type           = ToGLType(format);
+      cmd.internalFormat = ToGLInternalFormat(format);
+      cmd.target         = ToGLTextureType(cmd.pTexture->type);
+      cmd.size           = size;
+
+      cmd.pTexture->depthStencilFmt = format;
+      cmd.pTexture->format          = PixelFormat_Unknown;
+      cmd.pTexture->size            = size;
+
+      add(cmd);
+      track(textureID);
+
+      return true;
+    }
+
+    bool CommandList_OpenGL::uploadTexture(TextureRef textureID, media::Surface const & src) {
+      auto & tex = ToGL(textureID);
+
+      impl::OpenGL::UploadTexture cmd;
+      cmd.pTexture        = &tex;
+      cmd.format          = ToGLFormat(src.format);
+      cmd.type            = ToGLType(src.format);
+      cmd.internalFormat  = ToGLInternalFormat(src.format);
+      cmd.target          = ToGLTextureType(tex.type);
+      cmd.surface         = src;
+      cmd.surface.pBuffer = nullptr;
+      cmd.dataSize        = media::calculateSurfaceSize(src);
+      cmd.dataHandle      = m_commandBuffer.write({(const uint8_t *)src.pBuffer, cmd.dataSize});
+
+      add(cmd);
+      track(textureID);
+
+      if (cmd.dataHandle != -1) {
+        generateMipMaps(textureID);
+      }
+
+      tex.depthStencilFmt = DepthStencilFormat_Unknown;
+      tex.format          = src.format;
+      tex.size            = src.size;
+
+      return true;
+    }
+
+    bool CommandList_OpenGL::uploadTextureSubData(TextureRef textureID, media::Surface const & src, Vec3i offset) {
+      auto & tex = *(GLTexture *)textureID.get();
+
+      impl::OpenGL::UploadTextureSubData cmd;
+      cmd.pTexture        = &tex;
+      cmd.format          = ToGLFormat(src.format);
+      cmd.type            = ToGLType(src.format);
+      cmd.target          = ToGLTextureType(tex.type);
+      cmd.surface         = src;
+      cmd.surface.pBuffer = nullptr;
+      cmd.dataSize        = media::calculateSurfaceSize(src);
+      cmd.dataHandle      = m_commandBuffer.write({(const uint8_t *)src.pBuffer, cmd.dataSize});
+      cmd.offset          = offset;
+
+      add(cmd);
+      track(textureID);
+
+      return true;
+    }
+
+    void CommandList_OpenGL::generateMipMaps(TextureRef textureID) {
+      impl::OpenGL::GenerateMipMaps mips;
+      mips.pTexture = &ToGL(textureID);
+      mips.target   = ToGLTextureType(mips.pTexture->type);
+      add(mips);
+      track(textureID);
+    }
+
+    void CommandList_OpenGL::downloadTexture(TextureRef textureID, TextureDownloadRef pDownload) {
+      BFC_FAIL("Not implemented");
+
+      impl::OpenGL::DownloadTexture cmd;
+      cmd.pTexture = &ToGL(textureID);
+      track(textureID);
+    }
+
+    void CommandList_OpenGL::setUniform(int64_t uniformIndex, void const * pBuffer, int64_t size) {
+      impl::OpenGL::SetUniform cmd;
+      cmd.uniformIndex = uniformIndex;
+      cmd.dataSize     = size;
+      cmd.dataHandle   = m_commandBuffer.write({(const uint8_t *)pBuffer, size});
+      cmd.pProgram     = &ToGL(m_boundProgram);
+
+      add(cmd);
+    }
+
+    void CommandList_OpenGL::setUniform(StringView const & name, void const * pBuffer, int64_t size) {
+      impl::OpenGL::SetNamedUniform cmd;
+      cmd.nameSize   = name.length();
+      cmd.nameHandle = m_commandBuffer.write({(const uint8_t *)name.begin(), name.length()});
+      cmd.dataSize   = size;
+      cmd.dataHandle = m_commandBuffer.write({(const uint8_t *)pBuffer, size});
+      cmd.pProgram   = &ToGL(m_boundProgram);
+
+      add(cmd);
+    }
+
+    void CommandList_OpenGL::setBufferBinding(int64_t bufferIndex, int64_t bindPoint) {
+      impl::OpenGL::SetBufferBinding cmd;
+      cmd.bufferIndex = bufferIndex;
+      cmd.bindPoint   = bindPoint;
+      cmd.pProgram    = &ToGL(m_boundProgram);
+
+      add(cmd);
+    }
+
+    void CommandList_OpenGL::setBufferBinding(StringView const & name, int64_t bindPoint) {
+      impl::OpenGL::SetNamedBufferBinding cmd;
+      cmd.nameSize   = name.length();
+      cmd.nameHandle = m_commandBuffer.write({(const uint8_t *)name.begin(), name.length()});
+      cmd.bindPoint  = bindPoint;
+      cmd.pProgram   = &ToGL(m_boundProgram);
+
+      add(cmd);
+    }
+
+    void CommandList_OpenGL::setTextureBinding(int64_t textureIndex, int64_t bindPoint) {
+      impl::OpenGL::SetTextureBinding cmd;
+      cmd.textureIndex = textureIndex;
+      cmd.bindPoint    = bindPoint;
+      cmd.pProgram     = &ToGL(m_boundProgram);
+
+      add(cmd);
+    }
+
+    void CommandList_OpenGL::setTextureBinding(StringView const & name, int64_t bindPoint) {
+      impl::OpenGL::SetNamedTextureBinding cmd;
+      cmd.nameSize   = name.length();
+      cmd.nameHandle = m_commandBuffer.write({(const uint8_t *)name.begin(), name.length()});
+      cmd.bindPoint  = bindPoint;
+      cmd.pProgram   = &ToGL(m_boundProgram);
+    }
+
+    // void CommandList_OpenGL::getUniform(int64_t uniformIndex, void * pBuffer, ProgramUniformDesc * pDesc) {
+    //   GLProgram &          prog        = *((GLProgram *)m_boundProgram.get());
+    //   GLProgram::Uniform & uniformDesc = prog.uniforms[uniformIndex];
+    //
+    //   if (pDesc != nullptr) {
+    //     prog.getUniformDesc(uniformIndex, pDesc);
+    //   }
+    //
+    //   if (pBuffer != nullptr) {
+    //     switch (uniformDesc.type) {
+    //     case DataType_Float32: glGetUniformfv(prog.glID, uniformDesc.glLoc, (float *)pBuffer); break;
+    //     case DataType_Int32: glGetUniformiv(prog.glID, uniformDesc.glLoc, (int32_t *)pBuffer); break;
+    //     case DataType_UInt32: glGetUniformuiv(prog.glID, uniformDesc.glLoc, (uint32_t *)pBuffer); break;
+    //     }
+    //   }
+    // }
+    //
+    // int64_t CommandList_OpenGL::getBufferBinding(int64_t bufferIndex) {
+    //   GLProgram & prog = *((GLProgram *)m_boundProgram.get());
+    //   return prog.buffers[bufferIndex].bindPoint;
+    // }
+    //
+    // int64_t CommandList_OpenGL::getTextureBinding(int64_t textureIndex) {
+    //   GLProgram & prog = *((GLProgram *)m_boundProgram.get());
+    //   return prog.textures[textureIndex].bindPoint;
+    // }
+
+    GraphicsDevice * CommandList_OpenGL::getDevice() const {
+      return m_pDevice;
+    }
+
   } // namespace graphics
 
-  GraphicsDevice_OpenGL::GraphicsDevice_OpenGL()
-    : m_renderTargets(&m_textures) {}
+  GraphicsDevice_OpenGL::GraphicsDevice_OpenGL() {}
 
   bool GraphicsDevice_OpenGL::init(platform::Window * pWindow) {
+    auto initComplete = NewRef<std::promise<void>>();
+    auto initResult   = initComplete->get_future();
+    m_renderThread    = std::thread(&GraphicsDevice_OpenGL::RenderThread, this, pWindow, initComplete);
+
+    try {
+      initResult.wait();
+    } catch (std::exception) { return false; }
+
+    return true;
+  }
+
+  std::unique_ptr<graphics::CommandList> GraphicsDevice_OpenGL::createCommandList() {
+    return std::make_unique<graphics::CommandList_OpenGL>(this, m_defaultTarget, m_emptyVertexArray, m_lastTextureUnit);
+  }
+
+  graphics::BufferRef GraphicsDevice_OpenGL::createBuffer(BufferUsageHint usageHint) {
+    // TODO: Custom allocator?
+    Ref<graphics::GLBuffer> newBuffer(new graphics::GLBuffer, [this](graphics::GLBuffer * pPtr) {
+      m_destroyLock.lock();
+      m_destroy.buffers.pushBack(pPtr->glID);
+      m_destroyLock.unlock();
+
+      delete pPtr;
+    });
+
+    if ((usageHint & BufferUsageHint_Dynamic) > 0)
+      newBuffer->glUsage = GL_DYNAMIC_DRAW;
+    else
+      newBuffer->glUsage = GL_STATIC_DRAW;
+
+    if ((usageHint & BufferUsageHint_Uniform) > 0)
+      newBuffer->defaultTarget = GL_UNIFORM_BUFFER;
+    else if ((usageHint & BufferUsageHint_Storage) > 0)
+      newBuffer->defaultTarget = GL_SHADER_STORAGE_BUFFER;
+    else if ((usageHint & BufferUsageHint_Vertices) > 0 || (usageHint & BufferUsageHint_Indices) > 0)
+      newBuffer->defaultTarget = GL_ARRAY_BUFFER;
+    else
+      newBuffer->defaultTarget = GL_NONE;
+
+    return newBuffer;
+  }
+
+  graphics::VertexArrayRef GraphicsDevice_OpenGL::createVertexArray() {
+    Ref<graphics::GLVertexArray> va(new graphics::GLVertexArray, [this](graphics::GLVertexArray * pPtr) {
+      m_destroyLock.lock();
+      m_destroy.vertexArrays.pushBack(pPtr->glID);
+      m_destroyLock.unlock();
+      delete pPtr;
+    });
+
+    return va;
+  }
+
+  graphics::ProgramRef GraphicsDevice_OpenGL::createProgram() {
+    Ref<graphics::GLProgram> newProgram(new graphics::GLProgram, [this](graphics::GLProgram * pPtr) {
+      m_destroyLock.lock();
+      m_destroy.programs.pushBack(pPtr->glID);
+      m_destroyLock.unlock();
+
+      delete pPtr;
+    });
+
+    return newProgram;
+  }
+
+  graphics::TextureRef GraphicsDevice_OpenGL::createTexture(TextureType type) {
+    Ref<graphics::GLTexture> newTexture(new graphics::GLTexture, [this](graphics::GLTexture * pPtr) {
+      m_destroyLock.lock();
+      m_destroy.textures.pushBack(pPtr->glID);
+      m_destroyLock.unlock();
+
+      delete pPtr;
+    });
+
+    newTexture->type = type;
+    return newTexture;
+  }
+
+  graphics::SamplerRef GraphicsDevice_OpenGL::createSampler() {
+    Ref<graphics::GLSampler> newSampler(new graphics::GLSampler, [this](graphics::GLSampler * pPtr) {
+      m_destroyLock.lock();
+      m_destroy.samplers.pushBack(pPtr->glID);
+      m_destroyLock.unlock();
+
+      delete pPtr;
+    });
+
+    return newSampler;
+  }
+
+  graphics::RenderTargetRef GraphicsDevice_OpenGL::createRenderTarget(RenderTargetType type) {
+    Ref<graphics::GLRenderTarget> target(new graphics::GLRenderTarget, [this](graphics::GLRenderTarget * pPtr) {
+      if (pPtr->type == RenderTargetType_Texture) {
+        m_destroyLock.lock();
+        m_destroy.framebuffers.pushBack(pPtr->textures.glID);
+        m_destroyLock.unlock();
+      }
+
+      delete pPtr;
+    });
+
+    target->type = type;
+
+    return target;
+  }
+
+  void GraphicsDevice_OpenGL::destroy() {
+    delete this;
+  }
+
+  graphics::RenderTargetRef GraphicsDevice_OpenGL::getDefaultRenderTarget() {
+    return m_defaultTarget;
+  }
+
+  graphics::StateManager * GraphicsDevice_OpenGL::getStateManager() {
+    return &m_stateManager;
+  }
+
+  uint64_t GraphicsDevice_OpenGL::submit(std::unique_ptr<graphics::CommandList> && pCommandList) {
+    m_queueLock.lock();
+    uint64_t commandList = ++m_nextCommandListID;
+    m_commandListQueue.pushBack(std::move(pCommandList));
+    m_queueLock.unlock();
+    m_queueNotifier.notify_one();
+    return commandList;
+  }
+
+  bool GraphicsDevice_OpenGL::wait(uint64_t handle, std::optional<Timestamp> const & timeout) {
+    std::unique_lock guard{m_fenceLock};
+    if (timeout.has_value())
+      return m_fenceNotifier.wait_for(guard, (std::chrono::microseconds)timeout.value(), [=]() { return m_commandListFence >= handle; });
+
+    m_fenceNotifier.wait(guard, [=]() { return m_commandListFence >= handle; });
+    return true;
+  }
+
+  std::shared_future<bool> GraphicsDevice_OpenGL::compile(graphics::ProgramRef pProgram) {
+    std::promise<bool> promise;
+    std::shared_future<bool>  result = promise.get_future();
+
+    auto & glProgram = ToGL(pProgram);
+    if (glProgram.compileResult.has_value())
+      glProgram.compileResult->wait();
+
+    glProgram.compileResult = result;
+
+    m_queueLock.lock();
+    m_compileJobs.pushBack({pProgram, std::move(promise)});
+    m_queueLock.unlock();
+    m_queueNotifier.notify_one();
+
+    return glProgram.compileResult.value();
+  }
+
+  void GraphicsDevice_OpenGL::RenderThread(platform::Window * pWindow, Ref<std::promise<void>> initComplete) {
     // Create a temporary window to make our fake GL context
     HINSTANCE hInstance = GetModuleHandle(0);
 
@@ -1229,11 +1344,13 @@ namespace bfc {
     int       contextAttribs[] = {WGL_CONTEXT_MAJOR_VERSION_ARB,    major_min, WGL_CONTEXT_MINOR_VERSION_ARB, minor_min, WGL_CONTEXT_PROFILE_MASK_ARB,
                             WGL_CONTEXT_CORE_PROFILE_BIT_ARB, 0};
 
-    m_defaultTarget = m_renderTargets.createRenderTarget(RenderTargetType_Window);
-    if (!m_renderTargets.attachWindow(m_defaultTarget, pWindow, DepthStencilFormat_D24S8))
-      return false;
+    m_defaultTarget = createRenderTarget(RenderTargetType_Window);
+    if (!m_defaultTarget->attachWindow(pWindow, DepthStencilFormat_D24S8)) {
+      initComplete->set_exception(std::make_exception_ptr(std::exception{"Failed to create the default render target"}));
+      return;
+    }
 
-    HDC hDC = m_renderTargets.getRenderTarget(m_defaultTarget).window.hDC;
+    HDC hDC = ((graphics::GLRenderTarget *)m_defaultTarget.get())->window.hDC;
 
     // Create the render target for the actual window
     HGLRC hGLRC = glCreateContextAttribsARB(hDC, nullptr, contextAttribs);
@@ -1257,363 +1374,98 @@ namespace bfc {
     glBlendEquation(GL_FUNC_ADD);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    m_activeWindowTarget = m_defaultTarget;
-    m_activeTarget       = m_defaultTarget;
+    int64_t val = 0;
+    glGetInteger64v(GL_MAX_TEXTURE_IMAGE_UNITS, &val);
+    m_lastTextureUnit = (uint32_t)(val - 1);
 
-    glGetInteger64v(GL_MAX_TEXTURE_IMAGE_UNITS, &m_lastTextureUnit);
-    m_lastTextureUnit -= 1;
+    m_emptyVertexArray = createVertexArray();
 
-    glGenVertexArrays(1, &m_emptyVertexArray);
-    glBindVertexArray(m_emptyVertexArray);
+    initComplete->set_value();
 
-    return true;
-  }
+    bool                                           running = m_running;
+    Vector<std::unique_ptr<graphics::CommandList>> lists;
+    Vector<CompileProgramJob>                      compileJobs;
+    while (running) {
+      std::unique_lock guard{m_queueLock};
+      m_queueNotifier.wait(guard, [&]() {
+        running     = m_running || m_commandListQueue.size() > 0;
+        lists       = std::move(m_commandListQueue);
+        compileJobs = std::move(m_compileJobs);
+        return !running || lists.size() > 0 || compileJobs.size() > 0;
+      });
+      guard.unlock();
 
-  void GraphicsDevice_OpenGL::bindProgram(GraphicsResource programID) {
-    if (programID == InvalidGraphicsResource) {
-      glUseProgram(0);
-    } else {
-      BFC_ASSERT(programID.type == GraphicsResourceType_Program, "resource id is not a Program.");
-      glUseProgram(m_shaders.getProgram(programID).glID);
-    }
-  }
-
-  void GraphicsDevice_OpenGL::bindVertexArray(GraphicsResource vertexArrayID) {
-    if (vertexArrayID == InvalidGraphicsResource) {
-      m_indexCount  = -1;
-      m_vertexCount = -1;
-      glBindVertexArray(m_emptyVertexArray);
-      return;
-    }
-
-    BFC_ASSERT(vertexArrayID.type == GraphicsResourceType_VertexArray, "resource id is not a Vertex Array.");
-
-    graphics::BufferManager_OpenGL::GLVertexArray & va = m_buffers.getVertexArray(vertexArrayID);
-    glBindVertexArray(va.glID);
-
-    if (va.rebind) {
-      for (int64_t slot : va.activeSlots) {
-        glDisableVertexAttribArray((GLuint)slot);
+      for (auto & job : compileJobs) {
+        bool success = ToGL(job.pProgram).compile(nullptr);
+        job.result.set_value(success);
       }
 
-      va.activeSlots.clear();
-      int64_t numElements = va.layout.getAttributeCount();
-      for (int64_t i = 0; i < numElements; ++i) {
-        auto const & elm = va.layout.getAttributeLayout(i);
-        auto const & sem = va.layout.getAttributeSemantic(i);
-
-        GLuint           loc          = (GLuint)GetSemanticLocation(sem);
-        GraphicsResource vertexBuffer = va.vertexBuffers[elm.slot];
-        if (vertexBuffer == InvalidGraphicsResource)
-          continue;
-        glBindBuffer(GL_ARRAY_BUFFER, m_buffers.getBuffer(vertexBuffer).glID);
-        glEnableVertexAttribArray(loc);
-
-        bool normalized = (elm.flags & LayoutFlag_Normalize) > 0;
-        if ((elm.flags & LayoutFlag_Integer) > 0)
-          glVertexAttribIPointer(loc, (GLint)(elm.width * elm.height), ToGLDataType(elm.dataType), (GLsizei)elm.stride, (void *)elm.offset);
-        else
-          glVertexAttribPointer(loc, (GLint)(elm.width * elm.height), ToGLDataType(elm.dataType), normalized, (GLsizei)elm.stride, (void *)elm.offset);
-
-        va.activeSlots.pushBack(loc);
+      for (auto & list : lists) {
+        list->execute();
+        m_fenceLock.lock();
+        ++m_commandListFence;
+        m_fenceLock.unlock();
+        m_fenceNotifier.notify_all();
       }
 
-      if (m_vertexCount == std::numeric_limits<int64_t>::max())
-        m_vertexCount = 0;
-
-      if (va.indexBuffer != InvalidGraphicsResource) {
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_buffers.getBuffer(va.indexBuffer).glID);
-      } else {
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        m_vaIndexType = DataType_Unknown;
-        m_indexCount  = 0;
-      }
-      va.rebind = false;
-    }
-
-    int64_t numElements = va.layout.getAttributeCount();
-    m_vertexCount       = std::numeric_limits<int64_t>::max();
-    for (int64_t i = 0; i < numElements; ++i) {
-      auto const &     elm          = va.layout.getAttributeLayout(i);
-      GraphicsResource vertexBuffer = va.vertexBuffers[elm.slot];
-      m_vertexCount                 = std::min(m_vertexCount, m_buffers.getBuffer(vertexBuffer).size / elm.stride);
-    }
-
-    if (va.indexBuffer != InvalidGraphicsResource) {
-      m_vaIndexType = va.indexBufferType;
-      m_indexCount  = m_buffers.getBuffer(va.indexBuffer).size / getDataTypeSize(m_vaIndexType);
+      cleanupResources();
     }
   }
 
-  void GraphicsDevice_OpenGL::bindTexture(GraphicsResource textureID, int64_t textureUnit) {
-    uint32_t glID   = 0;
-    GLenum   target = GL_TEXTURE_2D;
+  void GraphicsDevice_OpenGL::cleanupResources() {
+    m_destroyLock.lock();
+    DestroyQueues queue = std::move(m_destroy);
+    m_destroyLock.unlock();
 
-    if (textureID != InvalidGraphicsResource) {
-      BFC_ASSERT(textureID.type == GraphicsResourceType_Texture, "resource id is not a Texture.");
+    if (!queue.buffers.empty())
+      glDeleteBuffers((GLsizei)queue.buffers.size(), queue.buffers.begin());
 
-      auto & tex = m_textures.getTexture(textureID);
-      target     = ToGLTextureType(tex.type);
-      glID       = tex.glID;
-    }
+    if (!queue.samplers.empty())
+      glDeleteSamplers((GLsizei)queue.samplers.size(), queue.samplers.begin());
 
-    glActiveTexture((GLenum)(GL_TEXTURE0 + textureUnit));
-    glBindTexture(target, glID);
-    glActiveTexture((GLenum)(GL_TEXTURE0 + m_lastTextureUnit));
-    glBindTexture(target, 0);
+    if (!queue.textures.empty())
+      glDeleteTextures((GLsizei)queue.textures.size(), queue.textures.begin());
+
+    if (!queue.framebuffers.empty())
+      glDeleteFramebuffers((GLsizei)queue.framebuffers.size(), queue.framebuffers.begin());
+
+    if (!queue.vertexArrays.empty())
+      glDeleteVertexArrays((GLsizei)queue.vertexArrays.size(), queue.vertexArrays.begin());
+
+    for (const uint32_t & program : queue.programs)
+      glDeleteProgram(program);
   }
 
-  void GraphicsDevice_OpenGL::bindSampler(GraphicsResource samplerID, int64_t textureUnit) {
-    uint32_t glID = 0;
-    if (samplerID != InvalidGraphicsResource) {
-      BFC_ASSERT(samplerID.type == GraphicsResourceType_Sampler, "resource id is not a Sampler.");
-      glID = m_textures.getSampler(samplerID).glID;
-    }
-
-    glBindSampler((uint32_t)textureUnit, glID);
+  static graphics::GLBuffer & ToGL(graphics::BufferRef pBuffer) {
+    return *(graphics::GLBuffer *)pBuffer.get();
   }
 
-  void GraphicsDevice_OpenGL::bindUniformBuffer(GraphicsResource bufferID, int64_t bindPoint, int64_t offset, int64_t size) {
-    uint32_t glID = 0;
-    if (bufferID != InvalidGraphicsResource) {
-      BFC_ASSERT(bufferID.type == GraphicsResourceType_Buffer, "resource id is not a Buffer.");
-
-      if (size == 0) {
-        size = m_buffers.getSize(bufferID) - offset;
-      }
-
-      if (size >= 0) {
-        glID = m_buffers.getBuffer(bufferID).glID;
-      }
-    }
-
-    glBindBufferRange(GL_UNIFORM_BUFFER, (GLint)bindPoint, glID, (GLintptr)offset, (GLsizeiptr)size);
+  static graphics::GLBufferDownload & ToGL(graphics::BufferDownloadRef pBuffer) {
+    return *(graphics::GLBufferDownload *)pBuffer.get();
   }
 
-  void GraphicsDevice_OpenGL::bindShaderStorageBuffer(GraphicsResource bufferID, int64_t bindPoint, int64_t offset, int64_t size) {
-    uint32_t glID = 0;
-    if (bufferID != InvalidGraphicsResource) {
-      BFC_ASSERT(bufferID.type == GraphicsResourceType_Buffer, "resource id is not a Buffer.");
-
-      if (size == 0) {
-        size = m_buffers.getSize(bufferID) - offset;
-      }
-
-      if (size >= 0) {
-        glID = m_buffers.getBuffer(bufferID).glID;
-      }
-    }
-
-    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, (GLint)bindPoint, glID, (GLintptr)offset, (GLsizeiptr)size);
+  static graphics::GLTexture & ToGL(graphics::TextureRef pTexture) {
+    return *(graphics::GLTexture *)pTexture.get();
   }
 
-  void GraphicsDevice_OpenGL::bindRenderTarget(GraphicsResource renderTargetID, MapAccess renderTargetAccess) {
-    if (renderTargetID == InvalidGraphicsResource) {
-      return bindRenderTarget(m_defaultTarget, renderTargetAccess);
-    }
-
-    BFC_ASSERT(renderTargetID.type == GraphicsResourceType_RenderTarget, "resource id is not a Render Target.");
-
-    bool write = (renderTargetAccess & MapAccess_Write) > 0;
-    bool read  = (renderTargetAccess & MapAccess_Read) > 0;
-
-    graphics::RenderTargetManager_OpenGL::GLRenderTarget & rt = m_renderTargets.getRenderTarget(renderTargetID);
-
-    if (rt.type == RenderTargetType_Texture) {
-      Vector<GLenum> activeAttachments;
-      GLenum         fboTarget = GL_NONE;
-      if (read) {
-        fboTarget = GL_READ_FRAMEBUFFER;
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, rt.textures.glID);
-      }
-      if (write) {
-        fboTarget = GL_DRAW_FRAMEBUFFER;
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, rt.textures.glID);
-      }
-
-      if (rt.textures.rebind) {
-        TextureType fbClass = TextureType_Unknown;
-        for (int64_t index = 0; index < MaxColourAttachments; ++index) {
-          auto & attachment = rt.textures.colour[index];
-          if (attachment.texture != InvalidGraphicsResource) {
-            auto & glTex = m_textures.getTexture(attachment.texture);
-            fbClass      = glTex.type;
-            break;
-          }
-        }
-
-        if (fbClass == TextureType_Unknown) {
-          if (rt.textures.depth.texture != InvalidGraphicsResource) {
-            auto & glTex      = m_textures.getTexture(rt.textures.depth.texture);
-            fbClass      = glTex.type;
-          }
-        }
-
-        for (int64_t index = 0; index < MaxColourAttachments; ++index) {
-          GLenum attachmentID = (GLenum)(GL_COLOR_ATTACHMENT0 + index);
-          auto & attachment   = rt.textures.colour[index];
-          if (attachment.texture != InvalidGraphicsResource) {
-            auto & glTex         = m_textures.getTexture(attachment.texture);
-            GLenum textureTarget = ToGLFramebufferTextureTarget(glTex.type, attachment.layer);
-
-            switch (glTex.type) {
-            case TextureType_2D:
-            case TextureType_CubeMap: glFramebufferTexture2D(fboTarget, attachmentID, textureTarget, glTex.glID, (GLint)attachment.mipLevel); break;
-            case TextureType_2DArray:
-              glFramebufferTextureLayer(fboTarget, attachmentID, glTex.glID, (GLint)attachment.mipLevel, (GLint)attachment.layer);
-              break;
-            case TextureType_3D:
-              glFramebufferTexture3D(fboTarget, attachmentID, textureTarget, glTex.glID, (GLint)attachment.mipLevel, (GLint)attachment.layer);
-              break;
-            }
-            activeAttachments.pushBack(attachmentID);
-          } else {
-            switch (fbClass) {
-            case TextureType_2D: glFramebufferTexture2D(fboTarget, attachmentID, GL_TEXTURE_2D, 0, 0); break;
-            case TextureType_3D:
-            case TextureType_2DArray:
-              glFramebufferTextureLayer(fboTarget, attachmentID, 0, 0, 0);
-              break;
-            case TextureType_CubeMap:
-              glFramebufferTexture3D(fboTarget, attachmentID, GL_TEXTURE_3D, 0, 0, 0);
-              break;
-            }
-          }
-        }
-
-        if (rt.textures.depth.texture != InvalidGraphicsResource) {
-          auto & attachment    = rt.textures.depth;
-          auto & glTex         = m_textures.getTexture(attachment.texture);
-          GLenum textureTarget = ToGLFramebufferTextureTarget(glTex.type, attachment.layer);
-          GLenum attachmentID  = ToGLFramebufferAttachment(glTex.depthStencilFmt);
-          switch (glTex.type) {
-          case TextureType_2D:
-          case TextureType_CubeMap: glFramebufferTexture2D(fboTarget, attachmentID, textureTarget, glTex.glID, (GLint)attachment.mipLevel); break;
-          case TextureType_2DArray: glFramebufferTextureLayer(fboTarget, attachmentID, glTex.glID, (GLint)attachment.mipLevel, (GLint)attachment.layer); break;
-          case TextureType_3D:
-            glFramebufferTexture3D(fboTarget, attachmentID, textureTarget, glTex.glID, (GLint)attachment.mipLevel, (GLint)attachment.layer);
-            break;
-          }
-        } else {
-          switch (fbClass) {
-          case TextureType_2D: glFramebufferTexture2D(fboTarget, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0, 0); break;
-          case TextureType_3D:
-          case TextureType_2DArray: glFramebufferTextureLayer(fboTarget, GL_DEPTH_STENCIL_ATTACHMENT, 0, 0, 0); break;
-          case TextureType_CubeMap: glFramebufferTexture3D(fboTarget, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_3D, 0, 0, 0); break;
-          }
-        }
-
-        if (write) {
-          if (activeAttachments.size() == 0) {
-            glDrawBuffer(GL_NONE);
-          } else {
-            glDrawBuffers((GLint)activeAttachments.size(), activeAttachments.data());
-          }
-        }
-
-        if (read) {
-          if (activeAttachments.size() == 0) {
-            glReadBuffer(GL_NONE);
-          } else {
-            glReadBuffer(GLenum(GL_COLOR_ATTACHMENT0 + rt.textures.colourReadAttachment));
-          }
-        }
-
-        rt.textures.rebind = false;
-      }
-    } else if (rt.type == RenderTargetType_Window) {
-      wglMakeCurrent(rt.window.hDC, m_hGLRC);
-
-      if (read) {
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-      }
-
-      if (write) {
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-      }
-
-      glDrawBuffer(write ? GL_BACK : GL_NONE);
-      glReadBuffer(read ? GL_BACK : GL_NONE);
-
-      m_activeWindowTarget = renderTargetID;
-    }
+  static graphics::GLTextureDownload & ToGL(graphics::TextureDownloadRef pBuffer) {
+    return *(graphics::GLTextureDownload *)pBuffer.get();
   }
 
-  void GraphicsDevice_OpenGL::bindScreen(MapAccess renderTargetAccess) {
-    bindRenderTarget(m_defaultTarget, renderTargetAccess);
+  static graphics::GLSampler & ToGL(graphics::SamplerRef pSampler) {
+    return *(graphics::GLSampler *)pSampler.get();
   }
 
-  void GraphicsDevice_OpenGL::draw(int64_t elementCount, int64_t elementOffset, PrimitiveType primType, int64_t instanceCount) {
-    int64_t count = elementCount;
-
-    // Only validate elementCount if a vertex array has been bound.
-    // This is to support shaders which may not take any vertex inputs.
-    // However, you must explicity bind an Invalid vertex array.
-    if (m_vertexCount >= 0) {
-      count = std::min(elementCount, m_vertexCount - elementOffset);
-      if (count < 0)
-        return;
-    }
-
-    if (instanceCount == 1) {
-      glDrawArrays(ToGLPrimType(primType), (GLint)elementOffset, (GLsizei)count);
-    } else {
-      glDrawArraysInstanced(ToGLPrimType(primType), (GLint)elementOffset, (GLsizei)count, (GLsizei)instanceCount);
-    }
+  static graphics::GLRenderTarget & ToGL(graphics::RenderTargetRef pRenderTarget) {
+    return *(graphics::GLRenderTarget *)pRenderTarget.get();
   }
 
-  void GraphicsDevice_OpenGL::drawIndexed(int64_t elementCount, int64_t elementOffset, PrimitiveType primType, int64_t instanceCount) {
-    int64_t count = elementCount;
-
-    // Only validate elementCount if a vertex array has been bound.
-    // This is to support shaders which may not take any vertex inputs.
-    // However, you must explicity bind an Invalid vertex array.
-    if (m_indexCount >= 0) {
-      count = std::min(elementCount, m_indexCount - elementOffset);
-      if (count < 0)
-        return;
-    }
-
-    if (instanceCount == 1) {
-      glDrawElements(ToGLPrimType(primType), (GLsizei)count, ToGLDataType(m_vaIndexType), (void *)(elementOffset * getDataTypeSize(m_vaIndexType)));
-    } else {
-      glDrawElementsInstanced(ToGLPrimType(primType), (GLsizei)count, ToGLDataType(m_vaIndexType), (void *)elementOffset, (GLsizei)instanceCount);
-    }
+  static graphics::GLProgram & ToGL(graphics::ProgramRef pProgram) {
+    return *(graphics::GLProgram *)pProgram.get();
   }
 
-  graphics::BufferManager * GraphicsDevice_OpenGL::getBufferManager() {
-    return &m_buffers;
-  }
-
-  graphics::TextureManager * GraphicsDevice_OpenGL::getTextureManager() {
-    return &m_textures;
-  }
-
-  graphics::ShaderManager * GraphicsDevice_OpenGL::getShaderManager() {
-    return &m_shaders;
-  }
-
-  void GraphicsDevice_OpenGL::destroy() {
-    delete this;
-  }
-
-  void GraphicsDevice_OpenGL::clear(RGBAu8 colour) {
-    glClearColor(colour.r / 255.0f, colour.g / 255.0f, colour.b / 255.0f, colour.a / 255.0f);
-    glClearDepth(1.0f);
-    glClearStencil(0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-  }
-
-  void GraphicsDevice_OpenGL::swap() {
-    SwapBuffers(m_renderTargets.getRenderTarget(m_activeWindowTarget).window.hDC);
-  }
-
-  graphics::RenderTargetManager * GraphicsDevice_OpenGL::getRenderTargetManager() {
-    return &m_renderTargets;
-  }
-
-  graphics::StateManager * GraphicsDevice_OpenGL::getStateManager() {
-    return &m_stateManager;
+  static graphics::GLVertexArray & ToGL(graphics::VertexArrayRef pVertexArray) {
+    return *(graphics::GLVertexArray *)pVertexArray.get();
   }
 
   void GLAPIENTRY ErrorMessageCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar * message, const void * userParam) {
@@ -1721,10 +1573,10 @@ namespace bfc {
 
   GLenum ToGLType(PixelFormat pixelFormat) {
     switch (pixelFormat) {
-    case PixelFormat_Ru8:     // Fall-through
-    case PixelFormat_RGBu8:   // Fall-through
-    case PixelFormat_RGBAu8:  // Fall-through
-    case PixelFormat_Lu8:     // Fall-through
+    case PixelFormat_Ru8:    // Fall-through
+    case PixelFormat_RGBu8:  // Fall-through
+    case PixelFormat_RGBAu8: // Fall-through
+    case PixelFormat_Lu8:    // Fall-through
     case PixelFormat_LAu8: return GL_UNSIGNED_BYTE;
     case PixelFormat_RGBAu16: return GL_UNSIGNED_SHORT;
     case PixelFormat_RGBAf32: // Fall-through
@@ -1836,10 +1688,6 @@ namespace bfc {
     return GL_NONE;
   }
 
-  GLenum ToGLCubeMapFace(CubeMapFace face) {
-    return face >= 0 && face < CubeMapFace_Count ? GL_TEXTURE_CUBE_MAP_POSITIVE_X + face : GL_NONE;
-  }
-
   GLenum ToGLWrapMode(WrapMode mode) {
     switch (mode) {
     case WrapMode_Repeat: return GL_REPEAT;
@@ -1854,7 +1702,7 @@ namespace bfc {
     switch (mipFilter) {
     case bfc::FilterMode_Linear:
       switch (filter) {
-      case bfc::FilterMode_Linear:  return GL_LINEAR_MIPMAP_LINEAR;
+      case bfc::FilterMode_Linear: return GL_LINEAR_MIPMAP_LINEAR;
       case bfc::FilterMode_Nearest: return GL_NEAREST_MIPMAP_LINEAR;
       }
       break;

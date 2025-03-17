@@ -40,6 +40,23 @@ namespace bfc {
                                             "    //     Out_Color += Frag_Color * texture(Texture, Frag_UV.st + step * vec2(x - 1, y - 1)) * coeff[y][x];\n"
                                             "}\n";
 
+  namespace external {
+    ImGuiTextureRef::ImGuiTextureRef(ImGuiTextureRef const & o)
+      : index(o.index) {}
+
+    ImGuiTextureRef::ImGuiTextureRef(::bfc::graphics::TextureRef const & pTexture)
+      : index(ui::Context::Current()->track(pTexture)) {}
+
+    ImGuiTextureRef& ImGuiTextureRef::operator=(ImGuiTextureRef const& o) {
+      index = o.index;
+      return *this;
+    }
+
+    ImGuiTextureRef::operator uint64_t() const {
+      return (uint64_t)index;
+    }
+  } // namespace external
+
   namespace ui {
     static ImGuiKey         translateKeyCode(KeyCode key);
     static ImGuiMouseButton translateMouseCode(MouseButton bt);
@@ -48,9 +65,8 @@ namespace bfc {
       : m_events("UI Context") {}
     Context::~Context() {}
 
-    void Context::init(GraphicsDevice * pDevice) {
-      m_pDevice = pDevice;
-      m_pAtlas  = new TextureAtlas(pDevice, Vec2i(32), Vec2i(16));
+    void Context::init(graphics::CommandList * pCmdList) {
+      m_pAtlas  = new TextureAtlas(Vec2i(32), Vec2i(16));
 
       m_pImContext              = ImGui::CreateContext();
       m_pImContext->IO.UserData = this;
@@ -74,30 +90,31 @@ namespace bfc {
       // io.ConfigFlags |= ImGuiConfigFlags_DpiEnableScaleViewports;
       io.ConfigViewportsNoDecoration = true;
 
-      graphics::BufferManager * pBuffers = pDevice->getBufferManager();
-      m_vertexBuffer                     = pBuffers->createBuffer(BufferUsageHint_Vertices | BufferUsageHint_Dynamic);
-      m_indexBuffer                      = pBuffers->createBuffer(BufferUsageHint_Indices | BufferUsageHint_Dynamic);
-      m_vertexArray                      = pBuffers->createVertexArray();
+      m_vertexBuffer                     = pCmdList->createBuffer(BufferUsageHint_Vertices | BufferUsageHint_Dynamic);
+      m_indexBuffer                      = pCmdList->createBuffer(BufferUsageHint_Indices | BufferUsageHint_Dynamic);
+      m_vertexArray                      = pCmdList->createVertexArray();
 
       // Setup backend capabilities flags
       io.BackendRendererUserData = nullptr;
       io.BackendRendererName     = "bfc_backend";
       // io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset; // We can honor the ImDrawCmd::VtxOffset field, allowing for large meshes.
 
-      graphics::ShaderManager * pShaders = pDevice->getShaderManager();
-      m_shader.load(pDevice, {{ShaderType_Vertex, g_vertexShaderSrc}, {ShaderType_Fragment, g_fragmentShaderSrc}});
-      m_sampler = pDevice->getTextureManager()->createSampler();
-      pDevice->getTextureManager()->setSamplerMinFilter(m_sampler, FilterMode_Linear, FilterMode_None);
-      pDevice->getTextureManager()->setSamplerMagFilter(m_sampler, FilterMode_Linear, FilterMode_None);
+      m_shader                           = pCmdList->createProgram();
+      m_shader->setSource({{ShaderType_Vertex, g_vertexShaderSrc}, {ShaderType_Fragment, g_fragmentShaderSrc}});
+      pCmdList->getDevice()->compile(m_shader);
 
-      pBuffers->setVertexBuffer(m_vertexArray, 0, m_vertexBuffer);
-      pBuffers->setIndexBuffer(m_vertexArray, m_indexBuffer, DataType_UInt32);
+      m_sampler = pCmdList->createSampler();
+      m_sampler->setSamplerMinFilter(FilterMode_Linear, FilterMode_None);
+      m_sampler->setSamplerMagFilter(FilterMode_Linear, FilterMode_None);
+
+      m_vertexArray->setVertexBuffer(0, m_vertexBuffer);
+      m_vertexArray->setIndexBuffer(m_indexBuffer, DataType_UInt32);
 
       VertexInputLayout layout;
       layout.setAttribute("POSITION0", {0, DataType_Float32, DataClass_Vector, 2, 1, IM_OFFSETOF(ImDrawVert, pos), sizeof(ImDrawVert)});
       layout.setAttribute("COLOUR0", {0, DataType_UInt8, DataClass_Vector, 4, 1, IM_OFFSETOF(ImDrawVert, col), sizeof(ImDrawVert), LayoutFlag_Normalize});
       layout.setAttribute("TEXCOORD0", {0, DataType_Float32, DataClass_Vector, 2, 1, IM_OFFSETOF(ImDrawVert, uv), sizeof(ImDrawVert)});
-      pBuffers->setLayout(m_vertexArray, layout);
+      m_vertexArray->setLayout(layout);
 
       // Build texture atlas
       unsigned char * pixels;
@@ -107,15 +124,14 @@ namespace bfc {
                                              // be compatible with user's existing shaders. If your ImTextureId represent a higher-level concept than just a
                                              // GL texture id, consider calling GetTexDataAsAlpha8() instead to save on GPU memory.
 
-      graphics::TextureManager * pTextures = pDevice->getTextureManager();
-      m_fontTexture                        = pTextures->createTexture(TextureType_2D);
+      m_fontTexture                        = pCmdList->createTexture(TextureType_2D);
 
       media::Surface fontSurface;
       fontSurface.pBuffer = pixels;
       fontSurface.size    = {width, height, 1};
       fontSurface.format  = PixelFormat_RGBAu8;
-      pTextures->upload(m_fontTexture, fontSurface);
-      pTextures->generateMipMaps(m_fontTexture);
+      pCmdList->uploadTexture(m_fontTexture, fontSurface);
+      pCmdList->generateMipMaps(m_fontTexture);
 
       // Store our identifier
       io.Fonts->SetTexID(m_fontTexture);
@@ -168,7 +184,7 @@ namespace bfc {
       m_vertexBuffer = InvalidGraphicsResource;
       m_indexBuffer  = InvalidGraphicsResource;
       m_fontTexture  = InvalidGraphicsResource;
-      m_shader.release();
+      m_shader       = InvalidGraphicsResource;
     }
 
     void Context::beginFrame(Vec2 size) {
@@ -205,10 +221,7 @@ namespace bfc {
       ImGuizmo::BeginFrame();
     }
 
-    void Context::renderDrawData(ImDrawData * pDrawData) {
-      graphics::StateManager *  pState   = m_pDevice->getStateManager();
-      graphics::ShaderManager * pShaders = m_pDevice->getShaderManager();
-      graphics::BufferManager * pBuffers = m_pDevice->getBufferManager();
+    void Context::renderDrawData(graphics::CommandList *pCmdList, ImDrawData * pDrawData) {
       int                       fbWidth  = (int)(pDrawData->DisplaySize.x * pDrawData->FramebufferScale.x);
       int                       fbHeight = (int)(pDrawData->DisplaySize.y * pDrawData->FramebufferScale.y);
       if (fbWidth <= 0 || fbHeight <= 0)
@@ -220,30 +233,26 @@ namespace bfc {
       int64_t vbBytes = pDrawData->TotalVtxCount * sizeof(ImDrawVert);
       int64_t ibBytes = pDrawData->TotalIdxCount * sizeof(uint32_t);
 
-      pBuffers->upload(m_vertexBuffer, vbBytes, 0);
-      pBuffers->upload(m_indexBuffer, ibBytes, 0);
+      Vector<ImDrawVert> vertices;
+      Vector<uint32_t>   indices;
+      vertices.reserve(pDrawData->TotalVtxCount);
+      indices.reserve(pDrawData->TotalIdxCount);
 
-      ImDrawVert * pVertData  = (ImDrawVert *)pBuffers->map(m_vertexBuffer, MapAccess_Write);
-      uint32_t *   pIndexData = (uint32_t *)pBuffers->map(m_indexBuffer, MapAccess_Write);
       {
-        int64_t indexOffset  = 0;
         int64_t vertexOffset = 0;
         for (int64_t i = 0; i < pDrawData->CmdListsCount; ++i) {
           ImDrawList * pCmd = pDrawData->CmdLists[(int)i];
-          memcpy(pVertData + vertexOffset, pCmd->VtxBuffer.Data, pCmd->VtxBuffer.Size * sizeof(ImDrawVert));
+          vertices.pushBack(pCmd->VtxBuffer.Data, pCmd->VtxBuffer.Data + pCmd->VtxBuffer.Size);
 
           for (int64_t j = 0; j < pCmd->IdxBuffer.Size; ++j) {
-            pIndexData[indexOffset + j] = (uint32_t)(pCmd->IdxBuffer[(int)j] + vertexOffset);
+            indices.pushBack((uint32_t)(pCmd->IdxBuffer[(int)j] + vertexOffset));
           }
 
-          indexOffset += pCmd->IdxBuffer.Size;
           vertexOffset += pCmd->VtxBuffer.Size;
         }
       }
-      pBuffers->unmap(m_vertexBuffer);
-      pBuffers->unmap(m_indexBuffer);
-
-      pState->setViewport({0, 0}, {fbWidth, fbHeight});
+      pCmdList->upload(m_vertexBuffer, std::move(vertices));
+      pCmdList->upload(m_indexBuffer, std::move(indices));
 
       float L = pDrawData->DisplayPos.x;
       float R = pDrawData->DisplayPos.x + pDrawData->DisplaySize.x;
@@ -257,16 +266,19 @@ namespace bfc {
         {0.0f, 0.0f, 0.0f, 1.0f},
       };
 
-      m_pDevice->bindProgram(m_shader.getResource());
-      m_shader.setUniform("ProjMtx", orthoProj);
-      m_shader.setTextureBinding("Texture", 0);
+      pCmdList->bindProgram(m_shader);
+      pCmdList->setUniform("ProjMtx", orthoProj);
+      pCmdList->setTextureBinding("Texture", 0);
 
-      m_pDevice->bindSampler(m_sampler, 0);
-      m_pDevice->bindVertexArray(m_vertexArray);
+      pCmdList->bindSampler(m_sampler, 0);
+      pCmdList->bindVertexArray(m_vertexArray);
 
-      pState->setFeatureEnabled(GraphicsState_Blend, true);
-      pState->setFeatureEnabled(GraphicsState_DepthTest, false);
-      pState->setFeatureEnabled(GraphicsState_ScissorTest, true);
+      pCmdList->pushState(
+        graphics::State::Viewport{{0, 0}, {fbWidth, fbHeight}},
+        graphics::State::EnableBlend{true},
+        graphics::State::EnableDepthRead{false},
+        graphics::State::EnableScissorTest{true}
+      );
 
       ImVec2 clipOff   = pDrawData->DisplayPos;       // (0,0) unless using multi-viewports
       ImVec2 clipScale = pDrawData->FramebufferScale; // (1,1) unless using retina display which are often (2,2)
@@ -275,12 +287,12 @@ namespace bfc {
       int64_t vertexOffset = 0;
 
       for (int n = 0; n < pDrawData->CmdListsCount; ++n) {
-        const ImDrawList * pCmdList = pDrawData->CmdLists[n];
+        const ImDrawList * pDrawList = pDrawData->CmdLists[n];
 
-        for (int cmdIndex = 0; cmdIndex < pCmdList->CmdBuffer.Size; ++cmdIndex) {
-          const ImDrawCmd * pCmd = &pCmdList->CmdBuffer[cmdIndex];
+        for (int cmdIndex = 0; cmdIndex < pDrawList->CmdBuffer.Size; ++cmdIndex) {
+          const ImDrawCmd * pCmd = &pDrawList->CmdBuffer[cmdIndex];
           if (pCmd->UserCallback != NULL) {
-            pCmd->UserCallback(pCmdList, pCmd);
+            pCmd->UserCallback(pDrawList, pCmd);
           } else {
             // Project scissor/clipping rectangles into framebuffer space
             ImVec2 clipMin((pCmd->ClipRect.x - clipOff.x) * clipScale.x, (pCmd->ClipRect.y - clipOff.y) * clipScale.y);
@@ -289,17 +301,20 @@ namespace bfc {
               continue;
 
             // Apply scissor/clipping rectangle (Y is inverted in OpenGL)
-            pState->setScissor({(int)clipMin.x, (int)((float)fbHeight - clipMax.y)}, {(int)(clipMax.x - clipMin.x), (int)(clipMax.y - clipMin.y)});
+            pCmdList->setState(
+              graphics::State::Scissor{{(int)clipMin.x, (int)((float)fbHeight - clipMax.y)}, {(int)(clipMax.x - clipMin.x), (int)(clipMax.y - clipMin.y)}});
 
-            m_pDevice->bindTexture((GraphicsResource)pCmd->GetTexID(), 0);
-            m_pDevice->drawIndexed(pCmd->ElemCount, indexOffset + pCmd->IdxOffset, PrimitiveType_Triangle);
+            pCmdList->bindTexture(m_tracked[pCmd->GetTexID().index], 0);
+            pCmdList->drawIndexed(pCmd->ElemCount, indexOffset + pCmd->IdxOffset, PrimitiveType_Triangle);
           }
         }
-        indexOffset += pCmdList->IdxBuffer.Size;
+        indexOffset += pDrawList->IdxBuffer.Size;
       }
 
-      m_pDevice->bindSampler(InvalidGraphicsResource, 0);
-      pState->setFeatureEnabled(GraphicsState_ScissorTest, false);
+      pCmdList->bindSampler(InvalidGraphicsResource, 0);
+      pCmdList->popState();
+
+      m_tracked.resize(1); // Keep the font texture
     }
 
     void Context::bind() {
@@ -308,6 +323,11 @@ namespace bfc {
 
     Context * Context::Current() {
       return (Context *)ImGui::GetIO().UserData;
+    }
+
+    uint64_t Context::track(graphics::TextureRef texture) {
+      m_tracked.pushBack(texture);
+      return m_tracked.size() - 1;
     }
 
     void Context::updateMouseData() {
@@ -352,10 +372,6 @@ namespace bfc {
       }
 
       io.AddMouseViewportEvent(hoveredViewportID);
-    }
-
-    GraphicsDevice * Context::getDevice() const {
-      return m_pDevice;
     }
 
     void Context::requestUpdateMonitors() {

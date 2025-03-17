@@ -7,14 +7,14 @@
 
 namespace bfc {
   enum AsyncFlags {
-    AsyncFlags_None      = 0,      ///< Default behaviour. Run in a pooled thread.
-    AsyncFlags_NewThread = 1 << 0, ///< Always run in a new thread.
-    AsyncFlags_AlwaysRun = 1 << 1, ///< Start a new thread if no pooled threads are available.
+    AsyncFlags_None           = 0,      ///< Default behaviour. Run in a pooled thread.
+    AsyncFlags_NewThread      = 1 << 0, ///< Always run in a new thread.
+    AsyncFlags_AlwaysRun      = 1 << 1, ///< Start a new thread if no pooled threads are available.
+    AsyncFlags_AllowRunInline = 1 << 2, ///< If run from within a pooled thread, run the task sychronously instead.
   };
 
   class BFC_API ThreadPool {
   public:
-
     struct Task {
       std::function<void()> callback;
       AsyncFlags            flags;
@@ -23,9 +23,6 @@ namespace bfc {
     ThreadPool(int64_t targetConcurrency = std::thread::hardware_concurrency());
 
     ~ThreadPool();
-
-    /// Get the global thread pool instance.
-    static ThreadPool & Global();
 
     template<typename Callable, typename... Args>
     auto run(Callable&& cb, Args &&... args) -> std::future<return_value_of_t<Callable, Args...>> {
@@ -49,7 +46,10 @@ namespace bfc {
         }
       };
 
-      {
+      if ((flags & AsyncFlags_AllowRunInline) && IsPoolThread()) {
+        task.callback(); // Run inline
+        return future;
+      } else {
         std::scoped_lock guard{m_lock};
 
         if (!m_running) {
@@ -65,6 +65,12 @@ namespace bfc {
       return future;
     }
 
+    /// Is the current thread part of a ThreadPool.
+    static bool IsPoolThread();
+
+    /// Get the global thread pool instance.
+    static ThreadPool & Global();
+
   private:
     void dispatchTasks(int64_t targetConcurrency = std::thread::hardware_concurrency());
 
@@ -73,7 +79,7 @@ namespace bfc {
     Vector<Task>            m_dispatchQueue;
     bool                    m_running = true;
 
-    std::thread                   m_dispatcher;
+    std::thread             m_dispatcher;
   };
 
   template<>

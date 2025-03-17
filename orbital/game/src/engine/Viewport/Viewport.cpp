@@ -5,31 +5,31 @@
 using namespace bfc;
 
 namespace engine {
-  Viewport::Viewport(GraphicsDevice * pGraphics, AssetManager * pAssets, StringView const & viewportName)
+  Viewport::Viewport(graphics::CommandList * pCmdList, AssetManager * pAssets, StringView const & viewportName)
     : m_events(String::format("Viewport.%.*s", viewportName.length(), viewportName.begin()))
     , m_renderScene(nullptr) {
-    m_pGraphics = pGraphics;
-    m_pRenderer = NewRef<DeferredRenderer>(pGraphics, pAssets);
+    m_pGraphics = pCmdList->getDevice();
+    m_pRenderer = NewRef<DeferredRenderer>(pCmdList, pAssets);
   }
 
-  void Viewport::render(bfc::GraphicsResource renderTarget) {
+  void Viewport::render(bfc::graphics::CommandList *pCmdList, bfc::graphics::RenderTargetRef renderTarget) {
     if (m_renderScene.getLevel() == nullptr || getSize().x == 0 || getSize().y == 0)
       return;
 
     m_renderScene.setViews(collectViews(renderTarget));
     m_renderScene.collect();
 
-    getGraphics()->bindRenderTarget(renderTarget);
-    getGraphics()->clear({0, 0, 0, 255});
-    getRenderer()->render(m_renderScene.views());
+    pCmdList->bindRenderTarget(renderTarget);
+    pCmdList->clear({0, 0, 0, 255});
+    getRenderer()->render(pCmdList, m_renderScene.views());
   }
 
-  void Viewport::setSize(bfc::Vec2i const & size) {
+  void Viewport::setSize(bfc::graphics::CommandList * pCmdList, bfc::Vec2i const & size) {
     if (m_size == size) {
       return;
     }
 
-    m_pRenderer->onResize(size);
+    m_pRenderer->onResize(pCmdList, size);
     m_size = size;
   }
 

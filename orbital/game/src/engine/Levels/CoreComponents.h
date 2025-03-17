@@ -9,7 +9,6 @@
 
 namespace bfc {
   class Mesh;
-  class Texture;
   class Material;
 } // namespace bfc
 
@@ -96,7 +95,7 @@ namespace components {
     bfc::Vec2 viewportPosition = {0, 0};
     bfc::Vec2 viewportSize     = {1, 1};
 
-    bfc::GraphicsResource renderTarget = bfc::InvalidGraphicsResource;
+    bfc::graphics::RenderTargetRef renderTarget = bfc::InvalidGraphicsResource;
 
     bfc::Mat4 projectionMat(float aspect = 1) const;
   };
@@ -123,7 +122,7 @@ namespace components {
   };
 
   struct Skybox {
-    bfc::Ref<bfc::Texture> pTexture;
+    bfc::graphics::TextureRef pTexture;
   };
 
   struct StaticMesh {
@@ -152,7 +151,7 @@ namespace components {
     float threshold     = 0.25f;
     float dirtIntensity = 1.0f;
 
-    bfc::Ref<bfc::Texture> dirt;
+    bfc::graphics::TextureRef dirt;
   };
 
   struct PostProcess_SSAO {

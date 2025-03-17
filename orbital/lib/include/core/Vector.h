@@ -49,6 +49,7 @@ namespace bfc {
     }
 
     Vector & operator=(Vector && o) {
+      clear();
       std::swap(m_pData, o.m_pData);
       std::swap(m_size, o.m_size);
       std::swap(m_capacity, o.m_capacity);
@@ -81,6 +82,7 @@ namespace bfc {
     operator Span<T>() {
       return Span<T>(m_pData, size());
     }
+
     operator Span<const T>() const {
       return Span<const T>(m_pData, size());
     }
@@ -88,9 +90,11 @@ namespace bfc {
     T & at(int64_t index) {
       return m_pData[index];
     }
+
     T & back() {
       return at(size() - 1);
     }
+
     T & front() {
       return at(0);
     }
@@ -98,9 +102,11 @@ namespace bfc {
     T const & at(int64_t index) const {
       return m_pData[index];
     }
+
     T const & back() const {
       return at(size() - 1);
     }
+
     T const & front() const {
       return at(0);
     }
@@ -149,7 +155,11 @@ namespace bfc {
       insert(size(), first, last);
     }
 
-    void pushBack(Span<T> const & items) {
+    //void pushBack(Span<T> const & items) {
+    //  insert(size(), items);
+    //}
+
+    void pushBack(Span<const T> const & items) {
       insert(size(), items);
     }
 
@@ -187,6 +197,10 @@ namespace bfc {
       insert(0, items);
     }
 
+    void pushFront(Span<const T> const & items) {
+      insert(0, items);
+    }
+
     void pushFront(std::initializer_list<T> const& il) {
       insert(0, il);
     }
@@ -221,6 +235,10 @@ namespace bfc {
     }
 
     void insert(int64_t index, Span<T> const& items) {
+      insert(index, items.begin(), items.end());
+    }
+
+    void insert(int64_t index, Span<const T> const & items) {
       insert(index, items.begin(), items.end());
     }
 
@@ -375,6 +393,18 @@ namespace bfc {
       Vector<Item> ret;
       ret.reserve(size());
       for (T const& item : *this) {
+        ret.pushBack(callback(item));
+      }
+      return ret;
+    }
+
+    template<typename Callable>
+    auto map(Callable const & callback) {
+      using Item = decltype(callback(std::declval<T>()));
+
+      Vector<Item> ret;
+      ret.reserve(size());
+      for (T & item : *this) {
         ret.pushBack(callback(item));
       }
       return ret;

@@ -2,41 +2,36 @@
 #include "media/Image.h"
 
 namespace bfc {
-  Mesh::Mesh(GraphicsDevice * pDevice, MeshData const & data) {
-    load(pDevice, data);
+  Mesh::Mesh(graphics::CommandList * pCmdList, MeshData const & data) {
+    load(pCmdList, data);
   }
 
   Mesh::~Mesh() {
     release();
   }
 
-  bool Mesh::load(GraphicsDevice * pDevice, MeshData const & data) {
+  bool Mesh::load(graphics::CommandList * pCmdList, MeshData const & data) {
     release();
 
-    graphics::BufferManager * pBuffer = pDevice->getBufferManager();
-    m_pDevice                         = pDevice;
+    m_pDevice                         = pCmdList->getDevice();
 
-    m_vertexBuffer = {m_pDevice, pBuffer->createBuffer(BufferUsageHint_Vertices)};
-    m_indexBuffer  = {m_pDevice, pBuffer->createBuffer(BufferUsageHint_Indices)};
-    m_vertexArray  = {m_pDevice, pBuffer->createVertexArray()};
+    m_vertexBuffer = pCmdList->createBuffer(BufferUsageHint_Vertices);
+    m_indexBuffer  = pCmdList->createBuffer(BufferUsageHint_Indices);
+    m_vertexArray  = pCmdList->createVertexArray();
 
     m_vertexCount = data.vertices.size();
     m_indexCount  = data.triangles.size() * 3;
 
-    pBuffer->upload(m_vertexBuffer, sizeof(Vertex) * data.vertices.size());
-    pBuffer->upload(m_indexBuffer, sizeof(Index) * m_indexCount);
-
     // Create vertex buffer
-    Span<Vertex> vertexData = {(Vertex *)pBuffer->map(m_vertexBuffer, MapAccess_Write), data.vertices.size()};
-    for (auto & [i, vert] : enumerate(data.vertices)) {
-      Vertex & v = vertexData[i];
-
-      v.position = data.positions[vert.position];
-      v.uv       = data.uvs[vert.uv];
-      v.colour   = Colour<RGBAf32>(data.colours[vert.colour]);
-      v.normal   = data.normals[vert.normal];
-      v.tangent  = data.tangents[vert.tangent];
-    }
+    Vector<Vertex> vertexData = data.vertices.map([&](MeshData::Vertex const & v) {
+      Vertex ret;
+      ret.position = data.positions[v.position];
+      ret.uv       = data.uvs[v.uv];
+      ret.colour   = Colour<RGBAf32>(data.colours[v.colour]);
+      ret.normal   = data.normals[v.normal];
+      ret.tangent  = data.tangents[v.tangent];
+      return ret;
+    });
 
     // Allocate memory for indices
     Vector<Vector<Index>> subMeshIndexData;
@@ -54,20 +49,23 @@ namespace bfc {
     }
 
     // Concatenate into a single buffer
-    Span<Index> indexData = {(Index *)pBuffer->map(m_indexBuffer, MapAccess_Write), m_indexCount};
-    Index *     pBegin    = indexData.begin();
+    Vector<Index> indexData;
+    indexData.resize(m_indexCount);
+
+    Index * pBegin = indexData.begin();
+    Index * pNext  = indexData.begin();
     for (Vector<Index> & indices : subMeshIndexData) {
       SubMesh sm;
-      sm.elmOffset = indexData.begin() - pBegin;
+      sm.elmOffset = pNext - pBegin;
       sm.elmCount  = indices.size();
       m_meshes.pushBack(sm);
-      memcpy(indexData.begin(), indices.begin(), sizeof(Index) * indices.size());
-      indexData = indexData.getElements(indices.size());
+      memcpy(pNext, indices.begin(), sizeof(Index) * indices.size());
+      pNext += indices.size();
     }
-
-    pBuffer->setLayout(m_vertexArray, VertexInputLayout::Create<Vertex>());
-    pBuffer->setVertexBuffer(m_vertexArray, 0, m_vertexBuffer);
-    pBuffer->setIndexBuffer(m_vertexArray, m_indexBuffer, DataType_UInt32);
+    
+    m_vertexArray->setLayout(VertexInputLayout::Create<Vertex>());
+    m_vertexArray->setVertexBuffer(0, m_vertexBuffer);
+    m_vertexArray->setIndexBuffer(m_indexBuffer, DataType_UInt32);
 
     // Calculate extents of each sub-mesh
     for (auto & [i, indices] : enumerate(subMeshIndexData)) {
@@ -80,9 +78,9 @@ namespace bfc {
       m_bounds.growToContain(bounds);
     }
 
-    // Unmap GPU buffers
-    pBuffer->unmap(m_indexBuffer);
-    pBuffer->unmap(m_vertexBuffer);
+    pCmdList->upload(m_vertexBuffer, std::move(vertexData));
+    pCmdList->upload(m_indexBuffer, std::move(indexData));
+
     return true;
   }
 
@@ -115,7 +113,7 @@ namespace bfc {
     return m_indexCount;
   }
 
-  GraphicsResource Mesh::getVertexArray() const {
+  graphics::VertexArrayRef Mesh::getVertexArray() const {
     return m_vertexArray;
   }
 
@@ -134,24 +132,24 @@ namespace bfc {
     return layout;
   }
 
-  void Material::load(GraphicsDevice * pDevice, MeshData::Material const & def, LoadTextureFunc textureLoader) {
+  void Material::load(graphics::CommandList * pCmdList, MeshData::Material const & def, LoadTextureFunc textureLoader) {
     loadValues(def);
     loadTextures(def, textureLoader);
-    upload(pDevice);
+    upload(pCmdList);
   }
 
-  void Material::load(GraphicsDevice * pDevice, MeshData::Material const & def) {
+  void Material::load(graphics::CommandList * pCmdList, MeshData::Material const & def) {
     // Default texture loading function
-    auto textureLoader = [pDevice](const MeshData::Material & def, const String & textureName) {
-      Ref<Texture> pTexture = NewRef<Texture>();
+    auto textureLoader = [pCmdList](const MeshData::Material & def, const String & textureName) {
+      graphics::TextureRef pTexture;
       StringView   texPath  = def.getTexture(textureName);
-      if (!pTexture->load2D(pDevice, texPath)) {
-        return Ref<Texture>();
+      if (!graphics::loadTexture2D(pCmdList, &pTexture, texPath)) {
+        return graphics::TextureRef{};
       }
       return pTexture;
     };
 
-    return load(pDevice, def, textureLoader);
+    return load(pCmdList, def, textureLoader);
   }
 
   void Material::loadValues(MeshData::Material const & def) {

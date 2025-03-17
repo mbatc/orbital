@@ -52,10 +52,10 @@ namespace engine {
               texture = InvalidGraphicsResource;
             }
           } else {
-            renderable.materialBuffer = pMaterial->getResource();
+            renderable.materialBuffer = *pMaterial;
             for (auto & [i, texture] : enumerate(pMaterial->textures)) {
               if (texture != nullptr) {
-                renderable.materialTextures[i] = texture->getResource();
+                renderable.materialTextures[i] = texture;
               }
             }
           }
@@ -117,7 +117,7 @@ namespace engine {
   
         CubeMapRenderable renderable;
         renderable.alpha   = 1.0f;
-        renderable.texture = *skyboxComponent.pTexture;
+        renderable.texture = skyboxComponent.pTexture;
         skyboxes.pushBack(renderable);
       }
     }
@@ -148,7 +148,7 @@ namespace engine {
           renderable.strength     = pBloom->strength;
           renderable.threshold    = pBloom->threshold;
           if (pBloom->dirt != nullptr) {
-            renderable.dirtTex       = *pBloom->dirt;
+            renderable.dirtTex       = pBloom->dirt;
             renderable.dirtIntensity = pBloom->dirtIntensity;
           }
           bloom.pushBack(renderable);

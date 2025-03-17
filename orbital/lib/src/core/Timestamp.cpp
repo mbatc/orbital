@@ -10,7 +10,7 @@ namespace bfc {
     return (double)length / PerSecond * 1000000;
   }
 
-  double Timestamp::mills() const {
+  double Timestamp::millis() const {
     return (double)length / PerSecond * 1000;
   }
 
@@ -52,6 +52,26 @@ namespace bfc {
 
   Timestamp Timestamp::now() {
     return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+  }
+
+  Timestamp::operator std::chrono::microseconds() const {
+    return std::chrono::microseconds{(int64_t)micros()};
+  }
+
+  Timestamp::operator std::chrono::milliseconds() const {
+    return std::chrono::milliseconds{(int64_t)millis()};
+  }
+
+  Timestamp::operator std::chrono::seconds() const {
+    return std::chrono::seconds{(int64_t)secs()};
+  }
+
+  Timestamp::operator std::chrono::minutes() const {
+    return std::chrono::minutes{(int64_t)mins()};
+  }
+
+  Timestamp::operator std::chrono::hours() const {
+    return std::chrono::hours{(int64_t)hours()};
   }
 
   Timestamp Timestamp::operator-(Timestamp const & rhs) const {

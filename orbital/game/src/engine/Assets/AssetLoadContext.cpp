@@ -1,5 +1,8 @@
 #include "AssetLoadContext.h"
 #include "AssetManager.h"
+#include "Application.h"
+#include "engine/Rendering/Rendering.h"
+#include "render/GraphicsDevice.h"
 
 using namespace bfc;
 
@@ -39,5 +42,14 @@ namespace engine {
 
   VirtualFileSystem * AssetLoadContext::getFileSystem() const {
     return m_pAssetManager->getFileSystem();
+  }
+
+  GraphicsDevice * AssetLoadContext::getGraphicsDevice() const {
+    auto pRendering = m_pAssetManager->getApp()->findSubsystem<engine::Rendering>();
+    if (pRendering == nullptr) {
+      return nullptr;
+    }
+
+    return pRendering->getDevice();
   }
 }

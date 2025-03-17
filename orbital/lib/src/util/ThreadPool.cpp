@@ -3,7 +3,9 @@
 
 namespace bfc {
   namespace impl {
-    class PooledRunner{
+    static thread_local bool isPooledThread = false;
+
+    class PooledRunner {
     public:
       PooledRunner(int64_t numThreads)
       {
@@ -43,6 +45,8 @@ namespace bfc {
 
     private:
       void worker() {
+        isPooledThread = true;
+
         std::optional<ThreadPool::Task> task;
 
         bool running = true;
@@ -101,6 +105,8 @@ namespace bfc {
 
         int64_t index = m_active.emplace();
         m_active[index] = std::thread(([this, index, task = std::move(task)]() {
+          isPooledThread = true;
+
           task.callback();
 
           m_threadLock.lock();
@@ -155,7 +161,11 @@ namespace bfc {
     m_dispatcher.join();
   }
 
-  ThreadPool& ThreadPool::Global() {
+  bool ThreadPool::IsPoolThread() {
+    return false;
+  }
+
+  ThreadPool & ThreadPool::Global() {
     static ThreadPool instance;
     return instance;
   }

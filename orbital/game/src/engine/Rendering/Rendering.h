@@ -50,5 +50,7 @@ namespace engine {
     bfc::Ref<bfc::EventListener>    m_pListener     = nullptr;
     bfc::Ref<Viewport>              m_pMainViewport = nullptr;
     bfc::Setting<bfc::String>       m_api;
+
+    uint64_t m_lastFrameFence = 0;
   };
 } // namespace engine

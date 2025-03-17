@@ -3,7 +3,6 @@
 #include "../math/MathTypes.h"
 #include "../core/Pool.h"
 #include "GraphicsDevice.h"
-#include "Texture.h"
 
 namespace bfc {
   class GraphicsDevice;
@@ -16,7 +15,7 @@ namespace bfc {
       int8_t level = -1; ///< LOD level in atlas
     };
 
-    ShadowAtlas(GraphicsDevice * pDevice, int64_t maxRes = 2048, int64_t memoryLimit = 128 * 1024 * 1024 /*128 Mb*/);
+    ShadowAtlas(graphics::CommandList * pDevice, int64_t maxRes = 2048, int64_t memoryLimit = 128 * 1024 * 1024 /*128 Mb*/);
 
     int64_t allocate(float priority);
 
@@ -27,7 +26,7 @@ namespace bfc {
     Vec2i  resolution() const;
     Vec2i  resolution(int64_t allocation) const;
 
-    inline operator GraphicsResource() const {
+    inline operator graphics::TextureRef() const {
       return m_texture;
     }
 
@@ -38,7 +37,7 @@ namespace bfc {
     int64_t m_numLayers = 0;
     int64_t m_numMips = 0;
 
-    Texture          m_texture; // 3D texture
+    graphics::TextureRef m_texture; // 3D texture
     GraphicsDevice * m_pDevice = nullptr;
   };
 }

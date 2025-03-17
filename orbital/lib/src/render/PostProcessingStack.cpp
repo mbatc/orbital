@@ -1,28 +1,26 @@
 #include "render/PostProcessingStack.h"
 
 namespace bfc {
-  void PostProcessParams::bindInputs(GraphicsDevice * pDevice) const {
-    pDevice->bindTexture(sceneColour, PostProcessInputBindPoint_SceneColour);
-    pDevice->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_SceneColour);
-    pDevice->bindTexture(pInput->sceneDepth, PostProcessInputBindPoint_SceneDepth);
-    pDevice->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_SceneDepth);
-    pDevice->bindTexture(pInput->baseColour, PostProcessInputBindPoint_BaseColour);
-    pDevice->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_BaseColour);
-    pDevice->bindTexture(pInput->ambientColour, PostProcessInputBindPoint_AmbientColour);
-    pDevice->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_AmbientColour);
-    pDevice->bindTexture(pInput->normal, PostProcessInputBindPoint_Normal);
-    pDevice->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_Normal);
-    pDevice->bindTexture(pInput->position, PostProcessInputBindPoint_Position);
-    pDevice->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_Position);
-    pDevice->bindTexture(pInput->rma, PostProcessInputBindPoint_RMA);
-    pDevice->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_RMA);
+  void PostProcessParams::bindInputs(graphics::CommandList * pCmdList) const {
+    pCmdList->bindTexture(sceneColour, PostProcessInputBindPoint_SceneColour);
+    pCmdList->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_SceneColour);
+    pCmdList->bindTexture(pInput->sceneDepth, PostProcessInputBindPoint_SceneDepth);
+    pCmdList->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_SceneDepth);
+    pCmdList->bindTexture(pInput->baseColour, PostProcessInputBindPoint_BaseColour);
+    pCmdList->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_BaseColour);
+    pCmdList->bindTexture(pInput->ambientColour, PostProcessInputBindPoint_AmbientColour);
+    pCmdList->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_AmbientColour);
+    pCmdList->bindTexture(pInput->normal, PostProcessInputBindPoint_Normal);
+    pCmdList->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_Normal);
+    pCmdList->bindTexture(pInput->position, PostProcessInputBindPoint_Position);
+    pCmdList->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_Position);
+    pCmdList->bindTexture(pInput->rma, PostProcessInputBindPoint_RMA);
+    pCmdList->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_RMA);
   }
 
-  void PostProcessParams::bindTarget(GraphicsDevice * pDevice) const {
-    pDevice->bindRenderTarget(target);
-    graphics::RenderTargetManager * pRT = pDevice->getRenderTargetManager();
-    graphics::StateManager * pState = pDevice->getStateManager();
-    pState->setViewport({0, 0}, pRT->getSize(target));
+  void PostProcessParams::bindTarget(graphics::CommandList * pCmdList) const {
+    pCmdList->bindRenderTarget(target);
+    pCmdList->setState(graphics::State::Viewport{{0, 0}, target->getSize()});
   }
 
   PostProcessingStack::PostProcessingStack(PostProcessingStack&& o) {
@@ -35,21 +33,20 @@ namespace bfc {
     std::swap(o.m_intermediateTarget[1], m_intermediateTarget[1]);
   }
 
-  void PostProcessingStack::addPass(std::function<void(GraphicsDevice *, PostProcessParams const &)> callback) {
+  void PostProcessingStack::addPass(std::function<void(graphics::CommandList *, PostProcessParams const &)> callback) {
     Pass newPass;
     newPass.callback = callback;
     m_passes.pushBack(newPass);
   }
 
-  void PostProcessingStack::execute(GraphicsDevice * pDevice, Vec2i size) {
+  void PostProcessingStack::execute(graphics::CommandList * pCmdList, Vec2i size) {
     // Create/Resize intermediate targets
-    graphics::RenderTargetManager * pRT = pDevice->getRenderTargetManager();
     if (m_intermediateSize != size) {
       m_intermediateSize = size;
       for (int64_t i = 0; i < 2; ++i) {
-        m_intermediateTarget[i] = {pDevice, pRT->createRenderTarget(RenderTargetType_Texture)};
-        m_intermediateColour[i].load2D(pDevice, size, PixelFormat_RGBAf16);
-        pRT->attachColour(m_intermediateTarget[i], m_intermediateColour[i]);
+        m_intermediateTarget[i] = pCmdList->createRenderTarget(RenderTargetType_Texture);
+        graphics::loadTexture2D(pCmdList, &m_intermediateColour[i], size, PixelFormat_RGBAf16);
+        m_intermediateTarget[i]->attachColour(m_intermediateColour[i]);
       }
     }
 
@@ -57,7 +54,7 @@ namespace bfc {
     // Here we set the input/ouput of each pass to one of the intermediate textures in the ping-pong buffer.
     // The first pass input is set to the initial scene colour texture.
     // The last pass output is set to the post processing stack target.
-    Texture src = sceneColour;
+    graphics::TextureRef src = sceneColour;
     for (Pass & pass : m_passes) {
       pass.params.pInput = &inputs;
       pass.params.sceneColour = src;
@@ -69,16 +66,13 @@ namespace bfc {
 
     m_passes.back().params.target = target;
 
-    graphics::StateManager * pState = pDevice->getStateManager();
-    pState->setFeatureEnabled(GraphicsState_DepthTest, false);
-    pState->setFeatureEnabled(GraphicsState_DepthWrite, false);
-    pState->setFeatureEnabled(GraphicsState_StencilTest, false);
-    pState->setFeatureEnabled(GraphicsState_Blend, false);
-
+    pCmdList->pushState(graphics::State::EnableDepthRead{false}, graphics::State::EnableDepthWrite{false}, graphics::State::EnableStencilTest{false},
+                        graphics::State::EnableBlend{false});
     // Run each pass
     for (Pass const & pass : m_passes) {
-      pass.callback(pDevice, pass.params);
+      pass.callback(pCmdList, pass.params);
     }
+    pCmdList->popState();
   }
 
   void PostProcessingStack::reset() {

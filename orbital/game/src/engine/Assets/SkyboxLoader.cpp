@@ -5,7 +5,6 @@
 
 #include "VirtualFileSystem.h"
 #include "render/GraphicsDevice.h"
-#include "render/Texture.h"
 
 using namespace bfc;
 
@@ -13,13 +12,12 @@ namespace engine {
   SkyboxLoader::SkyboxLoader(GraphicsDevice * pGraphicsDevice)
     : m_pGraphicsDevice(pGraphicsDevice) {}
 
-  Ref<Texture> SkyboxLoader::load(URI const & uri, AssetLoadContext * pContext) const {
+  Ref<graphics::Texture> SkyboxLoader::load(URI const & uri, AssetLoadContext * pContext) const {
     std::optional<SkyboxDefinition> def = pContext->getFileSystem()->deserialize<SkyboxDefinition>(uri);
     if (!def.has_value()) {
       return nullptr;
     }
 
-    Texture        tex;
     media::Surface sfc;
     sfc.format  = def->pixelFormat;
     sfc.size    = {def->resolution, CubeMapFace_Count};
@@ -47,10 +45,13 @@ namespace engine {
     case SkyboxFormat_Equirectangular: BFC_FAIL("Not implemented"); return nullptr;
     }
 
-    tex.loadCubeMap(m_pGraphicsDevice, sfc);
-    sfc.free();
+    auto                 pLoadList = m_pGraphicsDevice->createCommandList();
+    graphics::TextureRef tex;
+    graphics::loadTextureCubeMap(pLoadList.get(), &tex, sfc);
+    m_pGraphicsDevice->submit(std::move(pLoadList));
 
-    return NewRef<Texture>(tex);
+    sfc.free();
+    return tex;
   }
 
   bool SkyboxLoader::handles(URI const & uri, AssetManager const * pManager) const {

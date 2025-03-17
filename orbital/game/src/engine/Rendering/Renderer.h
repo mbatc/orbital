@@ -21,8 +21,8 @@ namespace engine {
     bfc::Mat4d viewMatrix;       ///< Camera view matrix
     bfc::Mat4d projectionMatrix; ///< Camera projection matrix
 
-    bfc::GraphicsResource renderTarget; ///< Where to render to
-    bfc::Vec4d            viewport;     ///< Rect within renderTarget
+    bfc::graphics::RenderTargetRef renderTarget; ///< Where to render to
+    bfc::Vec4d                     viewport;     ///< Rect within renderTarget
 
     RenderData * pRenderData = nullptr; ///< Data to be rendered
 
@@ -92,14 +92,14 @@ namespace engine {
     /// Called when the feature is added to a renderer.
     /// This entry point can be used to add any data to the renderer that might be
     /// required by this feature (e.g. adding shaders to the renderers shader pool).
-    virtual void onAdded(Renderer * pRenderer);
-    virtual void onResize(Renderer * pRenderer, bfc::Vec2i const & size);
+    virtual void onAdded(bfc::graphics::CommandList * pCmdList, Renderer * pRenderer);
+    virtual void onResize(bfc::graphics::CommandList * pCmdList, Renderer * pRenderer, bfc::Vec2i const & size);
 
-    virtual void beginFrame(Renderer * pRenderer, bfc::Vector<RenderView> const & views);
-    virtual void endFrame(Renderer * pRenderer, bfc::Vector<RenderView> const & views);
-    virtual void beginView(Renderer * pRenderer, RenderView const & view);
-    virtual void renderView(Renderer * pRenderer, RenderView const & view);
-    virtual void endView(Renderer * pRenderer, RenderView const & view);
+    virtual void beginFrame(bfc::graphics::CommandList * pCmdList, Renderer * pRenderer, bfc::Vector<RenderView> const & views);
+    virtual void endFrame(bfc::graphics::CommandList * pCmdList, Renderer * pRenderer, bfc::Vector<RenderView> const & views);
+    virtual void beginView(bfc::graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view);
+    virtual void renderView(bfc::graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view);
+    virtual void endView(bfc::graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view);
   };
 
   /// Core renderer implementation.
@@ -127,14 +127,14 @@ namespace engine {
 
     /// Resize the targets for the renderer.
     /// Ideally we could remove this, but for now this is an easy way to resize intermediate resources.
-    virtual void onResize(bfc::Vec2i size) {
+    virtual void onResize(bfc::graphics::CommandList * pCmdList, bfc::Vec2i size) {
       for (auto * pFeature : m_features) {
-        pFeature->onResize(this, size);
+        pFeature->onResize(pCmdList, this, size);
       }
     }
 
     /// Render a collection of RenderView's
-    virtual void render(bfc::Vector<RenderView> const & views);
+    virtual void render(bfc::graphics::CommandList * pCmdList, bfc::Vector<RenderView> const & views);
 
     /// Get the number of features in the renderer.
     int64_t numFeatures() const;
@@ -146,11 +146,11 @@ namespace engine {
     bfc::GraphicsDevice * getGraphicsDevice() const;
 
   protected:
-    virtual void beginView(RenderView const & view);
-    virtual void endView(RenderView const & view);
+    virtual void beginView(bfc::graphics::CommandList * pCmdList, RenderView const & view);
+    virtual void endView(bfc::graphics::CommandList * pCmdList, RenderView const & view);
 
   private:
-    bfc::GraphicsDevice * m_pDevice  = nullptr;
+    bfc::GraphicsDevice * m_pDevice = nullptr;
 
     bfc::Vector<FeatureRenderer *> m_features;
 

@@ -2,7 +2,6 @@
 
 #include "../render/GraphicsDevice.h"
 #include "../render/HardwareBuffer.h"
-#include "../render/Texture.h"
 #include "../mesh/MeshData.h"
 #include "../util/Iterators.h"
 #include "../geometry/Box.h"
@@ -31,11 +30,11 @@ namespace bfc {
 
     Mesh() = default;
 
-    Mesh(GraphicsDevice* pDevice, MeshData const& data);
+    Mesh(graphics::CommandList * pCmdList, MeshData const & data);
 
     ~Mesh();
 
-    bool load(GraphicsDevice* pDevice, MeshData const& data);
+    bool load(graphics::CommandList * pCmdList, MeshData const & data);
 
     void release();
     
@@ -49,7 +48,7 @@ namespace bfc {
 
     int64_t getIndexCount() const;
 
-    GraphicsResource getVertexArray() const;
+    graphics::VertexArrayRef getVertexArray() const;
 
     geometry::Box<float> getBounds() const;
 
@@ -58,9 +57,9 @@ namespace bfc {
     Vector<SubMesh> m_meshes;
     geometry::Boxf  m_bounds;
 
-    ManagedGraphicsResource m_vertexBuffer;
-    ManagedGraphicsResource m_indexBuffer;
-    ManagedGraphicsResource m_vertexArray;
+    graphics::BufferRef      m_vertexBuffer;
+    graphics::BufferRef      m_indexBuffer;
+    graphics::VertexArrayRef m_vertexArray;
 
     int64_t m_vertexCount = 0;
     int64_t m_indexCount = 0;
@@ -68,9 +67,9 @@ namespace bfc {
     GraphicsDevice* m_pDevice = nullptr; // The device used to load the resources
   };
 
-  class BFC_API Material : public StructuredHardwareBuffer<renderer::PBRMaterial> {
+  class BFC_API Material : public graphics::StructuredBuffer<renderer::PBRMaterial> {
   public:
-    using LoadTextureFunc = std::function<Ref<Texture>(MeshData::Material, String)>;
+    using LoadTextureFunc = std::function<graphics::TextureRef(MeshData::Material, String)>;
 
     static constexpr int64_t TextureBindPointBase = 0;
 
@@ -88,10 +87,10 @@ namespace bfc {
 
     BlendMode blendMode = BlendMode_Opaque;
 
-    Ref<Texture> textures[TextureSlot_Count];
+    graphics::TextureRef textures[TextureSlot_Count];
 
-    void load(GraphicsDevice * pDevice, MeshData::Material const & def);
-    void load(GraphicsDevice * pDevice, MeshData::Material const & def, LoadTextureFunc textureLoader);
+    void load(graphics::CommandList * pDevice, MeshData::Material const & def);
+    void load(graphics::CommandList * pDevice, MeshData::Material const & def, LoadTextureFunc textureLoader);
     void loadValues(MeshData::Material const & def);
     void loadTextures(MeshData::Material const & def, LoadTextureFunc textureLoader);
   };

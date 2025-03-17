@@ -13,33 +13,27 @@ using namespace bfc;
 namespace engine {
   class Feature_MeshBasePass : public FeatureRenderer {
   public:
-    Feature_MeshBasePass(
-      AssetManager *pAssets,
-      GBuffer * pGBuffer,
-      StructuredHardwareBuffer<renderer::ModelBuffer> * pModelBuffer)
+    Feature_MeshBasePass(AssetManager * pAssets, GBuffer * pGBuffer, graphics::StructuredBuffer<renderer::ModelBuffer> * pModelBuffer)
       : m_pGBuffer(pGBuffer)
       , m_pModelData(pModelBuffer)
-      , m_shader(pAssets, URI::File("engine:shaders/gbuffer/base.shader")) {
-    }
+      , m_shader(pAssets, URI::File("engine:shaders/gbuffer/base.shader")) {}
 
-    virtual void onAdded(Renderer * pRenderer) override {}
+    virtual void onAdded(graphics::CommandList * pCmdList, Renderer * pRenderer) override {}
 
-    virtual void renderView(Renderer * pRenderer, RenderView const & view) override {
+    virtual void renderView(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) override {
       DeferredRenderer * pDeferred = (DeferredRenderer *)pRenderer;
       Mat4d              vp        = view.projectionMatrix * view.viewMatrix;
 
       graphics::StateManager * pState = pRenderer->getGraphicsDevice()->getStateManager();
-      pState->setFeatureEnabled(GraphicsState_DepthTest, true);
-      pState->setFeatureEnabled(GraphicsState_DepthWrite, true);
-      pState->setFeatureEnabled(GraphicsState_Blend, false);
+      pCmdList->pushState(graphics::State::EnableDepthRead{true}, graphics::State::EnableDepthWrite{true}, graphics::State::EnableBlend{false});
 
       GraphicsDevice * pDevice = pRenderer->getGraphicsDevice();
-      pDevice->bindRenderTarget(m_pGBuffer->getRenderTarget());
-      pDevice->clear({0, 0, 0, 0});
-      pDevice->bindProgram(*m_shader);
-      pDevice->bindUniformBuffer(*m_pModelData, renderer::BufferBinding_ModelBuffer);
+      pCmdList->bindRenderTarget(m_pGBuffer->getRenderTarget());
+      pCmdList->clear({0, 0, 0, 0});
+      pCmdList->bindProgram(m_shader);
+      pCmdList->bindUniformBuffer(*m_pModelData, renderer::BufferBinding_ModelBuffer);
 
-      GraphicsResource defaultMaterial = pDeferred->getDefaultMaterial().getResource();
+      graphics::BufferRef defaultMaterial = pDeferred->getDefaultMaterial();
 
       geometry::Frustum<float> camFrustum = view.projectionMatrix * view.viewMatrix;
 
@@ -51,33 +45,34 @@ namespace engine {
         m_pModelData->data.modelMatrix  = renderable.modelMatrix;
         m_pModelData->data.normalMatrix = renderable.normalMatrix;
         m_pModelData->data.mvpMatrix    = vp * renderable.modelMatrix;
-        m_pModelData->upload(pRenderer->getGraphicsDevice());
+        m_pModelData->upload(pCmdList);
 
         for (auto & [i, texture] : enumerate(renderable.materialTextures)) {
           if (texture != InvalidGraphicsResource) {
-            pDevice->bindTexture(texture, Material::TextureBindPointBase + i);
+            pCmdList->bindTexture(texture, Material::TextureBindPointBase + i);
           } else {
-            pDevice->bindTexture(pDeferred->getDefaultTexture((Material::TextureSlot)i).getResource(), Material::TextureBindPointBase + i);
+            pCmdList->bindTexture(pDeferred->getDefaultTexture((Material::TextureSlot)i), Material::TextureBindPointBase + i);
           }
         }
 
         if (renderable.materialBuffer != InvalidGraphicsResource) {
-          pDevice->bindUniformBuffer(renderable.materialBuffer, renderer::BufferBinding_PBRMaterial);
+          pCmdList->bindUniformBuffer(renderable.materialBuffer, renderer::BufferBinding_PBRMaterial);
         } else {
-          pDevice->bindUniformBuffer(defaultMaterial, renderer::BufferBinding_PBRMaterial);
+          pCmdList->bindUniformBuffer(defaultMaterial, renderer::BufferBinding_PBRMaterial);
         }
 
-        pDevice->bindVertexArray(renderable.vertexArray);
-        pDevice->drawIndexed(renderable.elementCount, renderable.elementOffset, PrimitiveType_Triangle);
+        pCmdList->bindVertexArray(renderable.vertexArray);
+        pCmdList->drawIndexed(renderable.elementCount, renderable.elementOffset, PrimitiveType_Triangle);
       }
 
-      pDevice->bindRenderTarget(view.renderTarget);
+      pCmdList->bindRenderTarget(view.renderTarget);
+      pCmdList->popState();
     }
 
-    GBuffer * m_pGBuffer = nullptr;
-    Asset<Shader> m_shader;
+    GBuffer *     m_pGBuffer = nullptr;
+    Asset<graphics::Program> m_shader;
 
-    StructuredHardwareBuffer<renderer::ModelBuffer> * m_pModelData = nullptr;
+    graphics::StructuredBuffer<renderer::ModelBuffer> * m_pModelData = nullptr;
   };
 
   class Feature_LightingPass : public FeatureRenderer {
@@ -97,24 +92,24 @@ namespace engine {
       Vector<MeshShadowCasterRenderable> meshCasters;
     };
 
-    Feature_LightingPass(GraphicsDevice * pDevice, AssetManager * pAssets, GBuffer * pGBuffer, GraphicsResource * pColourTarget,
-                         StructuredHardwareBuffer<renderer::ModelBuffer> * pModelBuffer)
+    Feature_LightingPass(graphics::CommandList * pCmdList, AssetManager * pAssets, GBuffer * pGBuffer, graphics::RenderTargetRef * pColourTarget,
+                         graphics::StructuredBuffer<renderer::ModelBuffer> * pModelBuffer)
       : m_pGBuffer(pGBuffer)
       , m_pColourTarget(pColourTarget)
       , m_pModelData(pModelBuffer)
-      , m_shadowAtlas(pDevice)
+      , m_shadowAtlas(pCmdList)
       , m_lightData(BufferUsageHint_Storage | BufferUsageHint_Dynamic)
       , m_shadowMaps(BufferUsageHint_Dynamic)
       , m_depthPass(pAssets, URI::File("engine:shaders/general/depth-pass.shader"))
       , m_shader(pAssets, URI::File("engine:shaders/pbr/lighting.shader")) {}
 
-    virtual void onAdded(Renderer * pRenderer) override {
+    virtual void onAdded(graphics::CommandList * pCmdList, Renderer * pRenderer) override {
       // Setup shadow map render target
       GraphicsDevice * pDevice = pRenderer->getGraphicsDevice();
-      m_shadowMapTarget        = {pDevice, pDevice->getRenderTargetManager()->createRenderTarget(RenderTargetType_Texture)};
+      m_shadowMapTarget        = pCmdList->createRenderTarget(RenderTargetType_Texture);
     }
 
-    virtual void beginView(Renderer * pRenderer, RenderView const & view) override {
+    virtual void beginView(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) override {
       GraphicsDevice * pDevice = pRenderer->getGraphicsDevice();
 
       m_lightData.data.clear();
@@ -228,23 +223,19 @@ namespace engine {
           }
         }
 
-        m_shadowMaps.upload(pDevice);
+        m_shadowMaps.upload(pCmdList);
       }
-      m_lightData.upload(pDevice);
+      m_lightData.upload(pCmdList);
     }
 
-    virtual void renderView(Renderer * pRenderer, RenderView const & view) override {
-      GraphicsDevice *                pDevice = pRenderer->getGraphicsDevice();
-      graphics::RenderTargetManager * pRT     = pDevice->getRenderTargetManager();
-      graphics::StateManager *        pState  = pDevice->getStateManager();
+    virtual void renderView(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) override {
+      GraphicsDevice * pDevice = pRenderer->getGraphicsDevice();
 
       /// Render shadow maps
       if (m_shadowMapData.size() > 0) {
-        pDevice->bindProgram(*m_depthPass);
+        pCmdList->bindProgram(m_depthPass);
 
-        pState->setFeatureEnabled(GraphicsState_DepthTest, true);
-        pState->setFeatureEnabled(GraphicsState_DepthWrite, true);
-        pState->setColourWriteEnabled(false, false, false, false);
+        pCmdList->pushState(graphics::State::EnableDepthRead{true}, graphics::State::EnableDepthWrite{true}, graphics::State::ColourWrite{false});
 
         for (ShadowMapData const & shadowMapData : m_shadowMapData) {
           if (shadowMapData.meshCasters.size() == 0) {
@@ -252,47 +243,48 @@ namespace engine {
           }
 
           ShadowAtlas::Slot slot = m_shadowAtlas.getSlot(shadowMapData.atlasIndex);
-          pRT->attachDepth(m_shadowMapTarget, m_shadowAtlas, slot.level, slot.layer);
-          pDevice->bindRenderTarget(m_shadowMapTarget);
-          pDevice->clear(0);
-          pState->setViewport({0, 0}, m_shadowAtlas.resolution(shadowMapData.atlasIndex));
+          m_shadowMapTarget->attachDepth(m_shadowAtlas, slot.level, slot.layer);
+          pCmdList->bindRenderTarget(m_shadowMapTarget);
+          pCmdList->clear(0);
+          pCmdList->pushState(graphics::State::Viewport{{0, 0}, m_shadowAtlas.resolution(shadowMapData.atlasIndex)});
 
           for (MeshShadowCasterRenderable const & caster : view.pRenderData->renderables<MeshShadowCasterRenderable>()) {
             if (geometry::intersects(shadowMapData.lightFrustum, caster.bounds)) {
               m_pModelData->data.mvpMatrix = (Mat4d)shadowMapData.lightVP * caster.modelMatrix;
-              m_pModelData->upload(pDevice);
+              m_pModelData->upload(pCmdList);
 
-              pDevice->bindVertexArray(caster.vertexArray);
-              pDevice->drawIndexed(caster.elementCount, caster.elementOffset);
+              pCmdList->bindVertexArray(caster.vertexArray);
+              pCmdList->drawIndexed(caster.elementCount, caster.elementOffset);
             }
           }
+
+          pCmdList->popState();
         }
 
-        pState->setColourWriteEnabled(true, true, true, true);
+        pCmdList->popState();
       }
 
       /// Find final scene colour texture.
       /// This target accumulates post-processing effects
-      pDevice->bindRenderTarget(*m_pColourTarget);
-      pState->setViewport({0, 0}, pRT->getSize(*m_pColourTarget));
-      pState->setFeatureEnabled(GraphicsState_DepthTest, false);
-      pState->setFeatureEnabled(GraphicsState_DepthWrite, false);
-      pState->setFeatureEnabled(GraphicsState_StencilTest, false);
-      pState->setFeatureEnabled(GraphicsState_Blend, false);
+      pCmdList->bindRenderTarget(*m_pColourTarget);
+      pCmdList->pushState(graphics::State::Viewport{*m_pColourTarget}, graphics::State::EnableDepthRead{false}, graphics::State::EnableDepthWrite{false},
+                          graphics::State::EnableStencilTest{false}, graphics::State::EnableBlend{false});
 
       // Bind post-process texture inputs.
       // TODO: Generalize this using a PostProcessInputRenderable/GBufferInputRenderable?
       for (auto & [i, tex] : enumerate(*m_pGBuffer)) {
-        pDevice->bindTexture(tex.getResource(), DeferredRenderer::ColourTargetBindPointBase + i);
+        pCmdList->bindTexture(tex, DeferredRenderer::ColourTargetBindPointBase + i);
       }
-      pDevice->bindTexture(m_shadowAtlas, DeferredRenderer::ColourTargetBindPointBase + GBufferTarget_Count);
-      pDevice->bindShaderStorageBuffer(m_shadowMaps, 3);
+      pCmdList->bindTexture(m_shadowAtlas, DeferredRenderer::ColourTargetBindPointBase + GBufferTarget_Count);
+      pCmdList->bindShaderStorageBuffer(m_shadowMaps, 3);
 
-      pDevice->bindProgram(*m_shader);
-      pDevice->bindVertexArray(InvalidGraphicsResource);
-      pDevice->bindShaderStorageBuffer(m_lightData, renderer::BufferBinding_LightBuffer);
-      pDevice->draw(3);
-      pDevice->bindRenderTarget(view.renderTarget);
+      pCmdList->bindProgram(m_shader);
+      pCmdList->bindVertexArray(InvalidGraphicsResource);
+      pCmdList->bindShaderStorageBuffer(m_lightData, renderer::BufferBinding_LightBuffer);
+      pCmdList->draw(3);
+
+      pCmdList->popState();
+      pCmdList->bindRenderTarget(view.renderTarget); // TODO: Maybe a "push render target" function?
     }
 
     static void calcShadowMapData(RenderData * pRenderData, geometry::Boxf const & receiverBounds, ShadowMapData * pData) {
@@ -390,78 +382,64 @@ namespace engine {
     }
 
     // Shadow mapping
-    ManagedGraphicsResource m_shadowMapTarget;
-    ShadowAtlas             m_shadowAtlas;
+    graphics::RenderTargetRef m_shadowMapTarget;
+    ShadowAtlas               m_shadowAtlas;
 
-    Asset<Shader> m_depthPass;
+    Asset<graphics::Program> m_depthPass;
 
-    Vector<ShadowMapData>                                    m_shadowMapData; // Data rendered per shadow map
-    StructuredHardwareArrayBuffer<renderer::ShadowMapBuffer> m_shadowMaps;
-    StructuredHardwareBuffer<renderer::ModelBuffer> *        m_pModelData = nullptr;
+    Vector<ShadowMapData>                                      m_shadowMapData; // Data rendered per shadow map
+    graphics::StructuredArrayBuffer<renderer::ShadowMapBuffer> m_shadowMaps;
+    graphics::StructuredBuffer<renderer::ModelBuffer> *        m_pModelData = nullptr;
 
     // Lighting pass
-    GBuffer *          m_pGBuffer = nullptr;
-    Asset<Shader>      m_shader;
-    GraphicsResource * m_pColourTarget = nullptr;
+    GBuffer *                   m_pGBuffer = nullptr;
+    Asset<graphics::Program>    m_shader;
+    graphics::RenderTargetRef * m_pColourTarget = nullptr;
 
-    StructuredHardwareArrayBuffer<renderer::LightBuffer> m_lightData;
+    graphics::StructuredArrayBuffer<renderer::LightBuffer> m_lightData;
   };
 
   class Feature_Skybox : public FeatureRenderer {
   public:
-    Feature_Skybox(AssetManager * pAssets, GraphicsResource * pColourTarget)
+    Feature_Skybox(AssetManager * pAssets, graphics::RenderTargetRef * pColourTarget)
       : m_shader(pAssets, URI::File("engine:shaders/general/cubemap.shader"))
       , m_pColourTarget(pColourTarget) {}
 
-    virtual void renderView(Renderer * pRenderer, RenderView const & view) override {
-      const auto &                    skyboxes = view.pRenderData->renderables<CubeMapRenderable>();
+    virtual void renderView(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) override {
+      const auto & skyboxes = view.pRenderData->renderables<CubeMapRenderable>();
       if (skyboxes.size() == 0) {
         return;
       }
 
-      auto pDevice = pRenderer->getGraphicsDevice();
-      auto                            pState  = pDevice->getStateManager();
-      graphics::RenderTargetManager * pRT     = pDevice->getRenderTargetManager();
-
       /// Bind final scene colour texture.
       /// This target accumulates post-processing effects
-      pDevice->bindRenderTarget(*m_pColourTarget);
-      pState->setViewport({0, 0}, pRT->getSize(*m_pColourTarget));
-      pState->setFeatureEnabled(GraphicsState_DepthTest, true);
-      pState->setFeatureEnabled(GraphicsState_DepthWrite, false);
-      pState->setDepthFunction(ComparisonFunction_Equal);
-      pState->setFeatureEnabled(GraphicsState_StencilTest, false);
-      pState->setFeatureEnabled(GraphicsState_Blend, false);
-      pState->setDepthRange(1, 1);
+      pCmdList->bindRenderTarget(*m_pColourTarget);
+      pCmdList->pushState(graphics::State::Viewport{{0, 0}, (*m_pColourTarget)->getSize()}, graphics::State::EnableDepthRead{true},
+                          graphics::State::EnableDepthWrite{false}, graphics::State::DepthFunc{ComparisonFunction_Equal},
+                          graphics::State::EnableStencilTest{false}, graphics::State::EnableBlend{false}, graphics::State::DepthRange{1, 1});
 
-      pDevice->bindProgram(*m_shader);
-      pDevice->bindVertexArray(InvalidGraphicsResource);
+      pCmdList->bindProgram(m_shader);
+      pCmdList->bindVertexArray(InvalidGraphicsResource);
       for (auto const & cm : skyboxes) {
-        pDevice->bindTexture(cm.texture, 0);
+        pCmdList->bindTexture(cm.texture, 0);
       }
-      pDevice->draw(6);
-      pDevice->bindRenderTarget(view.renderTarget);
+      pCmdList->draw(6);
+      pCmdList->bindRenderTarget(view.renderTarget);
 
-      pState->setDepthRange(0, 1);
-      pState->setDepthFunction(ComparisonFunction_Less);
+      pCmdList->popState();
     }
 
-    Asset<Shader>      m_shader;
-    GraphicsResource * m_pColourTarget = nullptr;
+    Asset<graphics::Program>    m_shader;
+    graphics::RenderTargetRef * m_pColourTarget = nullptr;
   };
 
   class Feature_SSAO : public FeatureRenderer {
   public:
     Feature_SSAO(AssetManager * pAssets, PostProcessingStack * pPPS)
       : m_pPPS(pPPS)
-      , m_ssaoShader(pAssets, URI::File("engine:shaders/ssao/ssao.shader")) {
-    }
+      , m_ssaoShader(pAssets, URI::File("engine:shaders/ssao/ssao.shader")) {}
 
-    virtual void onAdded(Renderer * pRenderer) override {
-      GraphicsDevice *                pDevice   = pRenderer->getGraphicsDevice();
-      graphics::RenderTargetManager * pRT       = pDevice->getRenderTargetManager();
-      graphics::TextureManager *      pTextures = pDevice->getTextureManager();
-
+    virtual void onAdded(graphics::CommandList * pCmdList, Renderer * pRenderer) override {
       m_sampleKernel.resize(m_kernelSize);
       for (int64_t i = 0; i < m_kernelSize; ++i) {
         m_sampleKernel[i] = glm::ballRand(1.0f) * glm::lerp(0.1f, 1.0f, math::pow<2>(i / (float)m_kernelSize));
@@ -475,10 +453,10 @@ namespace engine {
         c.g    = uint8_t(v.y * 255.0f);
         c.b    = uint8_t(v.z * 255.0f);
       }
-      m_randomTex.load2D(pDevice, {m_randSize, m_randSize}, randData.data());
+      graphics::loadTexture2D(pCmdList, &m_randomTex, {m_randSize, m_randSize}, randData.data());
     }
 
-    virtual void beginView(Renderer * pRenderer, RenderView const & view) override {
+    virtual void beginView(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) override {
       auto & ssaoOpts = view.pRenderData->renderables<PostProcessRenderable_SSAO>();
       if (ssaoOpts.size() == 0)
         return;
@@ -489,33 +467,31 @@ namespace engine {
       float radius   = ssao.radius;
       float strength = ssao.strength;
 
-      m_pPPS->addPass([=](GraphicsDevice * pDevice, PostProcessParams const & params) {
-        graphics::RenderTargetManager * pRT    = pDevice->getRenderTargetManager();
-        graphics::StateManager *        pState = pDevice->getStateManager();
-        params.bindInputs(pDevice);
-        params.bindTarget(pDevice);
-        pDevice->bindProgram(*m_ssaoShader);
-        pDevice->bindTexture(m_randomTex, 7);
-        m_ssaoShader->setUniform("radius", radius);
-        m_ssaoShader->setUniform("strength", strength);
-        m_ssaoShader->setUniform("bias", bias);
-        m_ssaoShader->setUniform("outputSize", params.sceneColour.getSize());
+      m_pPPS->addPass([=](graphics::CommandList * pCmdList, PostProcessParams const & params) {
+        params.bindInputs(pCmdList);
+        params.bindTarget(pCmdList);
+        pCmdList->bindProgram(m_ssaoShader);
+        pCmdList->bindTexture(m_randomTex, 7);
+        pCmdList->setUniform("radius", radius);
+        pCmdList->setUniform("strength", strength);
+        pCmdList->setUniform("bias", bias);
+        pCmdList->setUniform("outputSize", params.sceneColour->getSize());
 
         for (int64_t i = 0; i < m_sampleKernel.size(); ++i) {
-          m_ssaoShader->setUniform(String::format("sampleKernel[%lld]", i), m_sampleKernel[i]);
+          pCmdList->setUniform(String::format("sampleKernel[%lld]", i), m_sampleKernel[i]);
         }
 
-        pDevice->bindVertexArray(InvalidGraphicsResource);
-        pDevice->draw(3);
+        pCmdList->bindVertexArray(InvalidGraphicsResource);
+        pCmdList->draw(3);
       });
     }
 
-    Asset<Shader>         m_ssaoShader;
-    Texture               m_randomTex;
-    Vector<Vec3>          m_sampleKernel;
-    int64_t               m_kernelSize = 32;
-    int64_t               m_randSize   = 4;
-    PostProcessingStack * m_pPPS       = nullptr;
+    Asset<graphics::Program> m_ssaoShader;
+    graphics::TextureRef     m_randomTex;
+    Vector<Vec3>             m_sampleKernel;
+    int64_t                  m_kernelSize = 32;
+    int64_t                  m_randSize   = 4;
+    PostProcessingStack *    m_pPPS       = nullptr;
   };
 
   class Feature_SSR : public FeatureRenderer {
@@ -528,36 +504,29 @@ namespace engine {
       programs.downsampler.assign(pAssets, URI::File("engine:shaders/bloom/downsample"));
     }
 
-    virtual void onAdded(Renderer * pRenderer) override {
-      GraphicsDevice *                pDevice   = pRenderer->getGraphicsDevice();
-      graphics::RenderTargetManager * pRT       = pDevice->getRenderTargetManager();
-      graphics::TextureManager *      pTextures = pDevice->getTextureManager();
+    virtual void onAdded(graphics::CommandList * pCmdList, Renderer * pRenderer) override {
+      m_clampSampler     = pCmdList->createSampler();
+      m_mipChainTarget   = pCmdList->createRenderTarget(RenderTargetType_Texture);
+      m_reflectionTarget = pCmdList->createRenderTarget(RenderTargetType_Texture);
 
-      m_clampSampler     = {pDevice, pTextures->createSampler()};
-      m_mipChainTarget   = {pDevice, pRT->createRenderTarget(RenderTargetType_Texture)};
-      m_reflectionTarget = {pDevice, pRT->createRenderTarget(RenderTargetType_Texture)};
-
-      pTextures->setSamplerWrap(m_clampSampler, WrapMode_ClampToEdge);
+      m_clampSampler->setSamplerWrap(WrapMode_ClampToEdge);
     }
 
-    virtual void beginView(Renderer * pRenderer, RenderView const & view) override {
+    virtual void beginView(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) override {
       auto & ssrOpt = view.pRenderData->renderables<PostProcessRenderable_SSR>();
       if (ssrOpt.size() == 0)
         return;
 
-      GraphicsDevice *                pDevice = pRenderer->getGraphicsDevice();
-      graphics::RenderTargetManager * pRT     = pDevice->getRenderTargetManager();
-
-      Vec2i size = pRT->getSize(view.renderTarget);
+      Vec2i size = view.renderTarget->getSize();
       if (size != m_chainSize) {
-        m_reflectionUV.load2D(pDevice, size, PixelFormat_RGBAf16);
-        pRT->attachColour(m_reflectionTarget, m_reflectionUV);
+        graphics::loadTexture2D(pCmdList, &m_reflectionUV, size, PixelFormat_RGBAf16);
+        m_reflectionTarget->attachColour(m_reflectionUV);
 
         m_mipChain.resize(m_mipChainSize);
         m_chainSize     = size;
         Vec2i levelSize = size;
         for (int64_t i = 0; i < m_mipChainSize; ++i) {
-          m_mipChain[i].load2D(pDevice, levelSize, PixelFormat_RGBAf16);
+          graphics::loadTexture2D(pCmdList, &m_mipChain[i], levelSize, PixelFormat_RGBAf16);
           levelSize /= 2;
         }
       }
@@ -568,71 +537,68 @@ namespace engine {
       int    steps       = opt.steps;
       float  thickness   = opt.thickness;
 
-      m_pPPS->addPass([=](GraphicsDevice * pDevice, PostProcessParams const & params) {
-        graphics::RenderTargetManager * pRT    = pDevice->getRenderTargetManager();
-        graphics::StateManager *        pState = pDevice->getStateManager();
-
-        Vec2i targetSize = pRT->getSize(params.target);
+      m_pPPS->addPass([=](graphics::CommandList * pCmdList, PostProcessParams const & params) {
+        Vec2i targetSize = params.target->getSize();
 
         // Calculate reflections
-        params.bindInputs(pDevice);
-        pDevice->bindRenderTarget(m_reflectionTarget);
-        pState->setViewport({0, 0}, m_mipChain[0].getSize());
-        pDevice->bindProgram(*programs.calculateReflections);
-        programs.calculateReflections->setUniform("maxDistance", maxDistance);
-        programs.calculateReflections->setUniform("resolution", resolution);
-        programs.calculateReflections->setUniform("steps", steps);
-        programs.calculateReflections->setUniform("thickness", thickness);
-        programs.calculateReflections->setUniform("outputSize", targetSize);
+        params.bindInputs(pCmdList);
+        pCmdList->bindRenderTarget(m_reflectionTarget);
+        pCmdList->pushState(graphics::State::Viewport{m_mipChain[0]});
+        pCmdList->bindProgram(programs.calculateReflections);
+        pCmdList->setUniform("maxDistance", maxDistance);
+        pCmdList->setUniform("resolution", resolution);
+        pCmdList->setUniform("steps", steps);
+        pCmdList->setUniform("thickness", thickness);
+        pCmdList->setUniform("outputSize", targetSize);
 
-        params.bindInputs(pDevice);
-        pDevice->bindVertexArray(InvalidGraphicsResource);
-        pDevice->draw(3);
-
+        params.bindInputs(pCmdList);
+        pCmdList->bindVertexArray(InvalidGraphicsResource);
+        pCmdList->draw(3);
         // Blur reflections (for roughness)
-        pDevice->bindProgram(*programs.downsampler);
-        pDevice->bindVertexArray(InvalidGraphicsResource);
-        pDevice->bindSampler(m_clampSampler, 0);
-        pDevice->bindTexture(params.sceneColour, 0);
+        pCmdList->bindProgram(programs.downsampler);
+        pCmdList->bindVertexArray(InvalidGraphicsResource);
+        pCmdList->bindSampler(m_clampSampler, 0);
+        pCmdList->bindTexture(params.sceneColour, 0);
         for (int64_t i = 1; i < m_mipChain.size(); ++i) {
-          pRT->attachColour(m_mipChainTarget, m_mipChain[i]);
-          pDevice->bindRenderTarget(m_mipChainTarget);
-          pState->setViewport({0, 0}, m_mipChain[i].getSize());
-          pDevice->draw(3);
-          pDevice->bindTexture(m_mipChain[i], 0);
+          m_mipChainTarget->attachColour(m_mipChain[i]);
+          pCmdList->bindRenderTarget(m_mipChainTarget);
+          pCmdList->setState(graphics::State::Viewport{m_mipChain[i]});
+          pCmdList->draw(3);
+          pCmdList->bindTexture(m_mipChain[i], 0);
         }
 
         // Blend reflections with final output
-        params.bindInputs(pDevice);
-        params.bindTarget(pDevice);
-        pDevice->bindProgram(*programs.blendReflections);
-        pDevice->bindTexture(m_reflectionUV, 7);
-        pDevice->bindTexture(m_mipChain.back(), 8);
-        pDevice->bindTexture(m_brdfLUT, 9);
-        pDevice->draw(3);
+        params.bindInputs(pCmdList);
+        params.bindTarget(pCmdList);
+        pCmdList->bindProgram(programs.blendReflections);
+        pCmdList->bindTexture(m_reflectionUV, 7);
+        pCmdList->bindTexture(m_mipChain.back(), 8);
+        pCmdList->bindTexture(m_brdfLUT, 9);
+        pCmdList->draw(3);
+        pCmdList->popState();
       });
     }
 
   private:
-    ManagedGraphicsResource m_clampSampler;
+    graphics::SamplerRef m_clampSampler;
 
     struct {
-      Asset<Shader> calculateReflections;
-      Asset<Shader> blendReflections;
-      Asset<Shader> upsampler;
-      Asset<Shader> downsampler;
+      Asset<graphics::Program> calculateReflections;
+      Asset<graphics::Program> blendReflections;
+      Asset<graphics::Program> upsampler;
+      Asset<graphics::Program> downsampler;
     } programs;
 
     int64_t m_mipChainSize = 7;
 
-    Texture m_brdfLUT; // TODO: Calculate brdf LUT
+    graphics::TextureRef m_brdfLUT; // TODO: Calculate brdf LUT
 
-    Texture                 m_reflectionUV;
-    ManagedGraphicsResource m_reflectionTarget;
+    graphics::TextureRef m_reflectionUV;
+    graphics::RenderTargetRef m_reflectionTarget;
 
-    ManagedGraphicsResource m_mipChainTarget;
+    graphics::RenderTargetRef m_mipChainTarget;
     Vec2i                   m_chainSize;
-    Vector<Texture>         m_mipChain;
+    Vector<graphics::TextureRef> m_mipChain;
 
     PostProcessingStack * m_pPPS = nullptr;
   };
@@ -649,36 +615,29 @@ namespace engine {
       m_mipChainSize = mipChainSize;
     }
 
-    virtual void onAdded(Renderer * pRenderer) override {
-      GraphicsDevice *                pDevice   = pRenderer->getGraphicsDevice();
-      graphics::RenderTargetManager * pRT       = pDevice->getRenderTargetManager();
-      graphics::TextureManager *      pTextures = pDevice->getTextureManager();
-
-      m_mipChainTarget = {pDevice, pRT->createRenderTarget(RenderTargetType_Texture)};
-      m_filteredTarget = {pDevice, pRT->createRenderTarget(RenderTargetType_Texture)};
-      m_clampSampler   = {pDevice, pTextures->createSampler()};
-      pTextures->setSamplerWrap(m_clampSampler, WrapMode_ClampToEdge);
+    virtual void onAdded(graphics::CommandList * pCmdList, Renderer * pRenderer) override {
+      m_mipChainTarget                    = pCmdList->createRenderTarget(RenderTargetType_Texture);
+      m_filteredTarget = pCmdList->createRenderTarget(RenderTargetType_Texture);
+      m_clampSampler                      = pCmdList->createSampler();
+      m_clampSampler->setSamplerWrap(WrapMode_ClampToEdge);
     }
 
-    virtual void onResize(Renderer * pRenderer, Vec2i const & size) override {}
+    virtual void onResize(graphics::CommandList * pCmdList, Renderer * pRenderer, Vec2i const & size) override {}
 
-    virtual void beginFrame(Renderer * pRenderer, Vector<RenderView> const & views) {
-    }
+    virtual void beginFrame(graphics::CommandList * pCmdList, Renderer * pRenderer, Vector<RenderView> const & views) {}
 
-    virtual void beginView(Renderer * pRenderer, RenderView const & view) override {
-      GraphicsDevice *                pDevice = pRenderer->getGraphicsDevice();
-      graphics::RenderTargetManager * pRT     = pDevice->getRenderTargetManager();
-      Vec2i                           size    = pRT->getSize(view.renderTarget);
+    virtual void beginView(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) override {
+      Vec2i size = view.renderTarget->getSize();
       if (size != m_chainSize) {
         m_mipChain.resize(m_mipChainSize);
         m_chainSize     = size;
         Vec2i levelSize = size;
         for (int64_t i = 0; i < m_mipChainSize; ++i) {
           levelSize /= 2;
-          m_mipChain[i].load2D(pDevice, levelSize, PixelFormat_RGBAf16);
+          graphics::loadTexture2D(pCmdList, &m_mipChain[i], levelSize, PixelFormat_RGBAf16);
         }
-        m_filtered.load2D(pDevice, size, PixelFormat_RGBAf16);
-        pRT->attachColour(m_filteredTarget, m_filtered);
+        graphics::loadTexture2D(pCmdList, &m_filtered, size, PixelFormat_RGBAf16);
+        m_filteredTarget->attachColour(m_filtered);
       }
 
       auto & bloomOpts = view.pRenderData->renderables<PostProcessRenderable_Bloom>();
@@ -688,89 +647,92 @@ namespace engine {
       float            strength      = bloomOpts.front().strength;
       float            threshold     = bloomOpts.front().threshold;
       float            dirtIntensity = bloomOpts.front().dirtIntensity;
-      GraphicsResource dirtTex       = bloomOpts.front().dirtTex;
+      graphics::TextureRef dirtTex       = bloomOpts.front().dirtTex;
 
-      m_pPPS->addPass([=](GraphicsDevice * pDevice, PostProcessParams const & params) {
-        graphics::RenderTargetManager * pRT    = pDevice->getRenderTargetManager();
-        graphics::StateManager *        pState = pDevice->getStateManager();
-
+      m_pPPS->addPass([=](graphics::CommandList * pCmdList, PostProcessParams const & params) {
         if (threshold > 0) {
-          pDevice->bindProgram(*m_prefilter);
-          m_prefilter->setUniform("threshold", threshold);
-          pDevice->bindRenderTarget(m_filteredTarget);
-          pState->setViewport({0, 0}, pRT->getSize(m_filteredTarget));
-          pDevice->bindTexture(params.sceneColour, 0);
-          pDevice->draw(3);
-          pDevice->bindTexture(m_filtered, 0);
+          pCmdList->bindProgram(m_prefilter);
+          pCmdList->setUniform("threshold", threshold);
+          pCmdList->bindRenderTarget(m_filteredTarget);
+          pCmdList->pushState(graphics::State::Viewport{{0, 0}, m_filteredTarget->getSize()});
+          pCmdList->bindTexture(params.sceneColour, 0);
+          pCmdList->draw(3);
+          pCmdList->popState();
+          pCmdList->bindTexture(m_filtered, 0);
         } else {
-          pDevice->bindTexture(params.sceneColour, 0);
+          pCmdList->bindTexture(params.sceneColour, 0);
         }
 
         // Down-sample the hdr colour texture
-        pDevice->bindProgram(*m_downsampler);
-        pDevice->bindVertexArray(InvalidGraphicsResource);
-        pDevice->bindSampler(m_clampSampler, 0);
+        pCmdList->bindProgram(m_downsampler);
+        pCmdList->bindVertexArray(InvalidGraphicsResource);
+        pCmdList->bindSampler(m_clampSampler, 0);
         for (int64_t i = 0; i < m_mipChain.size(); ++i) {
-          pRT->attachColour(m_mipChainTarget, m_mipChain[i]);
-          pDevice->bindRenderTarget(m_mipChainTarget);
-          pState->setViewport({0, 0}, m_mipChain[i].getSize());
-          pDevice->draw(3);
-          pDevice->bindTexture(m_mipChain[i], 0);
+          m_mipChainTarget->attachColour(m_mipChain[i]);
+          pCmdList->bindRenderTarget(m_mipChainTarget);
+          pCmdList->pushState(graphics::State::Viewport{{0, 0}, m_mipChain[i]->getSize()});
+          pCmdList->draw(3);
+          pCmdList->popState();
+          pCmdList->bindTexture(m_mipChain[i], 0);
         }
 
         // Up-sample down-sampled colour texture
-        pDevice->bindProgram(*m_upsampler);
-        m_upsampler->setUniform("filterRadius", filterRadius);
+        pCmdList->bindProgram(m_upsampler);
+        pCmdList->setUniform("filterRadius", filterRadius);
 
-        pState->setFeatureEnabled(GraphicsState_Blend, true);
-        pState->setBlendEquation(BlendEquation_Add);
-        pState->setBlendFunction(BlendFunction_One, BlendFunction_One);
-        pDevice->bindVertexArray(InvalidGraphicsResource);
+        pCmdList->pushState(graphics::State::EnableBlend{true}, graphics::State::BlendEq{BlendEquation_Add},
+                            graphics::State::BlendFunc{BlendFunction_One, BlendFunction_One});
+
+        pCmdList->bindVertexArray(InvalidGraphicsResource);
         for (int64_t i = m_mipChain.size() - 1; i > 0; --i) {
-          pRT->attachColour(m_mipChainTarget, m_mipChain[i - 1]);
-          pDevice->bindRenderTarget(m_mipChainTarget);
-          pState->setViewport({0, 0}, m_mipChain[i - 1].getSize());
-          pDevice->bindTexture(m_mipChain[i], 0);
-          pDevice->draw(3);
-        }
+          m_mipChainTarget->attachColour(m_mipChain[i - 1]);
+          pCmdList->bindRenderTarget(m_mipChainTarget);
+          pCmdList->pushState(graphics::State::Viewport{{0, 0}, m_mipChain[i - 1]->getSize()});
+          pCmdList->bindTexture(m_mipChain[i], 0);
+          pCmdList->draw(3);
 
-        pState->setFeatureEnabled(GraphicsState_Blend, false);
-        pState->setBlendEquation(BlendEquation_Add);
-        pState->setBlendFunction(BlendFunction_SourceAlpha, BlendFunction_OneMinusSourceAlpha);
+          pCmdList->popState();
+        }
+        pCmdList->popState();
+
+        pCmdList->pushState(graphics::State::EnableBlend{false}, graphics::State::BlendEq{BlendEquation_Add},
+                            graphics::State::BlendFunc{BlendFunction_SourceAlpha, BlendFunction_OneMinusSourceAlpha});
 
         // Bind final render target
-        params.bindTarget(pDevice);
-        params.bindInputs(pDevice);
+        params.bindTarget(pCmdList);
+        params.bindInputs(pCmdList);
 
         // Mix bloom with source colour
-        pDevice->bindProgram(*m_blendBloom);
-        m_blendBloom->setUniform("strength", strength);
-        m_blendBloom->setUniform("dirtIntensity", dirtIntensity);
-        pDevice->bindTexture(params.sceneColour, 0);
-        pDevice->bindTexture(m_mipChain.front(), 1);
-        pDevice->bindTexture(dirtTex, 2);
-        pDevice->draw(3);
-        pDevice->bindSampler(InvalidGraphicsResource, 0);
+        pCmdList->bindProgram(m_blendBloom);
+        pCmdList->setUniform("strength", strength);
+        pCmdList->setUniform("dirtIntensity", dirtIntensity);
+        pCmdList->bindTexture(params.sceneColour, 0);
+        pCmdList->bindTexture(m_mipChain.front(), 1);
+        pCmdList->bindTexture(dirtTex, 2);
+        pCmdList->draw(3);
+        pCmdList->bindSampler(InvalidGraphicsResource, 0);
+
+        pCmdList->popState();
       });
     }
 
     PostProcessingStack * m_pPPS = nullptr;
 
-    Asset<Shader> m_upsampler;
-    Asset<Shader> m_downsampler;
-    Asset<Shader> m_blendBloom;
-    Asset<Shader> m_prefilter;
+    Asset<graphics::Program> m_upsampler;
+    Asset<graphics::Program> m_downsampler;
+    Asset<graphics::Program> m_blendBloom;
+    Asset<graphics::Program> m_prefilter;
 
-    ManagedGraphicsResource m_clampSampler;
+    graphics::SamplerRef m_clampSampler;
 
     int64_t m_mipChainSize = 5;
 
-    ManagedGraphicsResource m_mipChainTarget;
+    graphics::RenderTargetRef m_mipChainTarget;
     Vec2i                   m_chainSize;
-    Vector<Texture>         m_mipChain;
+    Vector<graphics::TextureRef> m_mipChain;
 
-    ManagedGraphicsResource m_filteredTarget;
-    Texture                 m_filtered;
+    graphics::RenderTargetRef m_filteredTarget;
+    graphics::TextureRef      m_filtered;
   };
 
   class Feature_Exposure : public FeatureRenderer {
@@ -779,7 +741,7 @@ namespace engine {
       : m_pPPS(pPPS)
       , m_shader(pAssets, URI::File("engine:shaders/simple-tonemapper.shader")) {}
 
-    virtual void beginView(Renderer * pRenderer, RenderView const & view) override {
+    virtual void beginView(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) override {
       GraphicsDevice * pDevice = pRenderer->getGraphicsDevice();
 
       auto  exposureRenderables = view.pRenderData->renderables<PostProcessRenderable_Exposure>();
@@ -787,33 +749,31 @@ namespace engine {
       if (exposureRenderables.size() > 0)
         exposure = exposureRenderables.front().exposure;
 
-      m_pPPS->addPass([=](GraphicsDevice * pDevice, PostProcessParams const & params) {
+      m_pPPS->addPass([=](graphics::CommandList * pCmdList, PostProcessParams const & params) {
         // Currently only support tone-mapping post process effect.
         // TODO: Add support for more effects (maybe custom effects as well?)
-        params.bindInputs(pDevice);
-        params.bindTarget(pDevice);
+        params.bindInputs(pCmdList);
+        params.bindTarget(pCmdList);
 
-        pDevice->bindProgram(*m_shader);
-
-        m_shader->setUniform("exposure", exposure);
-
-        pDevice->bindVertexArray(InvalidGraphicsResource);
-        pDevice->draw(3);
+        pCmdList->bindProgram(m_shader);
+        pCmdList->setUniform("exposure", exposure);
+        pCmdList->bindVertexArray(InvalidGraphicsResource);
+        pCmdList->draw(3);
       });
     }
 
-    Asset<Shader>         m_shader;
-    PostProcessingStack * m_pPPS = nullptr;
+    Asset<graphics::Program> m_shader;
+    PostProcessingStack *    m_pPPS = nullptr;
   };
 
   class Feature_PostProcess : public FeatureRenderer {
   public:
-    Feature_PostProcess(AssetManager * pAssets, PostProcessingStack * pPPS, GBuffer * pGBuffer, Texture * pFinalColour)
+    Feature_PostProcess(AssetManager * pAssets, PostProcessingStack * pPPS, GBuffer * pGBuffer, graphics::TextureRef * pFinalColour)
       : m_pPPS(pPPS)
       , m_pGBuffer(pGBuffer)
       , m_pFinalColour(pFinalColour) {}
 
-    virtual void renderView(Renderer * pRenderer, RenderView const & view) override {
+    virtual void renderView(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) override {
       m_pPPS->target               = view.renderTarget;
       m_pPPS->sceneColour          = *m_pFinalColour;
       m_pPPS->inputs.sceneDepth    = m_pGBuffer->getDepthTarget();
@@ -823,41 +783,35 @@ namespace engine {
       m_pPPS->inputs.position      = m_pGBuffer->getPosition();
       m_pPPS->inputs.rma           = m_pGBuffer->getRMA();
 
-      GraphicsDevice *                pDevice        = pRenderer->getGraphicsDevice();
-      graphics::RenderTargetManager * pRenderTargets = pDevice->getRenderTargetManager();
-      m_pPPS->execute(pDevice, pRenderTargets->getSize(view.renderTarget));
+      m_pPPS->execute(pCmdList, view.renderTarget->getSize());
     }
 
-    PostProcessingStack * m_pPPS         = nullptr;
-    GBuffer *             m_pGBuffer     = nullptr;
-    Texture *             m_pFinalColour = nullptr;
+    PostProcessingStack *  m_pPPS         = nullptr;
+    GBuffer *              m_pGBuffer     = nullptr;
+    graphics::TextureRef * m_pFinalColour = nullptr;
   };
 
-  DeferredRenderer::DeferredRenderer(GraphicsDevice * pDevice, AssetManager * pAssets)
-    : Renderer(pDevice)
-    , m_gbuffer(pDevice, {1920, 1080})
-    , m_pDevice(pDevice)
+  DeferredRenderer::DeferredRenderer(graphics::CommandList * pCmdList, AssetManager * pAssets)
+    : Renderer(pCmdList->getDevice())
+    , m_gbuffer(pCmdList, {1920, 1080})
     , m_modelData(BufferUsageHint_Uniform | BufferUsageHint_Dynamic)
     , m_cameraData(BufferUsageHint_Uniform | BufferUsageHint_Dynamic) {
     // Create renderer resources
-    m_finalColourTarget.load2D(m_pDevice, {1920, 1080}, PixelFormat_RGBAf16);
+    graphics::loadTexture2D(pCmdList, &m_finalColourTarget, {1920, 1080}, PixelFormat_RGBAf16);
 
-    // Attach final colour texture to the final target
-    graphics::RenderTargetManager * pRenderTargets = m_pDevice->getRenderTargetManager();
-
-    m_finalTarget = pRenderTargets->createRenderTarget(RenderTargetType_Texture);
-    pRenderTargets->attachColour(m_finalTarget, m_finalColourTarget);
-    pRenderTargets->attachDepth(m_finalTarget, m_gbuffer.getDepthTarget(), 0, 0);
+    m_finalTarget = pCmdList->createRenderTarget(RenderTargetType_Texture);
+    m_finalTarget->attachColour(m_finalColourTarget);
+    m_finalTarget->attachDepth(m_gbuffer.getDepthTarget(), 0, 0);
 
     Colour<RGBAu8> white[4] = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF};
     Colour<RGBAu8> black[4] = {0, 0, 0, 0};
     Colour<RGBAu8> blue[4]  = {{127, 127, 255, 1}, {127, 127, 255, 1}, {127, 127, 255, 1}, {127, 127, 255, 1}};
 
     // Load some default textures
-    Texture whiteTex, blackTex, blueTex;
-    whiteTex.load2D(m_pDevice, {2, 2}, white);
-    blackTex.load2D(m_pDevice, {2, 2}, black);
-    blueTex.load2D(m_pDevice, {2, 2}, blue);
+    graphics::TextureRef whiteTex, blackTex, blueTex;
+    graphics::loadTexture2D(pCmdList, &whiteTex, {2, 2}, white);
+    graphics::loadTexture2D(pCmdList, &blackTex, {2, 2}, black);
+    graphics::loadTexture2D(pCmdList, &blueTex, {2, 2}, blue);
 
     // Assign default textures for each material slot
     m_defaultMaterialTextures[Material::TextureSlot_Alpha]      = whiteTex;
@@ -870,11 +824,11 @@ namespace engine {
     m_defaultMaterialTextures[Material::TextureSlot_Alpha]      = whiteTex;
     m_defaultMaterialTextures[Material::TextureSlot_Normal]     = blueTex;
 
-    m_defaultMaterial.upload(pDevice);
+    m_defaultMaterial.upload(pCmdList);
 
     // Add renderer features
-    addFeature<Feature_MeshBasePass>(pAssets, & m_gbuffer, &m_modelData);
-    addFeature<Feature_LightingPass>(pDevice, pAssets, &m_gbuffer, &m_finalTarget, &m_modelData);
+    addFeature<Feature_MeshBasePass>(pAssets, &m_gbuffer, &m_modelData);
+    addFeature<Feature_LightingPass>(pCmdList, pAssets, &m_gbuffer, &m_finalTarget, &m_modelData);
     addFeature<Feature_Skybox>(pAssets, &m_finalTarget);
     addFeature<Feature_SSAO>(pAssets, &m_postProc);
     addFeature<Feature_SSR>(pAssets, &m_postProc);
@@ -883,36 +837,34 @@ namespace engine {
     addFeature<Feature_PostProcess>(pAssets, &m_postProc, &m_gbuffer, &m_finalColourTarget);
   }
 
-  GraphicsResource DeferredRenderer::getFinalTarget() const {
+  graphics::RenderTargetRef DeferredRenderer::getFinalTarget() const {
     return m_finalTarget;
   }
 
-  Texture const & DeferredRenderer::getDefaultTexture(Material::TextureSlot slot) const {
+  graphics::TextureRef const & DeferredRenderer::getDefaultTexture(Material::TextureSlot slot) const {
     return m_defaultMaterialTextures[slot];
   }
 
-  bfc::StructuredHardwareBuffer<bfc::renderer::PBRMaterial> const & DeferredRenderer::getDefaultMaterial() const {
+  graphics::StructuredBuffer<renderer::PBRMaterial> const & DeferredRenderer::getDefaultMaterial() const {
     return m_defaultMaterial;
   }
 
-  void DeferredRenderer::onResize(Vec2i size) {
-    Renderer::onResize(size);
+  void DeferredRenderer::onResize(graphics::CommandList * pCmdList, Vec2i size) {
+    Renderer::onResize(pCmdList, size);
 
-    m_gbuffer.resize(size);
-    m_finalColourTarget.load2D(m_pDevice, size, PixelFormat_RGBAf16);
+    m_gbuffer.resize(pCmdList, size);
+    graphics::loadTexture2D(pCmdList, &m_finalColourTarget, size, PixelFormat_RGBAf16);
   }
 
-  void DeferredRenderer::render(Vector<RenderView> const & views) {
-    graphics::RenderTargetManager * pRenderTargets = getGraphicsDevice()->getRenderTargetManager();
-
-    getGraphicsDevice()->bindUniformBuffer(m_cameraData.getResource(), renderer::BufferBinding_CameraBuffer);
-    getGraphicsDevice()->bindUniformBuffer(m_modelData.getResource(), renderer::BufferBinding_ModelBuffer);
+  void DeferredRenderer::render(graphics::CommandList * pCmdList, Vector<RenderView> const & views) {
+    pCmdList->bindUniformBuffer(m_cameraData, renderer::BufferBinding_CameraBuffer);
+    pCmdList->bindUniformBuffer(m_modelData, renderer::BufferBinding_ModelBuffer);
     m_postProc.reset();
 
-    Renderer::render(views);
+    Renderer::render(pCmdList, views);
   }
 
-  void DeferredRenderer::beginView(RenderView const & view) {
+  void DeferredRenderer::beginView(graphics::CommandList * pCmdList, RenderView const & view) {
     Mat4d dVP = view.projectionMatrix * view.viewMatrix;
 
     m_cameraData.data.viewProjMatrix    = dVP;
@@ -921,10 +873,10 @@ namespace engine {
     m_cameraData.data.viewMatrix        = view.viewMatrix;
     m_cameraData.data.invProjMatrix     = glm::inverse(view.projectionMatrix);
     m_cameraData.data.invViewMatrix     = glm::inverse(view.viewMatrix);
-    m_cameraData.upload(getGraphicsDevice());
+    m_cameraData.upload(pCmdList);
   }
 
-  void DeferredRenderer::endView(RenderView const & view) {
-    BFC_UNUSED(view);
+  void DeferredRenderer::endView(graphics::CommandList * pCmdList, RenderView const & view) {
+    BFC_UNUSED(pCmdList, view);
   }
 } // namespace engine
