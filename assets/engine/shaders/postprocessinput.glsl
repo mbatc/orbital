@@ -1,4 +1,5 @@
-#version 430
+#ifndef POSTPROCESSINPUT_GLSL
+#define POSTPROCESSINPUT_GLSL
 
 layout(binding = 0) uniform sampler2D sceneColour;
 layout(binding = 1) uniform sampler2D sceneDepth;
@@ -7,3 +8,5 @@ layout(binding = 3) uniform sampler2D ambient;
 layout(binding = 4) uniform sampler2D position;
 layout(binding = 5) uniform sampler2D normal;
 layout(binding = 6) uniform sampler2D RMA;
+
+#endif // POSTPROCESSINPUT_GLSL

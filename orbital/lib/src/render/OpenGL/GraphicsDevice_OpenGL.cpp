@@ -1,5 +1,6 @@
 #include "GraphicsDevice_OpenGL.h"
 #include "OpenGLCommands.h"
+#include "GLSLPreProcessor.h"
 
 #include "core/File.h"
 #include "platform/Window.h"
@@ -182,25 +183,35 @@ namespace bfc {
     }
 
     static bool compileShader(GLint glID, ShaderDesc const & desc, String * pError) {
-      String src;
+      std::optional<GLSLPreProcessor> preprocessor;
       if (desc.resource.has_value()) {
+        String src;
         if (!readTextURI(desc.resource.value(), &src)) {
           *pError = String("Failed to read source file ").concat(desc.resource.value().str());
           return false;
         }
+        preprocessor = GLSLPreProcessor(desc.resource.value());
       } else if (desc.src.has_value()) {
-        src = desc.src.value();
+        preprocessor = GLSLPreProcessor(desc.src.value(), bfc::URI("./"));
       }
 
-      if (src.empty()) {
+      std::optional<String> processed = preprocessor->process();
+      if (!processed.has_value()) {
         if (pError != nullptr) {
-          *pError = "Source was empty";
+          *pError = "Pre-processing src failed.";
         }
         return false;
       }
 
-      char const * srcPtr = src.c_str();
-      GLint        len    = (GLint)src.length();
+      if (processed->empty()) {
+        if (pError != nullptr) {
+          *pError = "Src is empty";
+        }
+        return false;
+      }
+
+      char const * srcPtr = processed->c_str();
+      GLint        len    = (GLint)processed->length();
       glShaderSource(glID, 1, &srcPtr, &len);
       glCompileShader(glID);
       int status = 1;

@@ -1,57 +1,7 @@
 #version 430
 
-#define LightType_Sun   0
-#define LightType_Point 1
-#define LightType_Spot  2
-
-struct LightBuffer {
-  vec3 position;
-  int  type;
-
-  vec3 colour;
-  float padding0;
-
-  vec3 ambient;
-  float strength;
-
-  vec3  attenuation;
-  float innerCutoff;
-
-  vec3  direction;
-  float outerCutoff;
-};
-
-layout(std140, binding=0) uniform Camera {
-  mat4 viewProjMatrix;
-  mat4 viewMatrix;
-  mat4 projMatrix;
-  mat4 invViewProjMatrix;
-  mat4 invViewMatrix;
-  mat4 invProjMatrix;
-};
-
-layout(std140, binding=1) uniform Model {
-  mat4 modelMatrix;
-  mat4 normalMatrix;
-  mat4 mvpMatrix;
-};
-
-layout(std140, binding=2) buffer lights {
-  LightBuffer lightData[];
-};
-
-// postprocessinput.h.glsl
-// -----------------------------
-
-layout(binding = 0) uniform sampler2D sceneColourTex;
-layout(binding = 1) uniform sampler2D sceneDepthTex;
-layout(binding = 2) uniform sampler2D baseColourTex;
-layout(binding = 3) uniform sampler2D ambientTex;
-layout(binding = 4) uniform sampler2D positionTex;
-layout(binding = 5) uniform sampler2D normalTex;
-layout(binding = 6) uniform sampler2D RMATex;
-
-// ----------------------------------
+#include "../common.h.glsl"
+#include "../postprocessinput.h.glsl"
 
 uniform float maxDistance;
 uniform float resolution;
