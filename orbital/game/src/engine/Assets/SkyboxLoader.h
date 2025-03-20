@@ -55,7 +55,41 @@ namespace bfc {
 
   template<>
   struct Serializer<engine::SkyboxDefinition> {
-    static SerializedObject write(engine::SkyboxDefinition const & o);
-    static bool             read(SerializedObject const & s, engine::SkyboxDefinition & o);
+    template<typename Context>
+    static SerializedObject write(engine::SkyboxDefinition const & o, Context const &) {
+      SerializedObject src;
+      switch (o.format) {
+      case engine::SkyboxFormat_CubeMap: src = serialize(o.cubeSource); break;
+      case engine::SkyboxFormat_Equirectangular: src = serialize(o.eqrectSource);
+      }
+
+      return SerializedObject::MakeMap({
+        {"format", serialize(o.format)},
+        {"source", src},
+        {"resolution", serialize(o.resolution)},
+        {"pixelFormat", serialize(o.pixelFormat)},
+      });
+    }
+
+    template<typename Context>
+    static bool read(SerializedObject const & s, engine::SkyboxDefinition & o, Context const &) {
+      s.get("format").readOrConstruct(o.format, engine::SkyboxFormat_Unknown);
+
+      switch (o.format) {
+      case engine::SkyboxFormat_CubeMap:
+        s.get("source").readOrConstruct(o.cubeSource);
+        mem::construct(&o.eqrectSource);
+        break;
+      case engine::SkyboxFormat_Equirectangular:
+        s.get("source").readOrConstruct(o.eqrectSource);
+        mem::construct(&o.cubeSource);
+        break;
+      }
+
+      s.get("resolution").readOrConstruct(o.resolution, Vec2i(2048));
+      s.get("pixelFormat").readOrConstruct(o.pixelFormat, PixelFormat_RGBu8);
+
+      return true;
+    }
   };
 } // namespace bfc

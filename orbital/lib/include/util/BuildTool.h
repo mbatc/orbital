@@ -83,16 +83,15 @@ namespace bfc {
       String generatePremakeScript(Filename const & projectDirectory) const;
     };
 
-    struct ExternalModule
-    {
-      String group;    ///< The group to place the module under
+    struct ExternalModule {
+      String   group;  ///< The group to place the module under
       Filename script; ///< Premake lua script to include.
     };
 
     String   projectName;      ///< Name of the entire project
     Filename projectDirectory; ///< Top level directory for the project
 
-    Vector<Module>         modules;         ///< Modules in the project
+    Vector<Module> modules; ///< Modules in the project
 
     Map<String, String>    variables;       ///< Variables to add to the generate premake script. These may be referenced by an external project.
     Vector<ExternalModule> externalModules; ///< Additional external modules to include
@@ -127,54 +126,51 @@ namespace bfc {
 
   template<>
   struct BFC_API Serializer<BuildConfiguration> {
-    static SerializedObject write(BuildConfiguration const & o);
-    static bool             read(SerializedObject const & s, BuildConfiguration & o);
+    static SerializedObject write(BuildConfiguration const & o, ...);
+    static bool             read(SerializedObject const & s, BuildConfiguration & o, ...);
   };
 
   template<>
   struct BFC_API Serializer<BuildTool::Module> {
-    static SerializedObject write(BuildTool::Module const & o);
-    static bool             read(SerializedObject const & s, BuildTool::Module & o);
+    static SerializedObject write(BuildTool::Module const & o, ...);
+    static bool             read(SerializedObject const & s, BuildTool::Module & o, ...);
   };
 
   template<>
   struct BFC_API Serializer<BuildTool::ExternalModule> {
-    static SerializedObject write(BuildTool::ExternalModule const & o);
-    static bool             read(SerializedObject const & s, BuildTool::ExternalModule & o);
+    static SerializedObject write(BuildTool::ExternalModule const & o, ...);
+    static bool             read(SerializedObject const & s, BuildTool::ExternalModule & o, ...);
   };
 
   template<>
   struct BFC_API Serializer<BuildTool> {
-    static SerializedObject write(BuildTool const & o);
-    static bool             read(SerializedObject const & s, BuildTool & o);
+    static SerializedObject write(BuildTool const & o, ...);
+    static bool             read(SerializedObject const & s, BuildTool & o, ...);
   };
-  
+
   template<>
   struct EnumValueMap<WarningLevel> {
     inline static Map<WarningLevel, String> const mapping = {
-      { WarningLevel_Off, "off" },
-      { WarningLevel_Default, "default" },
-      { WarningLevel_Extra, "extra" },
+      {WarningLevel_Off, "off"},
+      {WarningLevel_Default, "default"},
+      {WarningLevel_Extra, "extra"},
     };
   };
 
   template<>
   struct EnumValueMap<FloatingPointModel> {
     inline static Map<FloatingPointModel, String> const mapping = {
-      { FloatingPointModel_Unspecified, "unspecified" },
-      { FloatingPointModel_Fast, "fast" },
-      { FloatingPointModel_Accurate, "accurate" },
+      {FloatingPointModel_Unspecified, "unspecified"},
+      {FloatingPointModel_Fast, "fast"},
+      {FloatingPointModel_Accurate, "accurate"},
     };
   };
 
   template<>
   struct EnumValueMap<BuildTargetType> {
     inline static Map<BuildTargetType, String> const mapping = {
-      { BuildTargetType_Unknown, "unknown" },
-      { BuildTargetType_Exe, "exe" },
-      { BuildTargetType_SharedLibrary, "shared-lib" },
-      { BuildTargetType_StaticLibrary, "static-lib"},
-      { BuildTargetType_None, "none" },
+      {BuildTargetType_Unknown, "unknown"},          {BuildTargetType_Exe, "exe"},   {BuildTargetType_SharedLibrary, "shared-lib"},
+      {BuildTargetType_StaticLibrary, "static-lib"}, {BuildTargetType_None, "none"},
     };
   };
 } // namespace bfc

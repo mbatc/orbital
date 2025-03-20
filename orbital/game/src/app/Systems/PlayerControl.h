@@ -49,20 +49,6 @@ private:
 
 namespace engine {
   template<>
-  struct LevelComponentSerializer<VehicleCameraController> {
-    inline static bfc::SerializedObject write(LevelSerializer * pSerializer, Level const & level, VehicleCameraController const & o) {
-      return bfc::SerializedObject::MakeMap({{"target", LevelSerializer::writeEntityID(o.target, level)}, { "up", bfc::serialize(o.up) }});
-    }
-
-    inline static bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & s, Level & level, EntityID entity, VehicleCameraController & o) {
-      bfc::mem::construct(&o);
-      bfc::deserialize(s.get("up"), o.up);
-      o.target = LevelSerializer::readEntityID(s.get("target"), level);
-      return true;
-    }
-  };
-
-  template<>
   struct engine::LevelComponentCopier<VehicleCameraController> {
     inline static void copy(LevelCopyContext * pContext, Level * pDstLevel, EntityID dstEntity, Level const & srcLevel,
                             VehicleCameraController const & component) {
@@ -70,19 +56,6 @@ namespace engine {
 
       VehicleCameraController &dst = pDstLevel->replace<VehicleCameraController>(dstEntity, component);
       dst.target                   = pContext->remap(component.target);
-    }
-  };
-
-  template<>
-  struct LevelComponentSerializer<VehicleController> {
-    inline static bfc::SerializedObject write(LevelSerializer * pSerializer, Level const & level, VehicleController const & o) {
-      return bfc::SerializedObject::MakeMap({{"target", LevelSerializer::writeEntityID(o.target, level)}});
-    }
-
-    inline static bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & s, Level & level, EntityID entity, VehicleController & o) {
-      bfc::mem::construct(&o);
-      o.target = LevelSerializer::readEntityID(s.get("target"), level);
-      return true;
     }
   };
 
@@ -95,15 +68,46 @@ namespace engine {
       dst.target              = pContext->remap(component.target);
     }
   };
+} // namespace engine
 
+namespace bfc {
   template<>
-  struct LevelComponentSerializer<Vehicle> {
-    inline static bfc::SerializedObject write(LevelSerializer * pSerializer, Level const & level, Vehicle const & o) {
-      return bfc::SerializedObject::Empty();
+  struct Serializer<VehicleCameraController> {
+    static bfc::SerializedObject write(VehicleCameraController const & o, engine::ComponentSerializeContext const & ctx) {
+      return bfc::SerializedObject::MakeMap({{"target", ctx.pSerializer->writeEntityID(o.target, *ctx.pLevel)}, {"up", bfc::serialize(o.up)}});
     }
 
-    inline static bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & s, Level & level, EntityID entity, Vehicle & o) {
+    static bool read(bfc::SerializedObject const & s, VehicleCameraController & o, engine::ComponentDeserializeContext const & ctx) {
+      bfc::mem::construct(&o);
+      bfc::read(s.get("up"), o.up, ctx);
+      o.target = ctx.pSerializer->readEntityID(s.get("target"), *ctx.pLevel);
       return true;
     }
   };
-} // namespace engine
+
+  template<>
+  struct Serializer<VehicleController> {
+    inline static bfc::SerializedObject write(VehicleController const & o, engine::ComponentSerializeContext const & ctx) {
+      return bfc::SerializedObject::MakeMap({{"target", ctx.pSerializer->writeEntityID(o.target, *ctx.pLevel)}});
+    }
+
+    inline static bool read(bfc::SerializedObject const & s, VehicleController & o, engine::ComponentDeserializeContext const & ctx) {
+      bfc::mem::construct(&o);
+      o.target = ctx.pSerializer->readEntityID(s.get("target"), *ctx.pLevel);
+      return true;
+    }
+  };
+
+  template<>
+  struct Serializer<Vehicle> {
+    inline static bfc::SerializedObject write(Vehicle const & o,
+                                              engine::ComponentSerializeContext const & ctx) {
+      return bfc::SerializedObject::Empty();
+    }
+
+    inline static bool read(bfc::SerializedObject const & s, Vehicle & o, engine::ComponentDeserializeContext const & ctx) {
+      mem::construct(&o);
+      return true;
+    }
+  };
+} // namespace bfc

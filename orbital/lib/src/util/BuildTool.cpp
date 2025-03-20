@@ -315,19 +315,19 @@ namespace bfc {
 
   SerializedObject BuildTool::exportConfig() const {
     SerializedObject s;
-    serialize(s.get("project"), projectName);
-    serialize(s.get("projectDir"), projectDirectory);
-    serialize(s.get("configurations"), configurations);
+    write(s.get("project"), projectName);
+    write(s.get("projectDir"), projectDirectory);
+    write(s.get("configurations"), configurations);
     return s;
   }
 
   void BuildTool::readConfig(SerializedObject const & s) {
-    deserialize(s.get("project"), projectName);
-    deserialize(s.get("projectDir"), projectDirectory);
-    deserialize(s.get("configurations"), configurations);
+    read(s.get("project"), projectName);
+    read(s.get("projectDir"), projectDirectory);
+    read(s.get("configurations"), configurations);
   }
 
-  SerializedObject Serializer<BuildConfiguration>::write(BuildConfiguration const & o) {
+  SerializedObject Serializer<BuildConfiguration>::write(BuildConfiguration const & o, ...) {
     SerializedObject s;
     if (o.staticRuntime != -1)
       s.get("static-runtime").write(o.staticRuntime);
@@ -364,7 +364,7 @@ namespace bfc {
     return s;
   }
 
-  bool Serializer<BuildConfiguration>::read(SerializedObject const & s, BuildConfiguration & o) {
+  bool Serializer<BuildConfiguration>::read(SerializedObject const & s, BuildConfiguration & o, ...) {
     s.get("static-runtime").readOrConstruct(o.staticRuntime, -1);
     s.get("debug-runtime").readOrConstruct(o.debugRuntime, -1);
     s.get("symbols").readOrConstruct(o.symbols, -1);
@@ -384,7 +384,7 @@ namespace bfc {
     return true;
   }
 
-  SerializedObject Serializer<BuildTool::Module>::write(BuildTool::Module const & o) {
+  SerializedObject Serializer<BuildTool::Module>::write(BuildTool::Module const & o, ...) {
     SerializedObject s;
     if (o.name.length())
       s.get("name").write(o.name);
@@ -403,7 +403,7 @@ namespace bfc {
     return s;
   }
 
-  bool Serializer<BuildTool::Module>::read(SerializedObject const & s, BuildTool::Module & o) {
+  bool Serializer<BuildTool::Module>::read(SerializedObject const & s, BuildTool::Module & o, ...) {
     s.get("name").readOrConstruct(o.name);
     s.get("directory").readOrConstruct(o.moduleDirectory);
     s.get("group").readOrConstruct(o.group);
@@ -414,20 +414,20 @@ namespace bfc {
     return true;
   }
 
-  SerializedObject Serializer<BuildTool::ExternalModule>::write(BuildTool::ExternalModule const & o) {
+  SerializedObject Serializer<BuildTool::ExternalModule>::write(BuildTool::ExternalModule const & o, ...) {
     SerializedObject s;
     s.add("group").write(o.group);
     s.add("script").write(o.script);
     return s;
   }
 
-  bool Serializer<BuildTool::ExternalModule>::read(SerializedObject const & s, BuildTool::ExternalModule & o) {
+  bool Serializer<BuildTool::ExternalModule>::read(SerializedObject const & s, BuildTool::ExternalModule & o, ...) {
     s.get("group").readOrConstruct(o.group);
     s.get("script").readOrConstruct(o.script);
     return true;
   }
 
-  SerializedObject Serializer<BuildTool>::write(BuildTool const& o) {
+  SerializedObject Serializer<BuildTool>::write(BuildTool const & o, ...) {
     SerializedObject s;
     s.get("variables").write(o.variables);
     SerializedObject &project = s.get("project");
@@ -439,7 +439,7 @@ namespace bfc {
     return s;
   }
 
-  bool Serializer<BuildTool>::read(SerializedObject const& s, BuildTool& o) {
+  bool Serializer<BuildTool>::read(SerializedObject const & s, BuildTool & o, ...) {
     s.get("variables").readOrConstruct(o.variables);
     s.get("configurations").readOrConstruct(o.configurations);
     s.get("external-modules").readOrConstruct(o.externalModules);

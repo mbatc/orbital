@@ -238,6 +238,10 @@ namespace engine {
       return m_pInstance;
     }
 
+    AssetHandle const& handle() const {
+      return m_handle;
+    }
+
     /// Implicit cast to Ref for easy integration with other APIs
     operator bfc::Ref<T> const &() const {
       return instance();
@@ -267,4 +271,42 @@ namespace engine {
     bfc::Ref<uint64_t>  m_pManagedVersion = nullptr;
     AssetHandle         m_handle          = InvalidAssetHandle;
   };
+
+  struct AssetSerializerContext {
+    AssetManager * pAssetManager;
+  };
 } // namespace engine
+
+namespace bfc {
+  template<typename T>
+  struct Serializer<engine::Asset<T>> {
+    static bfc::SerializedObject write(engine::Asset<T> const & o, engine::AssetSerializerContext const & ctx) {
+      engine::AssetManager * pAssets = ctx.pAssetManager;
+      engine::AssetHandle    handle  = o.handle();
+      if (handle == engine::InvalidAssetHandle) {
+        return SerializedObject::Empty();
+      }
+
+      return SerializedObject::MakeMap({{"uri", pAssets->uriOf(handle).str()}});
+    }
+
+    static bool read(bfc::SerializedObject const & s, engine::Asset<T> & o, engine::AssetSerializerContext const & ctx) {
+      engine::AssetManager *   pAssets = ctx.pAssetManager;
+      SerializedObject const & uriItem = s.get("uri");
+      if (uriItem.isText()) {
+        bfc::URI               uri     = uriItem.asText();
+        mem::construct(&o, pAssets, uri);
+        return true;
+      }
+
+      SerializedObject const & idItem = s.get("uuid");
+      if (idItem.isText()) {
+        bfc::UUID uuid = idItem.asText();
+        mem::construct(&o, pAssets, pAssets->find(uuid));
+      }
+
+      mem::construct(&o, nullptr);
+      return true;
+    }
+  };
+}

@@ -16,6 +16,7 @@ namespace engine {
 
     bfc::graphics::VertexArrayRef vertexArray;
     bfc::graphics::BufferRef      materialBuffer;
+    bfc::graphics::ProgramRef     shader;
     bfc::graphics::TextureRef     materialTextures[bfc::Material::TextureSlot_Count];
 
     bfc::geometry::Box<float> bounds;
