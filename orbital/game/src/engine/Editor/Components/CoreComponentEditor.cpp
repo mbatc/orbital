@@ -76,7 +76,8 @@ namespace engine {
 
     for (int64_t i = 0; i < pComponent->materials.size(); ++i) {
       ImGui::PushID((int)i);
-      LevelEditor::drawAssetSelector("Material %lld", &pComponent->materials[i], pAssets);
+      // LevelEditor::drawAssetSelector("Material %lld", &pComponent->materials[i].pMaterial, pAssets);
+      // LevelEditor::drawAssetSelector("Shader   %lld", &pComponent->materials[i].pProgram, pAssets);
       ImGui::PopID();
     }
   }

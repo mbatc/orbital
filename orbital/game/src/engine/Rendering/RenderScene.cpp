@@ -37,7 +37,7 @@ namespace engine {
           geometry::Boxf bounds = sm.bounds;
           bounds.transform(modelMat);
 
-          Material * pMaterial = i < meshComponent.materials.size() ? meshComponent.materials[i].get() : nullptr;
+          Material * pMaterial = i < meshComponent.materials.size() ? meshComponent.materials[i].pMaterial.instance().get() : nullptr;
           MeshRenderable renderable;
           renderable.elementOffset = sm.elmOffset;
           renderable.elementCount  = sm.elmCount;

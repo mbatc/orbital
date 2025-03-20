@@ -28,13 +28,15 @@ namespace engine {
 namespace bfc {
   template<>
   struct Serializer<engine::ShaderDefinition> {
-    inline static SerializedObject write(engine::ShaderDefinition const & o) {
+    template<typename Context>
+    static SerializedObject write(engine::ShaderDefinition const & o, Context const &) {
       return SerializedObject::MakeMap({
          { "src", serialize(o.sources) },
       });
     }
 
-    inline static bool read(SerializedObject const & s, engine::ShaderDefinition & o) {
+    template<typename Context>
+    static bool read(SerializedObject const & s, engine::ShaderDefinition & o, Context const &) {
       return s.get("src").read(o.sources);
     }
   };
