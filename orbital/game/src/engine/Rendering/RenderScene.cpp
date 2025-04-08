@@ -37,7 +37,8 @@ namespace engine {
           geometry::Boxf bounds = sm.bounds;
           bounds.transform(modelMat);
 
-          Material * pMaterial = i < meshComponent.materials.size() ? meshComponent.materials[i].pMaterial.instance().get() : nullptr;
+          Material *     pMaterial = i < meshComponent.materials.size() ? meshComponent.materials[i].pMaterial.instance().get() : nullptr;
+
           MeshRenderable renderable;
           renderable.elementOffset = sm.elmOffset;
           renderable.elementCount  = sm.elmCount;
@@ -45,6 +46,7 @@ namespace engine {
           renderable.normalMatrix  = normalMat;
           renderable.vertexArray   = pMesh->getVertexArray();
           renderable.bounds        = bounds;
+          renderable.shader        = i < meshComponent.materials.size() ? meshComponent.materials[i].pProgram.instance() : nullptr;
 
           if (pMaterial == nullptr) {
             renderable.materialBuffer = InvalidGraphicsResource;

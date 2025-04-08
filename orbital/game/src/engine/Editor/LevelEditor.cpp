@@ -205,14 +205,38 @@ namespace engine {
     return changed;
   }
 
-  bool LevelEditor::drawAssetSelector(StringView const & name, Ref<void> * ppAsset, type_index const & assetType, AssetManager * pManager) {
-    bool        changed      = false;
-    bfc::String selectedName = "[ None ]";
+  static void discoverAssets(URI const & basePath, VirtualFileSystem * pFileSystem, AssetManager * pManager, bfc::type_index const & assetType) {
+    for (auto & uri : pFileSystem->walk(basePath)) {
+      if (pFileSystem->isLeaf(uri)) {
+        if (pManager->canLoad(uri, assetType))
+          pManager->add(uri, assetType); // add but don't load
+      } else {
+        discoverAssets(uri, pFileSystem, pManager, assetType);
+      }
+    }
+  }
 
+  static void discoverAssets(VirtualFileSystem * pFileSystem, AssetManager * pManager, bfc::type_index const & assetType) {
+    for (auto & drive : pFileSystem->drives()) {
+      discoverAssets(String::format("file:%s:/", drive), pFileSystem, pManager, assetType);
+    }
+  }
+
+  bool LevelEditor::drawAssetSelector(StringView const & name, Ref<void> * ppAsset, type_index const & assetType, AssetManager * pManager,
+                                      VirtualFileSystem * pFileSystem) {
     AssetHandle handle = pManager->find(*ppAsset);
+    bool        changed = drawAssetSelector(name, &handle, assetType, pManager, pFileSystem, *ppAsset != nullptr ? "Unmanaged" : "[ None ]");
+    *ppAsset    = pManager->load(handle, assetType);
+    return changed;
+  }
 
-    if (handle != InvalidAssetHandle) {
-      selectedName = pManager->uriOf(handle).str();
+  bool LevelEditor::drawAssetSelector(bfc::StringView const & name, AssetHandle * pHandle, bfc::type_index const & assetType, AssetManager * pManager, VirtualFileSystem *pFileSystem,
+                                      bfc::StringView const & emptyPreview) {
+    bool        changed      = false;
+    bfc::String selectedName = emptyPreview;
+
+    if (*pHandle != InvalidAssetHandle) {
+      selectedName = pManager->uriOf(*pHandle).str();
     }
 
     ui::Input(name, &selectedName);
@@ -222,20 +246,22 @@ namespace engine {
       ImGui::OpenPopup("Select Asset");
 
     if (ImGui::BeginPopup("Select Asset")) {
-      auto handles = pManager->findHandles([assetType](URI const & uri, type_index const & type, StringView const & loaderID) {
-        return type == assetType;
-      });
+      if (ImGui::IsWindowAppearing()) {
+        discoverAssets(pFileSystem, pManager, assetType);
+      }
+
+      auto handles = pManager->findHandles([assetType](URI const & uri, type_index const & type, StringView const & loaderID) { return type == assetType; });
 
       for (AssetHandle option : handles) {
-        ImGui::PushID((int)(handle & 0x00000000FFFFFFFF));
-        ImGui::PushID((int)((handle >> 32) & 0x00000000FFFFFFFF));
+        ImGui::PushID((int)(option & 0x00000000FFFFFFFF));
+        ImGui::PushID((int)((option >> 32) & 0x00000000FFFFFFFF));
 
         bfc::String optionName = "[ unnamed ]";
-        URI uri = pManager->uriOf(handle);
+        URI         uri        = pManager->uriOf(option);
 
-        if (ImGui::Selectable(uri.c_str(), option == handle)) {
-          handle  = option;
-          changed = true;
+        if (ImGui::Selectable(uri.c_str(), option == *pHandle)) {
+          *pHandle = option;
+          changed  = true;
         }
 
         ImGui::PopID();
@@ -247,11 +273,7 @@ namespace engine {
 
     ImGui::PopID();
 
-    if (changed) {
-      *ppAsset = pManager->load(handle, assetType);
-    }
-
-    return changed;
+    return false;
   }
 
   void LevelEditor::drawUI(bfc::Ref<LevelManager> const & pLevels, bfc::Ref<AssetManager> const & pAssets, bfc::Ref<Rendering> const & pRendering,

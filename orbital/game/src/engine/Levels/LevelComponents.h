@@ -86,7 +86,7 @@ namespace engine {
 
     virtual bool read(bfc::SerializedObject const & serialized, EntityID entity, ComponentDeserializeContext const & context) const override {
       std::optional<T> result = bfc::deserialize<T>(serialized, context);
-      if (!!result.has_value()) {
+      if (!result.has_value()) {
         return false;
       }
 

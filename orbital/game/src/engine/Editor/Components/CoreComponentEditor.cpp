@@ -59,25 +59,27 @@ namespace engine {
   }
 
   void SkyboxEditor::draw(LevelEditor * pEditor, Ref<Level> const & pLevel, EntityID entityID, components::Skybox * pComponent) {
-    AssetManager *pAssets = pEditor->getApp()->findSubsystem<AssetManager>().get();
+    AssetManager * pAssets     = pEditor->getApp()->findSubsystem<AssetManager>().get();
+    VirtualFileSystem * pFileSystem = pEditor->getApp()->findSubsystem<VirtualFileSystem>().get();
 
-    LevelEditor::drawAssetSelector("Texture", &pComponent->pTexture, pAssets);
+    LevelEditor::drawAssetSelector("Texture", &pComponent->pTexture, pAssets, pFileSystem);
   }
 
   void StaticMeshEditor::draw(LevelEditor * pEditor, Ref<Level> const & pLevel, EntityID entityID, components::StaticMesh * pComponent) {
-    AssetManager * pAssets = pEditor->getApp()->findSubsystem<AssetManager>().get();
+    AssetManager *      pAssets     = pEditor->getApp()->findSubsystem<AssetManager>().get();
+    VirtualFileSystem * pFileSystem = pEditor->getApp()->findSubsystem<VirtualFileSystem>().get();
 
     ui::Input("Cast Shadows", &pComponent->castShadows);
 
-    LevelEditor::drawAssetSelector("Mesh", &pComponent->pMesh, pAssets);
+    LevelEditor::drawAssetSelector("Mesh", &pComponent->pMesh, pAssets, pFileSystem);
 
     ui::Separator();
     ui::Label("Materials");
 
     for (int64_t i = 0; i < pComponent->materials.size(); ++i) {
       ImGui::PushID((int)i);
-      // LevelEditor::drawAssetSelector("Material %lld", &pComponent->materials[i].pMaterial, pAssets);
-      // LevelEditor::drawAssetSelector("Shader   %lld", &pComponent->materials[i].pProgram, pAssets);
+      LevelEditor::drawAssetSelector("Material %lld", &pComponent->materials[i].pMaterial, pAssets, pFileSystem);
+      LevelEditor::drawAssetSelector("Shader   %lld", &pComponent->materials[i].pProgram, pAssets, pFileSystem);
       ImGui::PopID();
     }
   }
@@ -96,12 +98,13 @@ namespace engine {
   }
 
   void PostProcess_BloomEditor::draw(LevelEditor * pEditor, Ref<Level> const & pLevel, EntityID entityID, components::PostProcess_Bloom * pComponent) {
-    AssetManager * pAssets = pEditor->getApp()->findSubsystem<AssetManager>().get();
+    AssetManager *      pAssets     = pEditor->getApp()->findSubsystem<AssetManager>().get();
+    VirtualFileSystem * pFileSystem = pEditor->getApp()->findSubsystem<VirtualFileSystem>().get();
 
     ui::Input("Filter Radius", &pComponent->filterRadius);
     ui::Input("Strength", &pComponent->strength);
     ui::Input("Threshold", &pComponent->threshold);
-    LevelEditor::drawAssetSelector("Dirt", &pComponent->dirt, pAssets);
+    LevelEditor::drawAssetSelector("Dirt", &pComponent->dirt, pAssets, pFileSystem);
     ui::Input("Dirt Intensity", &pComponent->dirtIntensity);
   }
 
