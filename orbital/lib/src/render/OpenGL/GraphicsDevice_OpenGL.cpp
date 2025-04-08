@@ -2,6 +2,7 @@
 #include "OpenGLCommands.h"
 #include "GLSLPreProcessor.h"
 
+#include "util/Log.h"
 #include "core/File.h"
 #include "platform/Window.h"
 
@@ -894,6 +895,8 @@ namespace bfc {
     }
 
     void CommandList_OpenGL::swap() {
+      BFC_ASSERT(m_activeWindowTarget != nullptr, "no active render target");
+
       impl::OpenGL::Swap cmd;
       cmd.hDC = ToGL(m_activeWindowTarget).window.hDC;
 
@@ -929,6 +932,8 @@ namespace bfc {
     }
 
     void CommandList_OpenGL::upload(BufferRef bufferID, int64_t size, void const * pData) {
+      BFC_ASSERT(bufferID != nullptr, "bufferID is nullptr");
+
       impl::OpenGL::Upload cmd;
       cmd.dataHandle = m_commandBuffer.write({(const uint8_t *)pData, size});
       cmd.dataSize   = size;
@@ -944,6 +949,8 @@ namespace bfc {
     }
 
     std::future<void *> CommandList_OpenGL::map(BufferRef bufferID, int64_t offset, int64_t size, MapAccess access) {
+      BFC_ASSERT(bufferID != nullptr, "bufferID is nullptr");
+
       auto pPromise = bfc::Ref<std::promise<void *>>();
 
       impl::OpenGL::Map cmd;
@@ -961,6 +968,8 @@ namespace bfc {
     }
 
     void CommandList_OpenGL::unmap(BufferRef bufferID) {
+      BFC_ASSERT(bufferID != nullptr, "bufferID is nullptr");
+
       impl::OpenGL::Unmap cmd;
       cmd.pBuffer = &ToGL(bufferID);
       add(cmd);
@@ -968,6 +977,8 @@ namespace bfc {
     }
 
     void CommandList_OpenGL::download(BufferRef bufferID, BufferDownloadRef pDownload, int64_t offset, int64_t size) {
+      BFC_ASSERT(bufferID != nullptr, "bufferID is nullptr");
+
       auto pPromise = bfc::Ref<std::promise<void>>();
 
       impl::OpenGL::Download cmd;
@@ -987,6 +998,8 @@ namespace bfc {
     }
 
     bool CommandList_OpenGL::uploadTexture(TextureRef textureID, DepthStencilFormat format, Vec3i size) {
+      BFC_ASSERT(textureID != nullptr, "textureID is nullptr");
+
       impl::OpenGL::AllocateTexture cmd;
       cmd.pTexture       = &ToGL(textureID);
       cmd.format         = ToGLFormat(format);
@@ -1006,6 +1019,8 @@ namespace bfc {
     }
 
     bool CommandList_OpenGL::uploadTexture(TextureRef textureID, media::Surface const & src) {
+      BFC_ASSERT(textureID != nullptr, "textureID is nullptr");
+
       auto & tex = ToGL(textureID);
 
       impl::OpenGL::UploadTexture cmd;
@@ -1034,6 +1049,8 @@ namespace bfc {
     }
 
     bool CommandList_OpenGL::uploadTextureSubData(TextureRef textureID, media::Surface const & src, Vec3i offset) {
+      BFC_ASSERT(textureID != nullptr, "textureID is nullptr");
+
       auto & tex = *(GLTexture *)textureID.get();
 
       impl::OpenGL::UploadTextureSubData cmd;
@@ -1057,6 +1074,7 @@ namespace bfc {
       impl::OpenGL::GenerateMipMaps mips;
       mips.pTexture = &ToGL(textureID);
       mips.target   = ToGLTextureType(mips.pTexture->type);
+
       add(mips);
       track(textureID);
     }
@@ -1066,10 +1084,16 @@ namespace bfc {
 
       impl::OpenGL::DownloadTexture cmd;
       cmd.pTexture = &ToGL(textureID);
+
+      add(cmd);
       track(textureID);
     }
 
     void CommandList_OpenGL::setUniform(int64_t uniformIndex, void const * pBuffer, int64_t size) {
+      if (m_boundProgram == nullptr) {
+        return;
+      }
+
       impl::OpenGL::SetUniform cmd;
       cmd.uniformIndex = uniformIndex;
       cmd.dataSize     = size;
@@ -1080,6 +1104,9 @@ namespace bfc {
     }
 
     void CommandList_OpenGL::setUniform(StringView const & name, void const * pBuffer, int64_t size) {
+      if (m_boundProgram == nullptr) {
+        return;
+      }
       impl::OpenGL::SetNamedUniform cmd;
       cmd.nameSize   = name.length();
       cmd.nameHandle = m_commandBuffer.write({(const uint8_t *)name.begin(), name.length()});
@@ -1087,43 +1114,67 @@ namespace bfc {
       cmd.dataHandle = m_commandBuffer.write({(const uint8_t *)pBuffer, size});
       cmd.pProgram   = &ToGL(m_boundProgram);
 
+      BFC_ASSERT(m_boundProgram != InvalidGraphicsResource, "No program is bound");
+
       add(cmd);
     }
 
     void CommandList_OpenGL::setBufferBinding(int64_t bufferIndex, int64_t bindPoint) {
+      if (m_boundProgram == nullptr) {
+        return;
+      }
       impl::OpenGL::SetBufferBinding cmd;
       cmd.bufferIndex = bufferIndex;
       cmd.bindPoint   = bindPoint;
       cmd.pProgram    = &ToGL(m_boundProgram);
 
+      BFC_ASSERT(m_boundProgram != InvalidGraphicsResource, "No program is bound");
+
       add(cmd);
     }
 
     void CommandList_OpenGL::setBufferBinding(StringView const & name, int64_t bindPoint) {
+      if (m_boundProgram == nullptr) {
+        return;
+      }
       impl::OpenGL::SetNamedBufferBinding cmd;
       cmd.nameSize   = name.length();
       cmd.nameHandle = m_commandBuffer.write({(const uint8_t *)name.begin(), name.length()});
       cmd.bindPoint  = bindPoint;
       cmd.pProgram   = &ToGL(m_boundProgram);
 
+      BFC_ASSERT(m_boundProgram != InvalidGraphicsResource, "No program is bound");
+
       add(cmd);
     }
 
     void CommandList_OpenGL::setTextureBinding(int64_t textureIndex, int64_t bindPoint) {
+      if (m_boundProgram == nullptr) {
+        return;
+      }
       impl::OpenGL::SetTextureBinding cmd;
       cmd.textureIndex = textureIndex;
       cmd.bindPoint    = bindPoint;
       cmd.pProgram     = &ToGL(m_boundProgram);
 
+      BFC_ASSERT(m_boundProgram != InvalidGraphicsResource, "No program is bound");
+
       add(cmd);
     }
 
     void CommandList_OpenGL::setTextureBinding(StringView const & name, int64_t bindPoint) {
+      if (m_boundProgram == nullptr) {
+        return;
+      }
       impl::OpenGL::SetNamedTextureBinding cmd;
       cmd.nameSize   = name.length();
       cmd.nameHandle = m_commandBuffer.write({(const uint8_t *)name.begin(), name.length()});
       cmd.bindPoint  = bindPoint;
       cmd.pProgram   = &ToGL(m_boundProgram);
+
+      BFC_ASSERT(m_boundProgram != InvalidGraphicsResource, "No program is bound");
+
+      add(cmd);
     }
 
     // void CommandList_OpenGL::getUniform(int64_t uniformIndex, void * pBuffer, ProgramUniformDesc * pDesc) {
@@ -1316,6 +1367,19 @@ namespace bfc {
     return glProgram.compileResult.value();
   }
 
+  static bfc::String getShaderDescription(bfc::Array<std::optional<graphics::ShaderDesc>, ShaderType_Count> const & shaders) {
+    bfc::String ret;
+    for (int64_t i = 0; i < ShaderType_Count; ++i) {
+      auto const & desc = shaders[i];
+      if (!desc.has_value())
+        continue;
+
+      ret = ret + serialize(ShaderType(i)).asText() + ": " + desc->resource.value_or("embedded").path();
+      ret = ret + "\n";
+    }
+    return ret;
+  }
+
   void GraphicsDevice_OpenGL::RenderThread(platform::Window * pWindow, Ref<std::promise<void>> initComplete) {
     // Create a temporary window to make our fake GL context
     HINSTANCE hInstance = GetModuleHandle(0);
@@ -1407,8 +1471,15 @@ namespace bfc {
       guard.unlock();
 
       for (auto & job : compileJobs) {
-        bool success = ToGL(job.pProgram).compile(nullptr);
+        String result;
+        bool   success = ToGL(job.pProgram).compile(&result);
         job.result.set_value(success);
+
+        if (!success) {
+          ToGL(job.pProgram).shaders;
+
+          BFC_LOG_ERROR("GraphicsDevice", "Failed to compile shader:\n  %s\n  %s", getShaderDescription(ToGL(job.pProgram).shaders), result);
+        }
       }
 
       for (auto & list : lists) {
