@@ -47,6 +47,7 @@ namespace engine {
           renderable.vertexArray   = pMesh->getVertexArray();
           renderable.bounds        = bounds;
           renderable.shader        = i < meshComponent.materials.size() ? meshComponent.materials[i].pProgram.instance() : nullptr;
+          renderable.primitiveType = meshComponent.useTesselation ? PrimitiveType_Patches : PrimitiveType_Triangle;
 
           if (pMaterial == nullptr) {
             renderable.materialBuffer = InvalidGraphicsResource;

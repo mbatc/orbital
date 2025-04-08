@@ -133,7 +133,8 @@ namespace components {
   struct StaticMesh {
     bfc::Ref<bfc::Mesh>         pMesh;
     bfc::Vector<ShadedMaterial> materials;
-    bool                        castShadows = true;
+    bool                        castShadows    = true;
+    bool                        useTesselation = false;
   };
 
   /// Defines a area in the scene which post processing effects are applied to.
