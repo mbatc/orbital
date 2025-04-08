@@ -135,6 +135,8 @@ namespace engine {
     if (resource.empty())
       return {};
 
+    BFC_ASSERT(recursive == false, "Recursive not fully supported. Fix resolving relative references");
+
     bfc::URI resolved = resolveUri(resource);
 
     return bfc::walk(resolved, recursive).map([=](URI const & o) {

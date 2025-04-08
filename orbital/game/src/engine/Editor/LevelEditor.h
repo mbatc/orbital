@@ -66,14 +66,33 @@ namespace engine {
     static bool drawEntitySelector(bfc::StringView const & name, EntityID * pEntityID, Level * pLevel);
 
     template<typename T>
-    static bool drawAssetSelector(bfc::StringView const & name, bfc::Ref<T> * ppAsset, AssetManager * pManager) {
+    static bool drawAssetSelector(bfc::StringView const & name, bfc::Ref<T> * ppAsset, AssetManager * pManager, VirtualFileSystem * pFileSystem) {
       bfc::Ref<void> pOpaque = *ppAsset;
-      bool           result  = drawAssetSelector(name, &pOpaque, bfc::TypeID<T>(), pManager);
+      bool           result  = drawAssetSelector(name, &pOpaque, bfc::TypeID<T>(), pManager, pFileSystem);
       *ppAsset               = std::static_pointer_cast<T>(pOpaque);
       return result;
     }
 
-    static bool drawAssetSelector(bfc::StringView const & name, bfc::Ref<void> * ppAsset, bfc::type_index const & assetType, AssetManager * pManager);
+    template<typename T>
+    static bool drawAssetSelector(bfc::StringView const & name, engine::Asset<T> * pAsset, AssetManager * pManager, VirtualFileSystem * pFileSystem) {
+      AssetHandle handle = pAsset->handle();
+      bool        result = false;
+      if (handle == InvalidAssetHandle && pAsset->instance() != nullptr) {
+        bfc::Ref<T> pInstance = pAsset->instance();
+        result                = drawAssetSelector(name, &pInstance, pManager, pFileSystem);
+        pAsset->assign(pManager, pInstance);
+      } else {
+        result = drawAssetSelector(name, &handle, bfc::TypeID<T>(), pManager, pFileSystem);
+        pAsset->assign(pManager, handle);
+      }
+      return result;
+    }
+
+    static bool drawAssetSelector(bfc::StringView const & name, bfc::Ref<void> * ppAsset, bfc::type_index const & assetType, AssetManager * pManager,
+                                  VirtualFileSystem * pFileSystem);
+    static bool drawAssetSelector(bfc::StringView const & name, AssetHandle * pHandle, bfc::type_index const & assetType, AssetManager * pManager,
+                                  VirtualFileSystem * pFileSystem,
+                                  bfc::StringView const & emptyPreview = "[ None ]");
 
   private:
     void drawUI(bfc::Ref<LevelManager> const & pLevels, bfc::Ref<AssetManager> const & pAssets, bfc::Ref<Rendering> const & pRendering,

@@ -4,6 +4,8 @@
 #include "core/Serialize.h"
 #include "core/typeindex.h"
 
+#include "Assets/AssetManager.h"
+
 namespace engine {
   using EntityID = uint64_t;
 
@@ -11,21 +13,18 @@ namespace engine {
   class LevelSerializer;
   class AssetManager;
 
-  // A Specific serializer type that should be specialized for more control over entity component serialization.
-  template<typename T>
-  struct LevelComponentSerializer {
-    // Default implementation delegates to a bfc serialize implementation for the component type.
-    inline static bfc::SerializedObject write(LevelSerializer * pSerializer, Level const & level, T const & component) {
-      BFC_UNUSED(pSerializer, level);
+  /// Context that can be specified in Serializer<T>::write to access level serializer.
+  struct ComponentSerializeContext : AssetSerializerContext {
+    Level const *     pLevel;
+    LevelSerializer * pSerializer;
+    EntityID          entity;
+  };
 
-      return bfc::serialize(component);
-    }
-
-    inline static bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & serialized, Level & level, EntityID entity, T & o) {
-      BFC_UNUSED(pSerializer, level);
-
-      return serialized.read(o);
-    }
+  /// Context that can be specified in Serializer<T>::read to access level serializer.
+  struct ComponentDeserializeContext : AssetSerializerContext {
+    Level * pLevel;
+    LevelSerializer * pSerializer;
+    EntityID          entity;
   };
 
   class LevelSerializer {

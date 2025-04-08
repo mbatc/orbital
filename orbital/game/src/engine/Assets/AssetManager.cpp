@@ -132,8 +132,6 @@ namespace engine {
   }
 
   Ref<void> AssetManager::load(AssetHandle const & handle, std::optional<type_index> const & type, uint64_t * pLoadedVersion) {
-    Asset asset;
-
     bool     load    = false;
     bool     wait    = false;
     uint64_t version = 0;
@@ -156,11 +154,12 @@ namespace engine {
         return nullptr;
       }
 
-      if (stored.pInstance != nullptr) {
+      Ref<void> pLoaded = stored.pInstance;
+      if (pLoaded != nullptr) {
         if (pLoadedVersion != nullptr)
           *pLoadedVersion = stored.lastVersionLoaded;
 
-        return stored.pInstance;
+        return pLoaded;
       }
 
       switch (stored.status) {
@@ -181,7 +180,7 @@ namespace engine {
       }
     }
 
-    asset = m_assetPool[handle];
+    URI assetUri = m_assetPool[handle].uri;
 
     Ref<void> pInstance;
     if (load) {
@@ -193,7 +192,7 @@ namespace engine {
 
       AssetLoadContext context = { this };
 
-      pInstance = pLoader->loadUnknown(asset.uri, &context);
+      pInstance = pLoader->loadUnknown(assetUri, &context);
 
       assetGuard.lock();
       Asset & stored           = m_assetPool[handle];
@@ -217,23 +216,44 @@ namespace engine {
       if (pLoadedVersion != nullptr)
         *pLoadedVersion = version;
 
+      for (auto [pVersion, ppInstance] : stored.waiting) {
+        *pVersion   = version;
+        *ppInstance = pInstance;
+      }
+
       assetGuard.unlock();
 
       m_assetNotifier.notify_all();
     } else if (wait) {
       // Another thread started loading this asset.
       // Wait for loading to finish.
+      m_assetPool[handle].waiting.pushBack(Pair{&version, &pInstance});
+
       m_assetNotifier.wait(assetGuard, [=, &pInstance, &version]() {
         if (m_assetPool[handle].status == AssetStatus_Loading)
           return false;
 
-        pInstance = m_assetPool[handle].pInstance;
-        version   = m_assetPool[handle].lastVersionLoaded;
+        int64_t idx = m_assetPool[handle].waiting.find([pInstance](auto & o) { return o.second == &pInstance; });
+        m_assetPool[handle].waiting.erase(idx);
         return true;
       });
     }
 
     return pInstance;
+  }
+
+  void AssetManager::loop(Application * pApp) {
+    std::unique_lock assetGuard{m_assetLock};
+    for (auto& asset : m_assetPool) {
+      if (asset.pInstance.use_count() == 1) {
+        m_ptrToHandle.erase(asset.pInstance.get());
+        asset.pInstance = nullptr; // Remove the asset
+        asset.status    = AssetStatus_Unloaded;
+        *asset.version += 1;
+        BFC_LOG_INFO("AssetManager", "Unloaded asset (uri: %s, type: %s, loader: %s)", asset.uri, asset.type.name(),
+                     asset.loader);
+      }
+    }
   }
 
   bfc::Ref<uint64_t> AssetManager::getVersionReference(AssetHandle const & handle) const {
@@ -255,6 +275,10 @@ namespace engine {
       }
     }
     return std::nullopt;
+  }
+
+  bool AssetManager::canLoad(bfc::URI const & uri, bfc::type_index const & type) const {
+    return findLoaderID(uri, type).has_value();
   }
 
   bool AssetManager::reload(AssetHandle const & handle) {

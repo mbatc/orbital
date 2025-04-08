@@ -42,6 +42,12 @@ namespace engine {
           continue;
         }
 
+        if (renderable.shader != InvalidGraphicsResource) {
+          pCmdList->bindProgram(renderable.shader);
+        } else {
+          pCmdList->bindProgram(m_shader);
+        }
+
         m_pModelData->data.modelMatrix  = renderable.modelMatrix;
         m_pModelData->data.normalMatrix = renderable.normalMatrix;
         m_pModelData->data.mvpMatrix    = vp * renderable.modelMatrix;

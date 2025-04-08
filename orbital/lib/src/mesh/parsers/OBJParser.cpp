@@ -80,18 +80,19 @@ namespace bfc {
       int64_t remaining = length;
 
       while (remaining > 0) {
-        const int64_t available = m_chunk.size() - m_chunkPos;
+        const int64_t available = m_chunkSize - m_chunkPos;
         const int64_t readSize  = math::min(length, available);
         memcpy(data, m_chunk.begin() + m_chunkPos, readSize);
 
         remaining  -= readSize;
         m_chunkPos += readSize;
 
-        if (m_chunkPos == m_chunk.size()) {
+        if (m_chunkPos == m_chunkSize) {
           m_chunkStart = m_pStream->tell();
           m_chunkPos   = 0;
-          m_chunk.resize(m_bufferedSize, 0);
-          m_chunk.resize(m_pStream->read(m_chunk.begin(), m_bufferedSize));
+
+          m_chunk.reserve(m_bufferedSize);
+          m_chunkSize = m_pStream->read(m_chunk.begin(), m_bufferedSize);
 
           if (m_chunk.size() == 0) {
             break;
@@ -113,6 +114,7 @@ namespace bfc {
 
     Stream *        m_pStream = nullptr;
     Vector<uint8_t> m_chunk;
+    int64_t         m_chunkSize = 0;
   };
 
   bool OBJParser::read(Stream * pStream, MeshData * pMesh, StringView const & resourceDir) {

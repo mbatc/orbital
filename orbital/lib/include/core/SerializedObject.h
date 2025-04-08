@@ -6,6 +6,7 @@
 namespace bfc {
   template<typename T>
   struct Serializer;
+  struct DefaultSerializerContext {};
 
   class URI;
   class SerializedObject;
@@ -45,14 +46,14 @@ namespace bfc {
     SerializedObject & operator=(SerializedObject && rhs);
     SerializedObject & operator=(SerializedObject const & rhs);
 
-    template<typename T>
-    void write(T const & o) {
-      *this = Serializer<T>::write(o);
+    template<typename T, typename Context = DefaultSerializerContext>
+    void write(T const & o, Context const & ctx = {}) {
+      *this = Serializer<T>::write(o, ctx);
     }
 
-    template<typename T>
-    bool read(T & o) const {
-      return Serializer<T>::read(*this, o);
+    template<typename T, typename Context = DefaultSerializerContext>
+    bool read(T & o, Context const & ctx = {}) const {
+      return Serializer<T>::read(*this, o, ctx);
     }
 
     /// Read this SerializedObject as a `T`.
@@ -156,9 +157,9 @@ namespace bfc {
     SerializedObject(double const & value);
     SerializedObject(String const & text);
 
-    template<typename T>
-    explicit SerializedObject(T const & o)
-      : SerializedObject(Serializer<T>::write(o)) {}
+    template<typename T, typename Context = DefaultSerializerContext>
+    explicit SerializedObject(T const & o, Context const & ctx = {})
+      : SerializedObject(Serializer<T>::write(o, ctx)) {}
 
     SerializedObject(SerializedObject && rhs);
     SerializedObject(SerializedObject const & rhs);

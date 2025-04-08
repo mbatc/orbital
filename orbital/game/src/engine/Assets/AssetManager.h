@@ -110,9 +110,11 @@ namespace engine {
     /// Find the ID of a loader that can handle the URI and asset `type` specified.
     std::optional<bfc::String> findLoaderID(bfc::URI const & uri, bfc::type_index const & type) const;
 
+    bool canLoad(bfc::URI const & uri, bfc::type_index const & type) const;
+
     template<typename T>
     bool canLoad(bfc::URI const & uri) const {
-      return findLoaderID(uri, bfc::TypeID<T>()).has_value();
+      return canLoad(uri, bfc::TypeID<T>());
     }
 
     /// Reload the asset associated with `handle`.
@@ -130,6 +132,8 @@ namespace engine {
     bfc::Vector<AssetHandle>
     findHandles(std::function<bool(bfc::URI const & uri, bfc::type_index const & type, bfc::StringView const & loaderID)> const & filter = nullptr) const;
 
+    virtual void loop(Application * pApp) override;
+
   private:
     bfc::Ref<IAssetLoader> findLoader_unlocked(bfc::StringView const & loaderID) const;
     bool                   reload(AssetHandle const & handle, std::unique_lock<std::mutex> &lock);
@@ -141,9 +145,10 @@ namespace engine {
       bfc::Ref<void>  pInstance;
       bfc::type_index type = bfc::TypeID<void>();
       bfc::String     loader;
-
       bfc::Ref<uint64_t> version = nullptr;
       uint64_t lastVersionLoaded = 0;
+
+      bfc::Vector<bfc::Pair<uint64_t *, bfc::Ref<void> *>> waiting; ///< Waiting for the load to complete
 
       bfc::Set<AssetHandle> dependent;
     };
@@ -184,7 +189,7 @@ namespace engine {
       : m_pInstance(pAsset)
       , m_pManager(pManager) {
       m_handle          = pManager->find(pAsset);
-      m_pManagedVersion = pManager->getVersionReference();
+      m_pManagedVersion = pManager->getVersionReference(m_handle);
     }
 
     Asset(AssetManager * pManager, AssetHandle const & handle)
@@ -206,6 +211,13 @@ namespace engine {
       m_pManagedVersion = m_pManager == nullptr ? nullptr : pManager->getVersionReference(m_handle);
 
       return m_handle != InvalidAssetHandle;
+    }
+
+    bool assign(AssetManager * pManager, bfc::Ref<T> const & pInstance) {
+      m_handle          = pManager->find(pInstance);
+      m_pManagedVersion = pManager->getVersionReference(m_handle);
+      m_pInstance       = pInstance;
+      return true;
     }
 
     bool assign(AssetManager * pManager, AssetHandle const & handle) {
@@ -238,6 +250,10 @@ namespace engine {
       return m_pInstance;
     }
 
+    AssetHandle const& handle() const {
+      return m_handle;
+    }
+
     /// Implicit cast to Ref for easy integration with other APIs
     operator bfc::Ref<T> const &() const {
       return instance();
@@ -267,4 +283,42 @@ namespace engine {
     bfc::Ref<uint64_t>  m_pManagedVersion = nullptr;
     AssetHandle         m_handle          = InvalidAssetHandle;
   };
+
+  struct AssetSerializerContext {
+    AssetManager * pAssetManager;
+  };
 } // namespace engine
+
+namespace bfc {
+  template<typename T>
+  struct Serializer<engine::Asset<T>> {
+    static bfc::SerializedObject write(engine::Asset<T> const & o, engine::AssetSerializerContext const & ctx) {
+      engine::AssetManager * pAssets = ctx.pAssetManager;
+      engine::AssetHandle    handle  = o.handle();
+      if (handle == engine::InvalidAssetHandle) {
+        return SerializedObject::Empty();
+      }
+
+      return SerializedObject::MakeMap({{"uri", pAssets->uriOf(handle).str()}});
+    }
+
+    static bool read(bfc::SerializedObject const & s, engine::Asset<T> & o, engine::AssetSerializerContext const & ctx) {
+      engine::AssetManager *   pAssets = ctx.pAssetManager;
+      SerializedObject const & uriItem = s.get("uri");
+      if (uriItem.isText()) {
+        bfc::URI               uri     = uriItem.asText();
+        mem::construct(&o, pAssets, uri);
+        return true;
+      }
+
+      SerializedObject const & idItem = s.get("uuid");
+      if (idItem.isText()) {
+        bfc::UUID uuid = idItem.asText();
+        mem::construct(&o, pAssets, pAssets->find(uuid));
+      }
+
+      mem::construct(&o, nullptr);
+      return true;
+    }
+  };
+}

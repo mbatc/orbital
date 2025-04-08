@@ -3,22 +3,11 @@
 #include <typeindex>
 #include <cstdio>
 
-#include "core/Map.h"
-#include "core/Span.h"
-#include "core/String.h"
-#include "core/StringView.h"
-#include "core/Reflect.h"
-#include "core/RuntimeType.h"
-#include "mesh/parsers/FBXParser.h"
-#include "core/URI.h"
-#include "core/Stream.h"
-
-#include <variant>
-
-#include <stdio.h>
 
 int main(int argc, char **argv)
 {
+  auto res = writer(test, SpecialContext{});
+
   if (!bfc::test::run())
   {
     printf("Press any enter to continue...\n");

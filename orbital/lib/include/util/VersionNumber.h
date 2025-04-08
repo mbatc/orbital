@@ -56,11 +56,13 @@ namespace bfc {
 
   template<>
   struct Serializer<VersionNumber> {
-    inline static SerializedObject write(VersionNumber const & o) {
+    template<typename Context>
+    static SerializedObject write(VersionNumber const & o, Context const &) {
       return SerializedObject::MakeText(toString(o));
     }
 
-    inline static bool read(SerializedObject const & s, VersionNumber & o) {
+    template<typename Context>
+    static bool read(SerializedObject const & s, VersionNumber & o, Context const &) {
       if (!s.isText())
         return false;
 

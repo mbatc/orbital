@@ -25,6 +25,11 @@ namespace engine {
   }
 
   SerializedObject LevelSerializer::serialize(Level const & level) {
+    ComponentSerializeContext context;
+    context.pLevel        = &level;
+    context.pSerializer   = this;
+    context.pAssetManager = getAssets();
+
     SerializedObject entityList = SerializedObject::MakeArray();
     for (EntityID entity : level.entities()) {
       SerializedObject serializedEntity = SerializedObject::MakeMap();
@@ -43,7 +48,9 @@ namespace engine {
                           type.name());
           continue;
         }
-        components.add(componentName, pInterface->write(this, level, entity));
+
+        context.entity = entity;
+        components.add(componentName, pInterface->write(entity, context));
       }
 
       serializedEntity.add("components") = std::move(components);
@@ -59,12 +66,17 @@ namespace engine {
     SerializedObject const & entities = serialized.get("entities");
     bfc::Vector<EntityID>    ids;
 
+    ComponentDeserializeContext context;
+    context.pLevel        = &level;
+    context.pSerializer   = this;
+    context.pAssetManager = getAssets();
+
     if (entities.isArray()) {
       for (int64_t i = 0; i < entities.size(); ++i) {
         SerializedObject const & entity = entities.at(i);
 
         UUID uuid;
-        if (!bfc::deserialize(entity.get("uuid"), uuid)) {
+        if (!bfc::read(entity.get("uuid"), uuid)) {
           BFC_LOG_WARNING("LevelSerializer", "Failed to deserialized uuid for entity (idx=%lld)", i);
           continue;
         }
@@ -99,7 +111,8 @@ namespace engine {
             continue;
           }
 
-          if (!pInterface->read(this, data, level, entityID)) {
+          context.entity = entityID;
+          if (!pInterface->read(data, entityID, context)) {
             BFC_LOG_WARNING("LevelSerializer", "Failed to read component data (type=%s)", name);
             continue;
           }

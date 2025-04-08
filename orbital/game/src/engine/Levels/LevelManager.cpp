@@ -156,7 +156,7 @@ namespace engine {
       mesh.pMesh = pMesh;
       for (int64_t i = 0; i < mesh.pMesh->getSubmeshCount(); ++i) {
         URI matUri = uri.withFragment(String::format("material.%lld", i));
-        mesh.materials.pushBack(m_pAssets->load<Material>(matUri));
+        mesh.materials.pushBack(components::ShadedMaterial{m_pAssets->load<Material>(matUri), nullptr});
       }
       return true;
     }

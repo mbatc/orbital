@@ -56,9 +56,9 @@ namespace engine {
 
     virtual bfc::type_index type() const = 0;
 
-    virtual bfc::SerializedObject write(LevelSerializer * pSerializer, Level const & level, EntityID entity) const = 0;
+    virtual bfc::SerializedObject write(EntityID entity, ComponentSerializeContext const & context) const = 0;
 
-    virtual bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & serialized, Level & level, EntityID entity) const = 0;
+    virtual bool read(bfc::SerializedObject const & serialized, EntityID entity, ComponentDeserializeContext const & context) const = 0;
 
     virtual bool copy(LevelCopyContext * pContext, Level * pDstLevel, EntityID dstEntity, Level const & srcLevel, EntityID srcEntity) const = 0;
 
@@ -80,21 +80,17 @@ namespace engine {
       return bfc::TypeID<T>();
     }
 
-    virtual bfc::SerializedObject write(LevelSerializer * pSerializer, Level const & level, EntityID entity) const override {
-      T const & component = level.get<T>(entity);
-
-      return LevelComponentSerializer<T>::write(pSerializer, level, component);
+    virtual bfc::SerializedObject write(EntityID entity, ComponentSerializeContext const & context) const override {
+      return bfc::serialize(context.pLevel->get<T>(entity), context);
     }
 
-    virtual bool read(LevelSerializer * pSerializer, bfc::SerializedObject const & serialized, Level & level, EntityID entity) const override {
-      BFC_UNUSED(pSerializer);
-
-      bfc::Uninitialized<T> component;
-      if (!LevelComponentSerializer<T>::read(pSerializer, serialized, level, entity, component.get())) {
+    virtual bool read(bfc::SerializedObject const & serialized, EntityID entity, ComponentDeserializeContext const & context) const override {
+      std::optional<T> result = bfc::deserialize<T>(serialized, context);
+      if (!result.has_value()) {
         return false;
       }
 
-      level.replace<T>(entity, component.take());
+      context.pLevel->replace<T>(entity, std::move(result.value()));
       return true;
     }
 

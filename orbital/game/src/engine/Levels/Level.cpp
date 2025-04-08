@@ -36,6 +36,8 @@ namespace engine {
 
     m_idToEntity.add(newID, m_entities[newEntityIndex]);
 
+    ++m_entityCount;
+
     return m_entities[newEntityIndex];
   }
 
@@ -63,7 +65,7 @@ namespace engine {
     for (auto & [type, pComponents] : m_components) {
       pComponents->erase(entityID);
     }
-    m_freed.pushBack(m_entities[index]);
+    m_freed.pushBack(entityID);
     --m_entityCount;
     return true;
   }
