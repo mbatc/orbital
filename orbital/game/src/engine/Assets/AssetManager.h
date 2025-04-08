@@ -110,9 +110,11 @@ namespace engine {
     /// Find the ID of a loader that can handle the URI and asset `type` specified.
     std::optional<bfc::String> findLoaderID(bfc::URI const & uri, bfc::type_index const & type) const;
 
+    bool canLoad(bfc::URI const & uri, bfc::type_index const & type) const;
+
     template<typename T>
     bool canLoad(bfc::URI const & uri) const {
-      return findLoaderID(uri, bfc::TypeID<T>()).has_value();
+      return canLoad(uri, bfc::TypeID<T>());
     }
 
     /// Reload the asset associated with `handle`.
@@ -130,6 +132,8 @@ namespace engine {
     bfc::Vector<AssetHandle>
     findHandles(std::function<bool(bfc::URI const & uri, bfc::type_index const & type, bfc::StringView const & loaderID)> const & filter = nullptr) const;
 
+    virtual void loop(Application * pApp) override;
+
   private:
     bfc::Ref<IAssetLoader> findLoader_unlocked(bfc::StringView const & loaderID) const;
     bool                   reload(AssetHandle const & handle, std::unique_lock<std::mutex> &lock);
@@ -141,9 +145,10 @@ namespace engine {
       bfc::Ref<void>  pInstance;
       bfc::type_index type = bfc::TypeID<void>();
       bfc::String     loader;
-
       bfc::Ref<uint64_t> version = nullptr;
       uint64_t lastVersionLoaded = 0;
+
+      bfc::Vector<bfc::Pair<uint64_t *, bfc::Ref<void> *>> waiting; ///< Waiting for the load to complete
 
       bfc::Set<AssetHandle> dependent;
     };
@@ -184,7 +189,7 @@ namespace engine {
       : m_pInstance(pAsset)
       , m_pManager(pManager) {
       m_handle          = pManager->find(pAsset);
-      m_pManagedVersion = pManager->getVersionReference();
+      m_pManagedVersion = pManager->getVersionReference(m_handle);
     }
 
     Asset(AssetManager * pManager, AssetHandle const & handle)
@@ -206,6 +211,13 @@ namespace engine {
       m_pManagedVersion = m_pManager == nullptr ? nullptr : pManager->getVersionReference(m_handle);
 
       return m_handle != InvalidAssetHandle;
+    }
+
+    bool assign(AssetManager * pManager, bfc::Ref<T> const & pInstance) {
+      m_handle          = pManager->find(pInstance);
+      m_pManagedVersion = pManager->getVersionReference(m_handle);
+      m_pInstance       = pInstance;
+      return true;
     }
 
     bool assign(AssetManager * pManager, AssetHandle const & handle) {

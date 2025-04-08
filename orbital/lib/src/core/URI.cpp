@@ -382,8 +382,14 @@ namespace bfc {
 
     if (uri.scheme() == "file") {
       Vector<URI> ret;
-      for (auto& it : std::filesystem::directory_iterator(uri.path().c_str())) {
-        ret.pushBack(URI::File(it.path().string().c_str()));
+      if (recursive) {
+        for (auto & it : std::filesystem::recursive_directory_iterator(uri.path().c_str())) {
+          ret.pushBack(URI::File(it.path().string().c_str()));
+        }
+      } else {
+        for (auto & it : std::filesystem::directory_iterator(uri.path().c_str())) {
+          ret.pushBack(URI::File(it.path().string().c_str()));
+        }
       }
       return ret;
     } else {
