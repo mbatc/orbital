@@ -1,10 +1,18 @@
 #ifndef GBUFFER_GLSL
 #define GBUFFER_GLSL
 
-layout(binding = 0) uniform sampler2D G_BaseColour;
-layout(binding = 1) uniform sampler2D G_Ambient;
-layout(binding = 2) uniform sampler2D G_Position;
-layout(binding = 3) uniform sampler2D G_Normal;
-layout(binding = 4) uniform sampler2D G_RMA;
+// TODO: These could be defined by the application compiling
+//       the shader.
+#define BND_TEX_G_BaseColour  0
+#define BND_TEX_G_Ambient     1
+#define BND_TEX_G_Position    2
+#define BND_TEX_G_Normal      3
+#define BND_TEX_G_RMA         4
+
+layout(binding = BND_TEX_G_BaseColour) uniform sampler2D G_BaseColour;
+layout(binding = BND_TEX_G_Ambient)    uniform sampler2D G_Ambient;
+layout(binding = BND_TEX_G_Position)   uniform sampler2D G_Position;
+layout(binding = BND_TEX_G_Normal)     uniform sampler2D G_Normal;
+layout(binding = BND_TEX_G_RMA)        uniform sampler2D G_RMA;
 
 #endif // GBUFFER_GLSL

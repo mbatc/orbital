@@ -14,7 +14,7 @@ void main()
   normal = normal * 2.0 - 1.0;   
   normal = normalize(vsout_tbnMat0 * normal); 
 
-  gbuffer_SetColor(texture2D(baseColourMap, vsout_uv0));
+  gbuffer_SetColour(texture2D(baseColourMap, vsout_uv0));
   gbuffer_SetAmbient(texture2D(ambientMap, vsout_uv0));
   gbuffer_SetPosition(vec4(vsout_position0, 1));
   gbuffer_SetNormal(vec4(normal / 2 + vec3(0.5), 1));

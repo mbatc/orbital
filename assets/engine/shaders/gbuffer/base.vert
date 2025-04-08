@@ -1,6 +1,6 @@
 #version 430
 
-#include "../common.h.glsl"
+#include "../common.glsl"
 
 in layout(location = 0) vec3 position0;
 in layout(location = 2) vec2 uv0;

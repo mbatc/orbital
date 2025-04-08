@@ -1,6 +1,6 @@
 #version 430
 
-#include "../common.h.glsl"
+#include "../common.glsl"
 
 const vec2 positions[4] = vec2[] (
     vec2(-1.0, -1.0),

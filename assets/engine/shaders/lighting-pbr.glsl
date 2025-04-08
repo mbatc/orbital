@@ -1,10 +1,78 @@
-
 #ifndef LIGHTING_PBR_GLSL
 #define LIGHTING_PBR_GLSL
 
 #include "common.glsl"
 
+#define BND_TEX_ShadowAtlas 5
+
 #define MIN_ATTEN 0.0001
+
+#define LightType_Sun   0
+#define LightType_Point 1
+#define LightType_Spot  2
+
+struct LightBuffer {
+  vec3 position;
+  int  type;
+
+  vec3 colour;
+  float padding0;
+
+  vec3 ambient;
+  float strength;
+
+  vec3  attenuation;
+  float innerCutoff;
+
+  vec3  direction;
+  float outerCutoff;
+  
+  uvec2 shadowMapRange;
+  float padding1;
+  float padding2;
+};
+
+struct ShadowMapData {
+  mat4 vp;
+  int layer;
+  int level;
+  float padding1;
+  float padding2;
+};
+
+layout(std140, binding=BND_UBO_Lights) buffer Lights {
+  LightBuffer lightData[];
+};
+
+layout(std140, binding=BND_UBO_Shadows) buffer Shadows {
+  ShadowMapData shadowData[];
+};
+
+layout(binding = BND_TEX_ShadowAtlas) uniform sampler2DArray ShadowAtlas;
+
+vec3 SampleCube(const vec3 dir)
+{
+  vec3 absDir = abs(dir);
+  vec2 uv = vec2(0);
+  float face = 0;
+  float ma = 0;
+
+  if (absDir.z >= absDir.x && absDir.z >= absDir.y) {
+    face = dir.z < 0.0 ? 5.0 : 4.0;
+    ma = 0.5 / absDir.z;
+    uv = vec2(dir.z < 0.0 ? -dir.x : dir.x, -dir.y);
+  } else if (absDir.y >= absDir.x) {
+    face = dir.y < 0.0 ? 3.0 : 2.0;
+    ma = 0.5 / absDir.y;
+    uv = vec2(dir.x, dir.y < 0.0 ? -dir.z : dir.z);
+  } else {
+    face = dir.x < 0.0 ? 1.0 : 0.0;
+    ma = 0.5 / absDir.x;
+    uv = vec2(dir.x < 0.0 ? dir.z : -dir.z, -dir.y);
+  }
+
+  return vec3(uv * ma + 0.5, face);
+}
 
 float DistributionGGX(vec3 N, vec3 H, float roughness) {
   float a      = roughness * roughness;

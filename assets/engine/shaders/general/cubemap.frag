@@ -1,6 +1,6 @@
 #version 430
 
-#include "../common.h.glsl"
+#include "../common.glsl"
 
 layout(binding = 0) uniform samplerCube texture0;
 
