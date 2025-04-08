@@ -26,8 +26,9 @@ namespace engine {
 
   SerializedObject LevelSerializer::serialize(Level const & level) {
     ComponentSerializeContext context;
-    context.pLevel      = &level;
-    context.pSerializer = this;
+    context.pLevel        = &level;
+    context.pSerializer   = this;
+    context.pAssetManager = getAssets();
 
     SerializedObject entityList = SerializedObject::MakeArray();
     for (EntityID entity : level.entities()) {
@@ -47,6 +48,8 @@ namespace engine {
                           type.name());
           continue;
         }
+
+        context.entity = entity;
         components.add(componentName, pInterface->write(entity, context));
       }
 
@@ -64,8 +67,9 @@ namespace engine {
     bfc::Vector<EntityID>    ids;
 
     ComponentDeserializeContext context;
-    context.pLevel      = &level;
-    context.pSerializer = this;
+    context.pLevel        = &level;
+    context.pSerializer   = this;
+    context.pAssetManager = getAssets();
 
     if (entities.isArray()) {
       for (int64_t i = 0; i < entities.size(); ++i) {
@@ -107,6 +111,7 @@ namespace engine {
             continue;
           }
 
+          context.entity = entityID;
           if (!pInterface->read(data, entityID, context)) {
             BFC_LOG_WARNING("LevelSerializer", "Failed to read component data (type=%s)", name);
             continue;

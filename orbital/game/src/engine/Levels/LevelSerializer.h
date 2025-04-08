@@ -17,6 +17,7 @@ namespace engine {
   struct ComponentSerializeContext : AssetSerializerContext {
     Level const *     pLevel;
     LevelSerializer * pSerializer;
+    EntityID          entity;
   };
 
   /// Context that can be specified in Serializer<T>::read to access level serializer.
