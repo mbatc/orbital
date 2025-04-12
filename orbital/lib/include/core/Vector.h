@@ -80,11 +80,11 @@ namespace bfc {
     }
 
     operator Span<T>() {
-      return Span<T>(m_pData, size());
+      return Span<T>(m_pData, m_size);
     }
 
     operator Span<const T>() const {
-      return Span<const T>(m_pData, size());
+      return Span<const T>(m_pData, m_size);
     }
 
     T & at(int64_t index) {
@@ -92,7 +92,7 @@ namespace bfc {
     }
 
     T & back() {
-      return at(size() - 1);
+      return at(m_size - 1);
     }
 
     T & front() {
@@ -104,7 +104,7 @@ namespace bfc {
     }
 
     T const & back() const {
-      return at(size() - 1);
+      return at(m_size - 1);
     }
 
     T const & front() const {
@@ -120,7 +120,7 @@ namespace bfc {
     }
 
     int64_t find(std::function<bool(T const &)> const & callback, int64_t start = 0) const {
-      for (int64_t i = math::max(start, 0ll); i < size(); ++i) {
+      for (int64_t i = math::max(start, 0ll); i < m_size; ++i) {
         if (callback(at(i))) {
           return i;
         }
@@ -134,7 +134,7 @@ namespace bfc {
     }
 
     int64_t findReverse(std::function<bool(T const &)> const & callback, int64_t start = bfc::npos) const {
-      for (int64_t i = math::min(start, size()); i >= 0; --i) {
+      for (int64_t i = math::min(start, m_size); i >= 0; --i) {
         if (callback(at(i))) {
           return i;
         }
@@ -144,15 +144,15 @@ namespace bfc {
     }
 
     void pushBack(T && value) {
-      insert(size(), std::move(value));
+      insert(m_size, std::move(value));
     }
 
     void pushBack(T const & value) {
-      insert(size(), value);
+      insert(m_size, value);
     }
 
     void pushBack(T const * first, T const * last) {
-      insert(size(), first, last);
+      insert(m_size, first, last);
     }
 
     //void pushBack(Span<T> const & items) {
@@ -160,20 +160,20 @@ namespace bfc {
     //}
 
     void pushBack(Span<const T> const & items) {
-      insert(size(), items);
+      insert(m_size, items);
     }
 
     template<int64_t N>
     void pushBack(T const(&elements)[N]) {
-      insert(size(), elements, elements + N);
+      insert(m_size, elements, elements + N);
     }
 
     void pushBack(std::initializer_list<T> const& il) {
-      insert(size(), il);
+      insert(m_size, il);
     }
 
     void pushBackMove(T* first, T* last) {
-      insertMove(size(), first, last);
+      insertMove(m_size, first, last);
     }
 
     void pushFront(T&& value) {
@@ -211,7 +211,7 @@ namespace bfc {
 
     T popBack() {
       T value = std::move(back());
-      erase(size() - 1);
+      erase(m_size - 1);
       return std::move(value);
     }
 
@@ -255,7 +255,7 @@ namespace bfc {
     void insertMove(int64_t index, T * first, T * last) {
       int64_t count = math::max(0ll, last - first);
       makeSpace(index, count);
-      mem::moveConstruct(data() + index, first, count);
+      mem::moveConstruct(m_pData + index, first, count);
     }
 
     bool erase(int64_t index, int64_t count = 1) {
@@ -279,7 +279,7 @@ namespace bfc {
     template<typename Pred>
     bool eraseIf(Pred&& callback) {
       bool removed = false;
-      for (int64_t i = size() - 1; i >= 0; --i) {
+      for (int64_t i = m_size - 1; i >= 0; --i) {
         if (callback(at(i))) {
           removed |= erase(i);
         }
@@ -293,12 +293,12 @@ namespace bfc {
     }
 
     void resize(int64_t newSize, T const& value = T{}) {
-      int64_t start = size();
+      int64_t start = m_size;
       int64_t count = newSize - start;
       if (count > 0) {
         makeSpace(start, count);
         for (int64_t i = start; i < newSize; ++i)
-          mem::construct(data() + i, value);
+          mem::construct(m_pData + i, value);
       }
       else {
         mem::destruct(end() + count, -count);
@@ -326,7 +326,7 @@ namespace bfc {
     }
 
     bool empty() const {
-      return size() == 0;
+      return m_size == 0;
     }
 
     Vector<T> getElements(int64_t start, int64_t count) const {
@@ -334,17 +334,19 @@ namespace bfc {
     }
 
     Span<T> getView(int64_t start = 0, int64_t count = npos) const {
-      count       = std::max(0ll, std::min(count, size()));
-      int64_t end = std::min(size(), start + count);
-      return Span<T>((T *)data() + start, (T *)data() + end);
+      count       = std::max(0ll, std::min(count, m_size));
+      int64_t end = std::min(m_size, start + count);
+      return Span<T>((T *)m_pData + start, (T *)m_pData + end);
     }
 
     T* begin() { return data(); }
     T* end() { return data() + size(); }
     T* data() { return m_pData; }
 
-    T const* begin() const { return data(); }
-    T const* end() const { return data() + size(); }
+    T const* begin() const { return m_pData; }
+    T const * end() const {
+      return m_pData + m_size;
+    }
     T const* data() const { return m_pData; }
 
     T* takeData(int64_t* pSize = nullptr, int64_t* pCapacity = nullptr) {
@@ -391,7 +393,7 @@ namespace bfc {
       using Item = decltype(callback(std::declval<T>()));
 
       Vector<Item> ret;
-      ret.reserve(size());
+      ret.reserve(m_size);
       for (T const& item : *this) {
         ret.pushBack(callback(item));
       }
@@ -403,7 +405,7 @@ namespace bfc {
       using Item = decltype(callback(std::declval<T>()));
 
       Vector<Item> ret;
-      ret.reserve(size());
+      ret.reserve(m_size);
       for (T & item : *this) {
         ret.pushBack(callback(item));
       }
@@ -411,7 +413,7 @@ namespace bfc {
     }
 
     bool operator!=(Vector const &rhs) const {
-      if (size() != rhs.size()) {
+      if (m_size != rhs.m_size) {
         return false;
       }
 
@@ -448,16 +450,16 @@ namespace bfc {
     }
 
     void makeSpace(int64_t index, int64_t count) {
-      int64_t requiredSpace = size() + count;
+      int64_t requiredSpace = m_size + count;
       // Ensure buffer is large enough
       if (requiredSpace > capacity()) {
         reallocate(requiredSpace * 2);
       }
 
       // Move elements after index
-      T* pDst = data() + size() + count - 1;
+      T *     pDst        = m_pData + m_size + count - 1;
       T* pSrc = pDst - count;
-      int64_t numElements = size() - index;
+      int64_t numElements = m_size - index;
       for (int64_t i = 0; i < numElements; ++i) {
         mem::moveConstruct(pDst - i, pSrc - i, 1);
         mem::destruct(pSrc - i);

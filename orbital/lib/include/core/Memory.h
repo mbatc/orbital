@@ -47,28 +47,24 @@ namespace bfc
 
     template<typename T>
     constexpr void copyConstruct(T * dst, T const * src, int64_t count) {
-      // if constexpr (std::is_trivially_copy_constructible_v<T>) {
-      //   memcpy(dst, src, sizeof(T) * count);
-      // }
-      // else {
-      //   while (count-- > 0)
-      //     construct(dst++, *(src++));
-      // }
-      while (count-- > 0)
-        construct(dst++, *(src++));
+      if constexpr (std::is_trivially_copyable_v<T>) {
+        memcpy(dst, src, sizeof(T) * count);
+      }
+      else {
+        while (count-- > 0)
+          construct(dst++, *(src++));
+      }
     }
 
     template<typename T>
     constexpr void copyAssign(T * dst, T const * src, int64_t count) {
-      // if constexpr (std::is_trivially_copy_assignable_v<T>) {
-      //   memcpy(dst, src, sizeof(T) * count);
-      // }
-      // else {
-      //   while (count-- > 0)
-      //     copyAssign(*(dst++), *(src++));
-      // }
-      while (count-- > 0)
-        copyAssign(*(dst++), *(src++));
+      if constexpr (std::is_trivially_copyable_v<T>) {
+        memcpy(dst, src, sizeof(T) * count);
+      }
+      else {
+        while (count-- > 0)
+          copyAssign(*(dst++), *(src++));
+      }
     }
 
     template<typename T>
@@ -83,27 +79,12 @@ namespace bfc
 
     template<typename T>
     constexpr void moveConstruct(T * dst, T * src, int64_t count) {
-      // if constexpr (std::is_trivially_move_constructible_v<T>) {
-      //   memcpy(dst, src, sizeof(T) * count);
-      // }
-      // else {
-      //   while (count-- > 0)
-      //     construct(dst++, std::move(*(src++)));
-      // }
-
       while (count-- > 0)
         construct(dst++, std::move(*(src++)));
     }
 
     template<typename T>
     constexpr void moveAssign(T *dst, T *src, int64_t count) {
-      // if constexpr (std::is_trivially_move_assignable_v<T>) {
-      //   memcpy(dst, src, sizeof(T) * count);
-      // }
-      // else {
-      //   while (count-- > 0)
-      //     moveAssign(*(dst++), *(src++));
-      // }
       while (count-- > 0)
         moveAssign(*(dst++), *(src++));
     }
@@ -120,8 +101,10 @@ namespace bfc
 
     template<typename T>
     constexpr void destruct(T * dst, int64_t count = 1) {
-      while (count-- > 0)
-        (dst++)->~T();
+      if constexpr (!std::is_trivially_destructible_v<T>) {
+        while (count-- > 0)
+          (dst++)->~T();
+      }
     }
   }
 }

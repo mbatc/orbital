@@ -13,7 +13,7 @@ in vec3 vsout_position0;
 void main()
 {
   const float gamma = 2.2;
-  vec3 hdrColor = texture(sceneColour, vsout_uv0).rgb;
+  vec3 hdrColor = texture(sceneColourTex, vsout_uv0).rgb;
   // exposure tone mapping
   vec3 mapped = vec3(1.0) - exp(-hdrColor * exposure);
 

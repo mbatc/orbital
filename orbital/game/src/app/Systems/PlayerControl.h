@@ -49,8 +49,8 @@ private:
 
 namespace engine {
   template<>
-  struct engine::LevelComponentCopier<VehicleCameraController> {
-    inline static void copy(LevelCopyContext * pContext, Level * pDstLevel, EntityID dstEntity, Level const & srcLevel,
+  struct engine::LevelComponent_OnCopy<VehicleCameraController> {
+    inline static void onCopy(LevelCopyContext * pContext, Level * pDstLevel, EntityID dstEntity, Level const & srcLevel,
                             VehicleCameraController const & component) {
       BFC_UNUSED(srcLevel);
 
@@ -60,8 +60,8 @@ namespace engine {
   };
 
   template<>
-  struct engine::LevelComponentCopier<VehicleController> {
-    inline static void copy(LevelCopyContext * pContext, Level * pDstLevel, EntityID dstEntity, Level const & srcLevel, VehicleController const & component) {
+  struct engine::LevelComponent_OnCopy<VehicleController> {
+    inline static void onCopy(LevelCopyContext * pContext, Level * pDstLevel, EntityID dstEntity, Level const & srcLevel, VehicleController const & component) {
       BFC_UNUSED(srcLevel);
 
       VehicleController & dst = pDstLevel->replace<VehicleController>(dstEntity, component);

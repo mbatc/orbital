@@ -4,7 +4,6 @@
 #include "../../../vendor/imgui/imgui_internal.h"
 #include "../../../vendor/ImGuizmo/ImGuizmo.h"
 #include "../render/GraphicsDevice.h"
-#include "../render/Shader.h"
 #include "../platform/Events.h"
 
 // ImGui helpers should go here

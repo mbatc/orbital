@@ -40,7 +40,7 @@ namespace bfc {
     }
 
     constexpr int64_t StringView::length() const {
-      return math::max(0ll, size());
+      return size();
     }
 
     constexpr StringView StringView::substr(int64_t start, int64_t count = npos) const {
@@ -82,9 +82,12 @@ namespace bfc {
     }
 
     constexpr int64_t StringView::find(Span<StringView> const & needles, int64_t start = 0, int64_t * pFoundIndex = nullptr) const {
-      for (int64_t offset = start; offset < length(); ++offset) {
-        int64_t remaining = length() - offset;
-        for (auto & [i, needle] : enumerate(needles)) {
+      int64_t len = length();
+      for (int64_t offset = start; offset < len; ++offset) {
+        int64_t remaining = len - offset;
+        for (int64_t i = 0; i < needles.size(); ++i) {
+          auto & needle = needles[i];
+
           if (needle.length() > remaining)
             continue;
 

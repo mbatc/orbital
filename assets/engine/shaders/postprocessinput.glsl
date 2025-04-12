@@ -11,12 +11,12 @@
 #define BND_TEX_Normal      5
 #define BND_TEX_RMA         6
 
-layout(binding = BND_TEX_SceneColour) uniform sampler2D sceneColour;
-layout(binding = BND_TEX_SceneDepth)  uniform sampler2D sceneDepth;
-layout(binding = BND_TEX_BaseColour)  uniform sampler2D baseColour;
-layout(binding = BND_TEX_Ambient)     uniform sampler2D ambient;
-layout(binding = BND_TEX_Position)    uniform sampler2D position;
-layout(binding = BND_TEX_Normal)      uniform sampler2D normal;
-layout(binding = BND_TEX_RMA)         uniform sampler2D RMA;
+layout(binding = BND_TEX_SceneColour) uniform sampler2D sceneColourTex;
+layout(binding = BND_TEX_SceneDepth)  uniform sampler2D sceneDepthTex;
+layout(binding = BND_TEX_BaseColour)  uniform sampler2D baseColourTex;
+layout(binding = BND_TEX_Ambient)     uniform sampler2D ambientTex;
+layout(binding = BND_TEX_Position)    uniform sampler2D positionTex;
+layout(binding = BND_TEX_Normal)      uniform sampler2D normalTex;
+layout(binding = BND_TEX_RMA)         uniform sampler2D RMATex;
 
 #endif // POSTPROCESSINPUT_GLSL

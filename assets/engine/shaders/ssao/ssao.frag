@@ -1,7 +1,7 @@
 #version 430
 
-#include "../common.h.glsl"
-#include "../postprocessinput.h.glsl"
+#include "../common.glsl"
+#include "../postprocessinput.glsl"
 
 layout(binding = 7) uniform sampler2D randomTex;
 
