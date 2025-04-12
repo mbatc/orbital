@@ -44,6 +44,9 @@ namespace engine {
     };
 
     Level();
+    Level(Level && o);
+    Level& operator=(Level && o);
+    Level(Level const & o) = delete;
 
     ~Level();
 
@@ -127,7 +130,7 @@ namespace engine {
     LevelComponentStorage<T> & components() {
       bfc::Ref<ILevelComponentStorage> pStorage;
       if (!m_components.tryGet(bfc::TypeID<T>(), &pStorage)) {
-        pStorage = bfc::NewRef<LevelComponentStorage<T>>();
+        pStorage = bfc::NewRef<LevelComponentStorage<T>>(this);
         m_components.add(bfc::TypeID<T>(), pStorage);
       }
 
@@ -138,7 +141,7 @@ namespace engine {
     LevelComponentStorage<T> const & components() const {
       bfc::Ref<ILevelComponentStorage> pStorage;
       if (!m_components.tryGet(bfc::TypeID<T>(), &pStorage)) {
-        static const LevelComponentStorage<T> empty;
+        static const LevelComponentStorage<T> empty(nullptr);
         return empty;
       }
 

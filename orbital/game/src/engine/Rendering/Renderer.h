@@ -5,7 +5,6 @@
 #include "geometry/Geometry.h"
 #include "math/MathTypes.h"
 #include "render/GraphicsDevice.h"
-#include "render/HardwareBuffer.h"
 
 #include <typeindex>
 

@@ -66,12 +66,30 @@ namespace engine {
   };
 
   template<typename T>
-  struct LevelComponentCopier {
-    inline static void copy(LevelCopyContext * pContext, Level * pDstLevel, EntityID dstEntity, Level const & srcLevel, T const & component) {
+  struct LevelComponent_OnCopy {
+    inline static void onCopy(LevelCopyContext * pContext, Level * pDstLevel, EntityID dstEntity, Level const & srcLevel, T const & component) {
       BFC_UNUSED(pContext, srcLevel);
       pDstLevel->replace<T>(dstEntity, component);
     }
   };
+
+  /// Specialize this to implement logic before a component is removed from a scene.
+  template<typename T>
+  struct LevelComponent_OnPreErase {
+    inline static void onPreErase(T * pComponent, Level * pLevel) {}
+  };
+
+  /// Specialize this to implement logic after a component is added to a scene.
+  template<typename T>
+  struct LevelComponent_OnPostAdd {
+    inline static void onPostAdd(T * pComponent, Level * pLevel) {}
+  };
+
+  template<typename T>
+  struct LevelComponentHooks
+    : LevelComponent_OnCopy<T>
+    , LevelComponent_OnPreErase<T>
+    , LevelComponent_OnPostAdd<T> {};
 
   /// Interface used by Levels for a component of type `T`.
   template<typename T>
@@ -96,14 +114,14 @@ namespace engine {
 
     virtual bool copy(LevelCopyContext * pContext, Level * pDstLevel, EntityID dstEntity, Level const & srcLevel, EntityID srcEntity) const override {
       if (T const * pSrcComponent = srcLevel.tryGet<T>(srcEntity)) {
-        LevelComponentCopier<T>::copy(pContext, pDstLevel, dstEntity, srcLevel, *pSrcComponent);
+        LevelComponentHooks<T>::onCopy(pContext, pDstLevel, dstEntity, srcLevel, *pSrcComponent);
         return true;
       }
 
       return false;
     }
 
-    virtual void * addComponent(Level* pDstLevel, EntityID entity) const override {
+    virtual void * addComponent(Level *pDstLevel, EntityID entity) const override {
       return &pDstLevel->add<T>(entity);
     }
   };
@@ -113,8 +131,19 @@ namespace engine {
     return ILevelComponentType::add(name, bfc::NewRef<LevelComponentType<T>>());
   }
 
+  class ILevelComponentStorage;
+  namespace impl {
+    class ComponentStorageLevelAccess {
+      friend Level;
+      static void SetOwner(ILevelComponentStorage * pStorage, Level * pLevel);
+    };
+  }
+
   class ILevelComponentStorage {
+    friend impl::ComponentStorageLevelAccess;
   public:
+    ILevelComponentStorage(Level * pOwner);
+
     virtual ~ILevelComponentStorage() = default;
 
     virtual bfc::type_index type() const = 0;
@@ -133,11 +162,18 @@ namespace engine {
     virtual void * addOpaque(EntityID entityID) = 0;
     virtual void * getOpaque(EntityID entityID) = 0;
     virtual void const * getOpaque(EntityID entityID) const = 0;
+
+    Level * getOwner() const;
+
+  private:
+    Level * m_pLevel = nullptr;
   };
 
   template<typename T>
   class LevelComponentStorage : public ILevelComponentStorage {
   public:
+    LevelComponentStorage(Level * pLevel) : ILevelComponentStorage(pLevel) {}
+
     virtual bfc::type_index type() const override {
       return bfc::TypeID<T>();
     }
@@ -151,6 +187,8 @@ namespace engine {
       if (index == bfc::npos) {
         return false;
       }
+
+      LevelComponentHooks<T>::onPreErase(&m_components[index], getOwner());
 
       const int64_t  backComponent = m_components.size() - 1;
       const EntityID backEntity    = m_componentToEntity[backComponent];
@@ -210,7 +248,10 @@ namespace engine {
       m_entityToComponent.add(entityID, m_components.size());
       m_componentToEntity.pushBack(entityID);
       m_components.pushBack(T(std::forward<Args>(args)...));
-      return m_components.back();
+
+      T * pComponent = &m_components.back();
+      LevelComponentHooks<T>::onPostAdd(pComponent, getOwner());
+      return *pComponent;
     }
 
     template<typename... Args>
@@ -218,9 +259,13 @@ namespace engine {
       const int64_t index = toIndex(entityID);
 
       if (index != bfc::npos) {
-        bfc::mem::destruct(m_components.begin() + index);
-        bfc::mem::construct(m_components.begin() + index, std::forward<Args>(args)...);
-        return m_components[index];
+        T * pComponent = m_components.begin() + index;
+        LevelComponentHooks<T>::onPreErase(pComponent, getOwner());
+        bfc::mem::destruct(pComponent);
+        bfc::mem::construct(pComponent, std::forward<Args>(args)...);
+        LevelComponentHooks<T>::onPostAdd(pComponent, getOwner());
+
+        return *pComponent;
       }
 
       return add(entityID, std::forward<Args>(args)...);

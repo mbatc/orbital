@@ -1453,6 +1453,9 @@ namespace bfc {
     glGetInteger64v(GL_MAX_TEXTURE_IMAGE_UNITS, &val);
     m_lastTextureUnit = (uint32_t)(val - 1);
 
+    // Support only triangular patches for now.
+    glPatchParameteri(GL_PATCH_VERTICES, 3);
+
     m_emptyVertexArray = createVertexArray();
 
     initComplete->set_value();
@@ -1695,9 +1698,10 @@ namespace bfc {
 
   GLenum ToGLPrimType(PrimitiveType primType) {
     switch (primType) {
-    case PrimitiveType_Line: return GL_LINES;
-    case PrimitiveType_Point: return GL_POINTS;
+    case PrimitiveType_Line:     return GL_LINES;
+    case PrimitiveType_Point:    return GL_POINTS;
     case PrimitiveType_Triangle: return GL_TRIANGLES;
+    case PrimitiveType_Patches:  return GL_PATCHES;
     }
     return GL_NONE;
   }

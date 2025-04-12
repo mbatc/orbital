@@ -306,7 +306,7 @@ namespace engine {
     for (URI const & item : pFileSystem->walk(m_selectedAssetPath)) {
       bool isLeaf          = pFileSystem->isLeaf(item);
       bool isClicked       = ImGui::Selectable(String(item.path().name()).c_str());
-      bool isDoubleClicked = isClicked && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
+      bool isDoubleClicked = ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
 
       if (!isLeaf && isClicked) {
         m_selectedAssetPath = item;

@@ -49,6 +49,7 @@ namespace engine {
 
     return "";
   }
+
   bfc::Vector<bfc::String> ILevelComponentType::names() {
     return g_nameLookup.getKeys();
   }
@@ -56,4 +57,17 @@ namespace engine {
   bfc::Vector<bfc::type_index> ILevelComponentType::types() {
     return g_typeLookup.getKeys();
   }
-}
+
+  Level * ILevelComponentStorage::getOwner() const {
+    return m_pLevel;
+  }
+
+  ILevelComponentStorage::ILevelComponentStorage(Level * pOwner)
+    : m_pLevel(pOwner) {}
+
+  namespace impl {
+    void ComponentStorageLevelAccess::SetOwner(ILevelComponentStorage * pStorage, Level * pLevel) {
+      pStorage->m_pLevel = pLevel;
+    }
+  } // namespace impl
+} // namespace engine

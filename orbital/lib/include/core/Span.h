@@ -27,7 +27,7 @@ namespace bfc {
     }
 
     constexpr Span(T const * pData, int64_t size)
-        : m_pData((T*)pData), m_size(size) {}
+        : m_pData((T*)pData), m_size(math::max(0ll, size)) {}
 
     constexpr Span(T const * first, T const * last)
         : Span(first, last - first) {}

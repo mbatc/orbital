@@ -6,8 +6,38 @@ using namespace bfc;
 
 namespace engine {
   Level::Level() 
-    : m_pEvents(bfc::NewRef<Events>("Level"))
-  {}
+    : m_pEvents(bfc::NewRef<Events>("Level")) {}
+
+  Level::Level(Level && o) 
+    : m_pEvents(o.m_pEvents)
+    , m_data(o.m_data)
+    , m_entityCount(o.m_entityCount)
+    , m_entities(o.m_entities)
+    , m_freed(o.m_freed)
+    , m_ids(o.m_ids)
+    , m_idToEntity(o.m_idToEntity)
+    , m_components(o.m_components) {
+    for (auto & [type, storage] : m_components)
+      impl::ComponentStorageLevelAccess::SetOwner(storage.get(), this);
+  }
+
+  Level & Level::operator=(Level && o) {
+    std::swap(m_pEvents, o.m_pEvents);
+    std::swap(m_data, o.m_data);
+    std::swap(m_entityCount, o.m_entityCount);
+    std::swap(m_entities, o.m_entities);
+    std::swap(m_freed, o.m_freed);
+    std::swap(m_ids, o.m_ids);
+    std::swap(m_idToEntity, o.m_idToEntity);
+    std::swap(m_components, o.m_components);
+
+    for (auto & [type, storage] : m_components)
+      impl::ComponentStorageLevelAccess::SetOwner(storage.get(), this);
+    for (auto & [type, storage] : o.m_components)
+      impl::ComponentStorageLevelAccess::SetOwner(storage.get(), &o);
+
+    return *this;
+  }
 
   Level::~Level() {
     clear();

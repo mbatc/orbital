@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../render/GraphicsDevice.h"
-#include "../render/HardwareBuffer.h"
 #include "../mesh/MeshData.h"
 #include "../util/Iterators.h"
 #include "../geometry/Box.h"

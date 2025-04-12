@@ -69,7 +69,8 @@ namespace engine {
     AssetManager *      pAssets     = pEditor->getApp()->findSubsystem<AssetManager>().get();
     VirtualFileSystem * pFileSystem = pEditor->getApp()->findSubsystem<VirtualFileSystem>().get();
 
-    ui::Input("Cast Shadows", &pComponent->castShadows);
+    ui::Input("Cast Shadows",    &pComponent->castShadows);
+    ui::Input("Use Tesselation", &pComponent->useTesselation);
 
     LevelEditor::drawAssetSelector("Mesh", &pComponent->pMesh, pAssets, pFileSystem);
 

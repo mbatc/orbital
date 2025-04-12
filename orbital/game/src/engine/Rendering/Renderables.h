@@ -13,7 +13,7 @@ namespace engine {
     int64_t    elementCount;
     bfc::Mat4d modelMatrix;
     bfc::Mat4d normalMatrix;
-
+    bfc::PrimitiveType            primitiveType;
     bfc::graphics::VertexArrayRef vertexArray;
     bfc::graphics::BufferRef      materialBuffer;
     bfc::graphics::ProgramRef     shader;

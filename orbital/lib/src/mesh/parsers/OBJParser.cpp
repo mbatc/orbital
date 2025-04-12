@@ -68,7 +68,7 @@ namespace bfc {
     }
 
     virtual bool eof() const {
-      return m_pStream->eof() && (m_chunkStart + m_chunkPos == m_pStream->tell());
+      return m_chunkStart + m_chunkPos == m_pStream->tell() && m_pStream->eof();
     }
 
     virtual int64_t write(void const* data, int64_t length) {

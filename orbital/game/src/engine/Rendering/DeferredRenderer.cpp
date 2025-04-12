@@ -68,7 +68,7 @@ namespace engine {
         }
 
         pCmdList->bindVertexArray(renderable.vertexArray);
-        pCmdList->drawIndexed(renderable.elementCount, renderable.elementOffset, PrimitiveType_Triangle);
+        pCmdList->drawIndexed(renderable.elementCount, renderable.elementOffset, renderable.primitiveType);
       }
 
       pCmdList->bindRenderTarget(view.renderTarget);

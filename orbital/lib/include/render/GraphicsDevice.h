@@ -3,8 +3,8 @@
 #include "../core/Map.h"
 #include "../core/StringView.h"
 #include "../core/Timestamp.h"
-#include "../media/Surface.h"
 #include "../media/Image.h"
+#include "../media/Surface.h"
 
 #include <future>
 #include <optional>
@@ -154,6 +154,8 @@ namespace bfc {
     PrimitiveType_Triangle,
     PrimitiveType_Line,
     PrimitiveType_Point,
+    PrimitiveType_Patches, ///< Tesselation input primitive
+    PrimitiveType_Count
   };
 
   enum GraphicsState {
@@ -531,7 +533,7 @@ namespace bfc {
       template<typename T>
       inline static constexpr bool IsState = in_variant_v<T, State::Storage>;
 
-      template<typename T, std::enable_if_t<IsState<T>>* = 0>
+      template<typename T, std::enable_if_t<IsState<T>> * = 0>
       State(T const & value)
         : m_storage(value) {}
 
@@ -678,7 +680,7 @@ namespace bfc {
       }
       virtual void setState(Span<const State> const & state) = 0;
       /// Push a state, recording the previously known value.
-      template<typename... States, std::enable_if_t<(in_variant_v<States, State::Storage> || ...)>* = 0>
+      template<typename... States, std::enable_if_t<(in_variant_v<States, State::Storage> || ...)> * = 0>
       void pushState(States &&... states) {
         Array<State, sizeof...(States)> values{std::forward<States>(states)...};
         pushState(Span<const State>{values.begin(), values.size()});
@@ -710,7 +712,7 @@ namespace bfc {
       /// @returns A pointer to the mapped buffer.
       virtual std::future<void *> map(BufferRef bufferID, int64_t offset, int64_t size, MapAccess access = MapAccess_ReadWrite) = 0;
 
-      virtual void unmap(BufferRef bufferID) = 0;
+      virtual void unmap(BufferRef bufferID)                                                                 = 0;
       virtual void download(BufferRef bufferID, BufferDownloadRef dst, int64_t offset = 0, int64_t size = 0) = 0;
 
       // Textures
@@ -771,7 +773,8 @@ namespace bfc {
     void loadTexture(CommandList * pCmdList, TextureRef * pTexture, TextureType const & type, Vec3i const & size, DepthStencilFormat const & depthFormat);
     void loadTexture2D(CommandList * pCmdList, TextureRef * pTexture, media::Surface const & surface);
     bool loadTexture2D(CommandList * pCmdList, TextureRef * pTexture, URI const & path);
-    void loadTexture2D(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size, PixelFormat const & format, void const * pPixels = nullptr, int64_t rowPitch = 0);
+    void loadTexture2D(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size, PixelFormat const & format, void const * pPixels = nullptr,
+                       int64_t rowPitch = 0);
     void loadTexture2D(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size, DepthStencilFormat const & depthFormat);
     bool loadTextureSub2D(CommandList * pCmdList, TextureRef * pTexture, media::Surface const & surface, Vec2i offset);
     void loadTexture2DArray(CommandList * pCmdList, TextureRef * pTexture, media::Surface const & surface);
@@ -907,6 +910,13 @@ namespace bfc {
                                                            {ShaderType_Compute, "compute"},
                                                            {ShaderType_TessControl, "tess-control"},
                                                            {ShaderType_TessEval, "tess-eval"}};
+  };
+
+  template<>
+  struct EnumValueMap<PrimitiveType> {
+    // inline static Vector<any> const mapping;
+    inline static Map<PrimitiveType, String> const mapping = {
+      {PrimitiveType_Triangle, "triangle"}, {PrimitiveType_Line, "line"}, {PrimitiveType_Point, "point"}, {PrimitiveType_Patches, "patch"}};
   };
 
   template<>
