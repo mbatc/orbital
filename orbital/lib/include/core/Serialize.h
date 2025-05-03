@@ -87,7 +87,7 @@ namespace bfc {
   private:
     template<int64_t I, typename Context, typename... Members>
     static bool writeMember(SerializedObject &dst, T const & o, Context const & ctx, Reflection<T, Members...> const & reflected) {
-      if constexpr (reflected.isMember<I>()) {
+      if constexpr (reflected.isMember<I>) {
         bfc::write(dst.get(reflected.name<I>()), reflected.get<I>(&o), ctx);
         return true;
       } else {
@@ -105,7 +105,7 @@ namespace bfc {
 
     template<int64_t I, typename Context, typename... Members>
     static bool readMember(SerializedObject const & src, T & o, Context const & ctx, Reflection<T, Members...> const & reflected) {
-      if constexpr (reflected.isMember<I>()) {
+      if constexpr (reflected.isMember<I>) {
         src.get(reflected.name<I>()).read(reflected.get<I>(&o), ctx);
         return true;
       } else {

@@ -12,7 +12,7 @@ namespace engine {
   class LevelPlayer;
   class LevelEditor;
   class Input;
-
+  class Scripting;
 }
 
 class OrbitalEditor;
@@ -28,13 +28,14 @@ private:
   bfc::Ref<engine::Input>       m_pInput;
   bfc::Ref<engine::VirtualFileSystem> m_pFileSystem;
   // bfc::Ref<engine::Windowing> m_pWindowing;
-  bfc::Ref<engine::Rendering> m_pRendering;
+  bfc::Ref<engine::Rendering>    m_pRendering;
   bfc::Ref<engine::AssetManager> m_pAssets;
   bfc::Ref<engine::LevelManager> m_pLevels;
   // bfc::Ref<engine::LevelPlayer> m_pLevelPlayer;
   bfc::Ref<engine::LevelEditor> m_pLevelEditor;
+  bfc::Ref<engine::Scripting>   m_pScripting;
 
   // Game systems
   bfc::Ref<OrbitalGameSystems> m_pOrbitalLevels;
-  bfc::Ref<OrbitalEditor> m_pOrbitalEditor;
+  bfc::Ref<OrbitalEditor>      m_pOrbitalEditor;
 };

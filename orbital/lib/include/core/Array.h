@@ -20,7 +20,7 @@ namespace bfc {
     constexpr Array(T const (&elements)[N])
       : Array(elements, elements + N) {}
 
-    template<typename... Args, std::enable_if_t<IsConstructible<Args...>>* = 0>
+    template<typename... Args, std::enable_if_t<IsConstructible<Args...> && sizeof...(Args) == N> * = 0>
     constexpr Array(Args &&... values)
       : m_data{std::forward<Args>(values)...}
     {}
@@ -29,7 +29,7 @@ namespace bfc {
       : Array(il.begin(), il.end()) {}
 
     constexpr Array(T const & value) {
-      mem::fill(begin(), end(), value);
+      mem::constructArray(begin(), N, value);
     }
 
     constexpr Array(Span<T> const & items)

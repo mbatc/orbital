@@ -3,7 +3,6 @@
 #include "Viewport/Viewport.h"
 
 #include "render/GraphicsDevice.h"
-#include "render/Shader.h"
 #include "platform/Window.h"
 #include "Levels/LevelManager.h"
 

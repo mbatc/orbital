@@ -378,6 +378,41 @@ namespace bfc {
   };
 
   template<typename T>
+  struct member_type {};
+
+  template<typename Class, typename R, typename... Args>
+  struct member_type<R (Class::*)(Args...)> {
+    inline static constexpr bool isMethod = true;
+    inline static constexpr bool isConst  = false;
+
+    inline static constexpr size_t arg_list_size = sizeof...(Args);
+
+    using container   = Class;
+    using arg_list    = bfc::arg_list<Args...>;
+    using return_type = R;
+  };
+
+  template<typename Class, typename R, typename... Args>
+  struct member_type<R (Class::*)(Args...) const> {
+    inline static constexpr bool isMethod = true;
+    inline static constexpr bool isConst  = true;
+
+    inline static constexpr size_t arg_list_size = sizeof...(Args);
+
+    using arg_list    = bfc::arg_list<Args...>;
+    using container   = const Class;
+    using return_type = R;
+  };
+
+  template<typename Class, typename T>
+  struct member_type<T Class::*> {
+    inline static constexpr bool isMethod = false;
+
+    using type      = T;
+    using container = Class;
+  };
+
+  template<typename T>
   struct inner_types {
     inline static constexpr bool valid = false;
   };

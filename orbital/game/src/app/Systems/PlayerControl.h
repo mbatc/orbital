@@ -37,7 +37,6 @@ class PlayerControlSystem
 public:
   PlayerControlSystem(bfc::Ref<engine::Input> const & pInput);
 
-  // Inherited via ILevelUpdate
   virtual void update(engine::Level * pLevel, bfc::Timestamp dt) override;
   virtual void play(engine::Level * pLevel) override;
   virtual void pause(engine::Level * pLevel) override;

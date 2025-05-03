@@ -8,7 +8,8 @@ cppdialect   "C++17"
 characterset "MBCS"
 
 dependson {
-  "yaml-cpp"
+  "yaml-cpp",
+  "wren"
 }
 
 defines   { "BFC_EXPORT_SYMBOLS" }

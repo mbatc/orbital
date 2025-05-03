@@ -7,7 +7,7 @@ using namespace bfc;
 namespace engine {
   Viewport::Viewport(graphics::CommandList * pCmdList, AssetManager * pAssets, StringView const & viewportName)
     : m_events(String::format("Viewport.%.*s", viewportName.length(), viewportName.begin()))
-    , m_renderScene(nullptr) {
+    , m_renderScene(pCmdList->getDevice(), nullptr) {
     m_pGraphics = pCmdList->getDevice();
     m_pRenderer = NewRef<DeferredRenderer>(pCmdList, pAssets);
   }
@@ -34,7 +34,7 @@ namespace engine {
   }
 
   void Viewport::setLevel(bfc::Ref<Level> const & pLevel) {
-    m_renderScene = RenderScene(pLevel);
+    m_renderScene = RenderScene(m_pGraphics, pLevel);
   }
 
   Level * Viewport::getLevel() const {

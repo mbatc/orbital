@@ -2,9 +2,6 @@
 #include "util/Log.h"
 
 int main(int argc, char ** argv) {
-  auto lambda = [](int, float, bool) {};
-  using Type = bfc::function_type<decltype(lambda)>;
-
   Orbital orbital;
   auto logListener = orbital.addListener();
   logListener->on([](bfc::events::AddLog const & e) {

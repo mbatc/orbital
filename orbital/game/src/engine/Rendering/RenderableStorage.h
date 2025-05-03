@@ -34,15 +34,15 @@ namespace engine {
     }
 
     virtual bfc::geometry::Spheref calcBoundingSphere(int64_t const & start = 0, int64_t const & count = npos) const override {
-      if constexpr (has_calc_bounding_sphere_v<T>) {
+      if constexpr (bfc::has_calc_bounding_sphere_v<T>) {
         bfc::geometry::Spheref sphere;
-        int64_t           end = start + math::min(count, size() - start);
+        int64_t                end = start + bfc::math::min(count, size() - start);
         for (int64_t i = start; i < end; ++i) {
           sphere.growToContain(bfc::calcBoundingSphere(items[i]));
         }
         return sphere;
       } else {
-        return geometry::Spheref();
+        return bfc::geometry::Spheref();
       }
     }
 
@@ -51,15 +51,15 @@ namespace engine {
     }
 
     virtual bfc::geometry::Boxf calcBoundingBox(int64_t const & start = 0, int64_t const & count = npos) const override {
-      if constexpr (has_calc_bounding_box_v<T>) {
+      if constexpr (bfc::has_calc_bounding_box_v<T>) {
         bfc::geometry::Boxf bounds;
-        int64_t        end = start + math::min(count, size() - start);
+        int64_t        end = start + bfc::math::min(count, size() - start);
         for (int64_t i = start; i < end; ++i) {
           bounds.growToContain(bfc::calcBoundingBox(items[i]));
         }
         return bounds;
       } else {
-        return geometry::Boxf();
+        return bfc::geometry::Boxf();
       }
     }
 

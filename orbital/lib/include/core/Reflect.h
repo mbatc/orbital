@@ -10,18 +10,78 @@
 #include <tuple>
 #include <optional>
 
-#define BFC_REFLECT(MyType, a)        ::bfc::makePair(&MyType::a, #a)
-#define BFC_REFLECT_OVERLOAD(MyType, a, Return, Params) ::bfc::makePair(static_cast<Return(MyType::*) Params>(&MyType::a), #a)
-#define BFC_REFLECT_CTOR(MyType, ...) ::bfc::makePair(bfc::detail::CtorReflection<__VA_ARGS__>{}, "MyType ctor");
-
 namespace bfc {
+  enum ReflAttributeType { ReflAttributeType_Unknown, ReflAttributeType_Ctor, ReflAttributeType_Method, ReflAttributeType_Member, ReflAttributeType_Count };
+
   namespace detail {
     template<typename T, typename... Args>
-    struct CtorReflection {
-      using ArgList = arg_list<Args...>;
+    struct ReflCtor {};
 
-      void operator()(T * pInstance, Args... args) const {
-        mem::construct(pInstance, args...);
+    template<typename Type, Type Value>
+    struct ReflMember {};
+
+    template<typename Type>
+    struct ReflAttribute {
+      inline static constexpr ReflAttributeType attributeType = ReflAttributeType_Unknown;
+    };
+
+    template<typename Type, Type Address, typename ArgList>
+    struct ReflMethodAttributeImpl {};
+
+    template<typename Type, Type Address, typename...Args>
+    struct ReflMethodAttributeImpl<Type, Address, arg_list<Args...>> : member_type<Type> {
+      using class_type                                        = typename member_type<Type>::container;
+      using type                                              = Type;
+      inline static constexpr ReflAttributeType attributeType = ReflAttributeType_Method;
+
+      inline static constexpr size_t arg_list_size = member_type<Type>::arg_list_size;
+
+      static auto call(typename member_type<Type>::container & instance, Args... args) {
+        return (instance.*Address)(std::forward<Args>(args)...);
+      }
+    };
+
+    template<typename Type, Type Address>
+    struct ReflMethodAttribute : ReflMethodAttributeImpl<Type, Address, typename member_type<Type>::arg_list> {};
+
+    template<typename Type, Type Address>
+    struct ReflMemberAttribute : member_type<Type> {
+      using class_type                                        = typename member_type<Type>::container;
+      using value_type                                        = typename member_type<Type>::type;
+      inline static constexpr ReflAttributeType attributeType = ReflAttributeType_Member;
+
+      inline static constexpr size_t arg_list_size = 1;
+
+      static value_type const & get(class_type const & instance) {
+        return instance.*Address;
+      }
+
+      static value_type & get(class_type & instance) {
+        return instance.*Address;
+      }
+
+      template<typename U = Type, std::enable_if_t<!std::is_const_v<typename member_type<U>::type>> * = 0>
+      static auto & set(class_type & instance, value_type const & value) {
+        return instance.*Address = value;
+      }
+    };
+
+    template<typename Type, Type Address>
+    struct ReflAttribute<ReflMember<Type, Address>>
+      : std::conditional_t<member_type<Type>::isMethod, ReflMethodAttribute<Type, Address>, ReflMemberAttribute<Type, Address>> {
+    };
+
+    template<typename T, typename... Args>
+    struct ReflAttribute<ReflCtor<T, Args...>> {
+      inline static constexpr ReflAttributeType attributeType = ReflAttributeType_Ctor;
+
+      using class_type = T;
+      using type       = ReflCtor<T, Args...>;
+
+      inline static constexpr size_t arg_list_size = sizeof...(Args);
+
+      static void call(T & instance, Args... args) {
+        mem::construct(&instance, std::forward<Args>(args)...);
       }
     };
 
@@ -55,30 +115,42 @@ namespace bfc {
     }
   } // namespace detail
 
-  template<typename T>
-  struct is_ctorreflection : std::false_type {};
+  template<typename Method, Method Address>
+  using ReflectMember = detail::ReflAttribute<detail::ReflMember<Method, Address>>;
 
-  template<typename... Args>
-  struct is_ctorreflection<detail::CtorReflection<Args...>> : std::true_type {};
-
-  template<typename T>
-  inline static constexpr bool is_ctorreflection_v = is_ctorreflection<T>::value;
+  template<typename T, typename... Args>
+  using ReflectConstructor = detail::ReflAttribute<detail::ReflCtor<T, Args...>>;
 
   template<typename ClassT, typename... Members>
   class Reflection {
-    using DataType = std::tuple<Pair<Members, char const *>...>;
+    using DataType = std::tuple<Pair<detail::ReflAttribute<Members>, char const *>...>;
 
   public:
     using Type = std::decay_t<ClassT>;
+
     template<int64_t N>
-    using TypeOf   = std::decay_t<decltype(std::get<N>(std::declval<DataType>()).first)>;
+    using InterfaceOf = decltype(std::get<N>(std::declval<DataType>()).first);
+    template<int64_t N>
+    using TypeOf   = std::decay_t<typename InterfaceOf<N>::type>;
     using IndicesT = std::make_integer_sequence<int64_t, sizeof...(Members)>;
 
-    inline static constexpr bool hasInnerTypes = inner_types<ClassT>::valid;
-    inline static constexpr auto innerTypes    = detail::reflectInnerTypes<ClassT>();
+    template<int64_t N>
+    inline static constexpr auto attributeType = InterfaceOf<N>::attributeType;
+    template<int64_t N>
+    inline static constexpr bool isMethod = attributeType<N> == ReflAttributeType_Method;
+    template<int64_t N>
+    inline static constexpr bool isMember = attributeType<N> == ReflAttributeType_Member;
+    template<int64_t N>
+    inline static constexpr bool isConstructor         = attributeType<N> == ReflAttributeType_Ctor;
+    inline static constexpr bool hasCopyConstructor    = std::is_copy_constructible_v<Type>;
+    inline static constexpr bool hasMoveConstructor    = std::is_move_constructible_v<Type>;
+    inline static constexpr bool hasDefaultConstructor = std::is_default_constructible_v<Type>;
+    inline static constexpr bool hasCopyAssign         = std::is_copy_assignable_v<Type>;
+    inline static constexpr bool hasMoveAssign         = std::is_move_assignable_v<Type>;
+    inline static constexpr bool hasInnerTypes         = inner_types<ClassT>::valid;
+    inline static constexpr auto innerTypes            = detail::reflectInnerTypes<ClassT>();
 
-    template<typename... Members>
-    inline constexpr Reflection(Pair<Members, char const *> const &... args)
+    inline constexpr Reflection(Pair<detail::ReflAttribute<Members>, char const *> const &... args)
       : m_attributes(args...)
     {}
 
@@ -88,47 +160,35 @@ namespace bfc {
 
     template<int64_t N>
     inline constexpr auto getAttribute() const {
-      return std::get<N>(m_attributes).first;
+      return std::get<N>(m_attributes);
     }
 
     template<int64_t N>
     inline constexpr auto const & get(Type const * pSelf) const {
-      if constexpr (isMember<N>()) {
-        auto member = std::get<N>(m_attributes).first;
-        return pSelf->*member;
-      } else {
-        static_assert(false, "Member at `N` is not a variable type. Use `call` instead?.");
-      }
+      static_assert(isMember<N>, "Member at `N` is not a variable type. Use `call` instead?.");
+
+      return InterfaceOf<N>::get(*pSelf);
     }
 
     template<int64_t N>
     inline constexpr auto & get(Type * pSelf) const {
-      if constexpr (isMember<N>()) {
-        auto member = std::get<N>(m_attributes).first;
-        return pSelf->*member;
-      } else {
-        static_assert(false, "Member at `N` is not a variable type. Use `call` instead?.");
-      }
+      static_assert(isMember<N>, "Member at `N` is not a variable type. Use `call` instead?.");
+
+      return InterfaceOf<N>::get(*pSelf);
     }
 
     template<int64_t N, typename... Args>
     inline constexpr auto call(Type * pSelf, Args... args) const {
-      if constexpr (isMethod<N>()) {
-        auto func = std::get<N>(m_attributes).first;
-        return (pSelf->*func)(args...);
-      } else {
-        static_assert(false, "Member at `N` is not a variable type. Use `get` instead.");
-      }
+      static_assert(isMethod<N>, "Member at `N` is not a variable type. Use `get` instead.");
+
+      return InterfaceOf<N>::call(*pSelf, std::forward<Args>(args)...);
     }
 
     template<int64_t N, typename... Args>
     inline constexpr void construct(Type * pSelf, Args... args) const {
-      if constexpr (isConstructor<N>()) {
-        auto ctor = std::get<N>(m_attributes).first;
-        ctor(pSelf, args...);
-      } else {
-        static_assert(false, "Member at `N` is not a constructor type. Use `get` or `call` instead.");
-      }
+      static_assert(isConstructor<N>, "Member at `N` is not a constructor type. Use `get` or `call` instead.");
+
+      InterfaceOf<N>::call(*pSelf, args...);
     }
 
     template<int64_t N>
@@ -138,7 +198,7 @@ namespace bfc {
 
     template<int64_t N, typename T>
     inline static constexpr bool is() {
-      return std::is_same<TypeOf<N>, T(Type::*)>::value;
+      return std::is_same_v<TypeOf<N>, T(Type::*)>;
     }
 
     template<typename T>
@@ -161,41 +221,6 @@ namespace bfc {
 
     static inline constexpr int64_t sizeOf() {
       return sizeof(Type);
-    }
-
-    template<int64_t N>
-    static inline constexpr bool isMember() {
-      return !isMethod<N>() && !isConstructor<N>();
-    }
-
-    template<int64_t N>
-    static inline constexpr bool isMethod() {
-      return bfc::is_function_v<TypeOf<N>>;
-    }
-
-    template<int64_t N>
-    static inline constexpr bool isConstructor() {
-      return bfc::is_ctorreflection_v<TypeOf<N>>;
-    }
-
-    static inline constexpr bool hasCopyConstructor() {
-      return std::is_copy_constructible_v<Type>;
-    }
-
-    static inline constexpr bool hasMoveConstructor() {
-      return std::is_move_constructible_v<Type>;
-    }
-
-    static inline constexpr bool hasDefaultConstructor() {
-      return std::is_default_constructible_v<Type>;
-    }
-
-    static inline constexpr bool hasCopyAssign() {
-      return std::is_copy_assignable_v<Type>;
-    }
-
-    static inline constexpr bool hasMoveAssign() {
-      return std::is_move_assignable_v<Type>;
     }
 
   private:
@@ -224,11 +249,10 @@ namespace bfc {
     }
 
     DataType m_attributes;
-
   };
 
   template<typename T, typename... Members>
-  inline constexpr auto makeReflection(Pair<Members, char const *> const &... args) {
+  inline constexpr auto makeReflection(Pair<detail::ReflAttribute<Members>, char const *> const &... args) {
     return Reflection<T, Members...>(args...);
   }
 
@@ -245,3 +269,7 @@ namespace bfc {
   template<typename T>
   inline constexpr bool has_reflect_v = !std::is_same<void, decltype(::bfc::reflect<T>())>::value;
 } // namespace bfc
+
+#define BFC_REFLECT(MyType, a)                          ::bfc::makePair(::bfc::ReflectMember<decltype(&MyType::a), &MyType::a>{}, #a)
+#define BFC_REFLECT_OVERLOAD(MyType, a, Return, Params) ::bfc::makePair(::bfc::ReflectMember<Return(MyType::*) Params, &MyType::a>{}, #a)
+#define BFC_REFLECT_CTOR(MyType, ...)                   ::bfc::makePair(::bfc::ReflectConstructor<MyType, __VA_ARGS__>{}, "MyType ctor")

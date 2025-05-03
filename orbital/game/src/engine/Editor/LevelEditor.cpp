@@ -15,6 +15,7 @@
 #include "ui/Widgets.h"
 #include "util/Log.h"
 #include "Viewport/GameViewport.h"
+#include "Scripting/Scripting.h"
 
 using namespace bfc;
 
@@ -161,6 +162,14 @@ namespace engine {
         for (AssetHandle handle : pAssets->findHandles<bfc::graphics::Program>()) {
           pAssets->reload(handle);
         }
+      }
+
+      if (kbd.isPressed(KeyCode_2)) {
+        BFC_LOG_INFO("LevelEditor", "Reloading scripts");
+
+        bfc::Ref<Scripting> pScripting = pApp->findSubsystem<Scripting>();
+        if (pScripting != nullptr)
+          pScripting->reload();
       }
     }
   }

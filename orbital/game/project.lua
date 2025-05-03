@@ -22,6 +22,7 @@ dependson {
 
 links {
   "lib",
+  "wren",
 }
 
 files {

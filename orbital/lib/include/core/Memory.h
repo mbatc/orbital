@@ -11,7 +11,11 @@ namespace bfc
 
     BFC_API void *realloc(void *ptr, int64_t size);
 
-    BFC_API void free(void *ptr);
+    BFC_API void free(void * ptr);
+
+    BFC_API char * strdup(const char * str);
+
+    BFC_API void strcpy(char * dst, size_t bufferSize, const char * src);
 
     template<typename T>
     constexpr T copy(T const & o) {
