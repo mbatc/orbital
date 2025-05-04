@@ -20,11 +20,11 @@ namespace engine {
       class Iterator {
       public:
         Iterator(bfc::Span<const EntityID> ids, int64_t index);
-        bool operator==(Iterator const & rhs) const;
-        bool operator!=(Iterator const & rhs) const;
-        Iterator& operator++();
-        Iterator operator++(int);
-        EntityID operator*() const;
+        bool       operator==(Iterator const & rhs) const;
+        bool       operator!=(Iterator const & rhs) const;
+        Iterator & operator++();
+        Iterator   operator++(int);
+        EntityID   operator*() const;
 
       private:
         void nextValidIndex();
@@ -45,7 +45,7 @@ namespace engine {
 
     Level();
     Level(Level && o);
-    Level& operator=(Level && o);
+    Level & operator       =(Level && o);
     Level(Level const & o) = delete;
 
     ~Level();
@@ -74,62 +74,73 @@ namespace engine {
     /// Add a component to an entity.
     template<typename T, typename... Args>
     T & add(EntityID const & entityID, Args &&... args) {
-      return components<T>().add(entityID, std::forward<Args>(args)...);
+      return addVariant(entityID, 0, std::forward<Args>(args)...);
     }
 
     template<typename T, typename... Args>
     T & replace(EntityID const & entityID, Args &&... args) {
-      return components<T>().replace(entityID, std::forward<Args>(args)...);
+      return replaceVariant(entityID, 0, std::forward<Args>(args)...);
+    }
+
+    /// Add a component to an entity.
+    template<typename T, typename... Args>
+    T & addVariant(EntityID const & entityID, uint32_t variation, Args &&... args) {
+      return components<T>(variation).add(entityID, std::forward<Args>(args)...);
+    }
+
+    template<typename T, typename... Args>
+    T & replaceVariant(EntityID const & entityID, uint32_t variation, Args &&... args) {
+      return components<T>(variation).replace(entityID, std::forward<Args>(args)...);
     }
 
     template<typename T>
-    T & get(EntityID const & entityID) {
-      return components<T>().get(entityID);
+    T & get(EntityID const & entityID, uint32_t variation = 0) {
+      return components<T>(variation).get(entityID);
     }
 
     template<typename T>
-    T const & get(EntityID const & entityID) const {
-      return components<T>().get(entityID);
+    T const & get(EntityID const & entityID, uint32_t variation = 0) const {
+      return components<T>(variation).get(entityID);
     }
 
     /// Try get a component attached to an entity.
-    /// @returns A pointer to the component attached 
+    /// @returns A pointer to the component attached
     /// @retval nullptr If the entity does not have a component of type `T` attached.
     template<typename T>
-    T * tryGet(EntityID const & entityID) {
-      return components<T>().tryGet(entityID);
+    T * tryGet(EntityID const & entityID, uint32_t variation = 0) {
+      return components<T>(variation).tryGet(entityID);
     }
 
     template<typename T>
-    T const * tryGet(EntityID const & entityID) const {
-      return components<T>().tryGet(entityID);
+    T const * tryGet(EntityID const & entityID, uint32_t variation = 0) const {
+      return components<T>(variation).tryGet(entityID);
     }
 
     /// Remove a component from an entity.
     template<typename T>
-    bool erase(EntityID const & entityID) {
-      return components<T>().erase(entityID);
+    bool erase(EntityID const & entityID, uint32_t variation = 0) {
+      return components<T>(variation).erase(entityID);
     }
 
     /// Test if an entity has a component.
     template<typename T>
-    bool has(EntityID const & entityID) const {
-      return components<T>().exists(entityID);
+    bool has(EntityID const & entityID, uint32_t variation = 0) const {
+      return components<T>(variation).exists(entityID);
     }
 
     template<typename T>
-    EntityID toEntity(T const * pComponent) const {
-      return components<T>().toEntity(pComponent);
+    EntityID toEntity(T const * pComponent, uint32_t variation = 0) const {
+      return components<T>(variation).toEntity(pComponent);
     }
 
     EntityView entities() const;
 
-    bfc::Map<bfc::type_index, bfc::Ref<ILevelComponentStorage>> const & components() const;
+    bfc::Map<ComponentTypeID, bfc::Ref<ILevelComponentStorage>> const & components() const;
 
     template<typename T>
-    LevelComponentStorage<T> & components() {
+    LevelComponentStorage<T> & components(uint32_t variation = 0) {
       bfc::Ref<ILevelComponentStorage> pStorage;
-      if (!m_components.tryGet(bfc::TypeID<T>(), &pStorage)) {
+      if (!m_components.tryGet(ComponentTypeID(bfc::TypeID<T>(), variation), &pStorage)) {
         pStorage = bfc::NewRef<LevelComponentStorage<T>>(this);
         m_components.add(bfc::TypeID<T>(), pStorage);
       }
@@ -138,9 +149,9 @@ namespace engine {
     }
 
     template<typename T>
-    LevelComponentStorage<T> const & components() const {
+    LevelComponentStorage<T> const & components(uint32_t variation = 0) const {
       bfc::Ref<ILevelComponentStorage> pStorage;
-      if (!m_components.tryGet(bfc::TypeID<T>(), &pStorage)) {
+      if (!m_components.tryGet(ComponentTypeID(bfc::TypeID<T>(), variation), &pStorage)) {
         static const LevelComponentStorage<T> empty(nullptr);
         return empty;
       }
@@ -150,12 +161,12 @@ namespace engine {
 
     template<typename... Components>
     LevelView<Components...> getView() const {
-      return { &components<Components>()... };
+      return {&components<Components>()...};
     }
 
     template<typename... Components>
     LevelViewMutable<Components...> getView() {
-      return { &components<Components>()... };
+      return {&components<Components>()...};
     }
 
     /// Copy entities to pDstLevel
@@ -174,9 +185,9 @@ namespace engine {
     void clear();
 
     /// Add some data to the level.
-    /// Data is an arbitrary structure 
+    /// Data is an arbitrary structure
     template<typename T, typename... Args>
-    bfc::Ref<T> addData(Args&&... args) {
+    bfc::Ref<T> addData(Args &&... args) {
       const bfc::type_index type = bfc::TypeID<T>();
       if (m_data.contains(type)) {
         return nullptr;
@@ -223,7 +234,7 @@ namespace engine {
   private:
     bool contains(int64_t const & index, int64_t const & version) const;
 
-    bfc::Ref<bfc::Events> m_pEvents;
+    bfc::Ref<bfc::Events>                     m_pEvents;
     bfc::Map<bfc::type_index, bfc::Ref<void>> m_data;
 
     int64_t               m_entityCount = 0;
@@ -233,6 +244,6 @@ namespace engine {
     bfc::Vector<bfc::UUID>        m_ids;
     bfc::Map<bfc::UUID, EntityID> m_idToEntity;
 
-    bfc::Map<bfc::type_index, bfc::Ref<ILevelComponentStorage>> m_components;
+    bfc::Map<ComponentTypeID, bfc::Ref<ILevelComponentStorage>> m_components;
   };
 } // namespace engine

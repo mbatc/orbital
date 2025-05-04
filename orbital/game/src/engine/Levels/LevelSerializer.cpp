@@ -45,7 +45,7 @@ namespace engine {
         auto       pInterface    = ILevelComponentType::find(componentName);
         if (pInterface == nullptr) {
           BFC_LOG_WARNING("LevelSerializer", "Unabled to serialized component. Failed to find interface (type=%s). Have you called registerComponentType?",
-                          type.name());
+                          type.typeInfo.name());
           continue;
         }
 

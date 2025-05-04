@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"wren.additionalModuleDirectories": [
+			"assets/engine/scripting/wren/"
+		]
+	}
+}

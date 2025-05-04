@@ -1,0 +1,276 @@
+entities:
+  - uuid: c3278f00-7079-41b3-8223-d87881bce7d0
+    components:
+      name: Environment
+      skybox:
+        texture:
+          uri: file:game:skybox/nebula.skybox
+      transform:
+        translation:
+          - 0
+          - 0
+          - 0
+        ypr:
+          - 44.999999999999993
+          - 45.000000000000036
+          - 2.0240926048777256e-14
+        scale:
+          - 1
+          - 1
+          - 1
+        parent: ~
+      light:
+        type: sun
+        colour:
+          - 0.93137252330780029
+          - 0.86960327625274658
+          - 0.82636481523513794
+        ambient:
+          - 0.17647057771682739
+          - 0.17647057771682739
+          - 0.17647057771682739
+        attenuation:
+          - 0
+          - 0
+          - 1
+        strength: 10
+        innerConeAngle: 30.000001907348633
+        outerConeAngle: 35
+        castShadows: 1
+  - uuid: 7dffda28-7bff-410b-a009-cb3d4bce4ccb
+    components:
+      name: The Launchpad
+      transform:
+        translation:
+          - 0
+          - 0
+          - 0
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 100
+          - 100
+          - 100
+        parent: ~
+      static-mesh:
+        castShadows: 0
+        useTesselation: 0
+        materials:
+          - material:
+              uri: file:game:models/launchpad/launchpad.obj#material.0
+            shader: ~
+          - material:
+              uri: file:game:models/launchpad/launchpad.obj#material.1
+            shader: ~
+          - material:
+              uri: file:game:models/launchpad/launchpad.obj#material.2
+            shader: ~
+        mesh:
+          uri: file:game:models/launchpad/launchpad.obj
+  - uuid: 26d66b8e-378f-480b-8043-d623bb821cd0
+    components:
+      name: The Dohey
+      transform:
+        translation:
+          - 10
+          - 1
+          - 0
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 10
+          - 10
+          - 10
+        parent: 7dffda28-7bff-410b-a009-cb3d4bce4ccb
+      static-mesh:
+        castShadows: 1
+        useTesselation: 0
+        materials:
+          - material:
+              uri: file:game:models/donut/dohey.obj#material.0
+            shader: ~
+          - material:
+              uri: file:game:models/donut/dohey.obj#material.1
+            shader: ~
+          - material:
+              uri: file:game:models/donut/dohey.obj#material.2
+            shader: ~
+        mesh:
+          uri: file:game:models/donut/dohey.obj
+  - uuid: 0ae29b5c-19b1-4437-87a4-c9ab08975d4b
+    components:
+      name: shuttle
+      transform:
+        translation:
+          - 0
+          - -500
+          - 0
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 100
+          - 100
+          - 100
+        parent: ee3ee283-2255-45fc-ae2b-f2bf4bda9ca0
+      static-mesh:
+        castShadows: 1
+        useTesselation: 0
+        materials:
+          - material:
+              uri: file:game:models/shuttle/shuttle.obj#material.0
+            shader: ~
+          - material:
+              uri: file:game:models/shuttle/shuttle.obj#material.1
+            shader: ~
+          - material:
+              uri: file:game:models/shuttle/shuttle.obj#material.2
+            shader: ~
+          - material:
+              uri: file:game:models/shuttle/shuttle.obj#material.3
+            shader: ~
+          - material:
+              uri: file:game:models/shuttle/shuttle.obj#material.4
+            shader: ~
+          - material:
+              uri: file:game:models/shuttle/shuttle.obj#material.5
+            shader: ~
+          - material:
+              uri: file:game:models/shuttle/shuttle.obj#material.6
+            shader: ~
+          - material:
+              uri: file:game:models/shuttle/shuttle.obj#material.7
+            shader: ~
+          - material:
+              uri: file:game:models/shuttle/shuttle.obj#material.8
+            shader: ~
+          - material:
+              uri: file:game:models/shuttle/shuttle.obj#material.9
+            shader: ~
+          - material:
+              uri: file:game:models/shuttle/shuttle.obj#material.10
+            shader: ~
+          - material:
+              uri: file:game:models/shuttle/shuttle.obj#material.11
+            shader: ~
+          - material:
+              uri: file:game:models/shuttle/shuttle.obj#material.12
+            shader: ~
+          - material:
+              uri: file:game:models/shuttle/shuttle.obj#material.13
+            shader: ~
+          - material:
+              uri: file:game:models/shuttle/shuttle.obj#material.14
+            shader: ~
+          - material:
+              uri: file:game:models/shuttle/shuttle.obj#material.15
+            shader: ~
+          - material:
+              uri: file:game:models/shuttle/shuttle.obj#material.16
+            shader: ~
+          - material:
+              uri: file:game:models/shuttle/shuttle.obj#material.17
+            shader: ~
+        mesh:
+          uri: file:game:models/shuttle/shuttle.obj
+  - uuid: 9e28e2b4-ea95-416e-a961-2e0f68cf56d3
+    components:
+      name: camera
+      transform:
+        translation:
+          - 0
+          - 0
+          - 1500
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 1
+          - 1
+          - 1
+        parent: faa40acd-185a-4ebe-81f4-3dc8b6903f2f
+      camera:
+        farPlane: 100000
+        nearPlane: 0.10000000149011612
+        viewportSize:
+          - 1
+          - 1
+        viewportPosition:
+          - 0
+          - 0
+        fov: 60.000003814697266
+  - uuid: ee3ee283-2255-45fc-ae2b-f2bf4bda9ca0
+    components:
+      name: Vehicle
+      transform:
+        translation:
+          - 0
+          - 500
+          - 0
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 1
+          - 1
+          - 1
+        parent: ~
+  - uuid: faa40acd-185a-4ebe-81f4-3dc8b6903f2f
+    components:
+      name: Player
+      transform:
+        translation:
+          - 0
+          - 0
+          - 0
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 1
+          - 1
+          - 1
+        parent: ~
+      vehicle-controller:
+        target: ee3ee283-2255-45fc-ae2b-f2bf4bda9ca0
+      vehicle-camera-controller:
+        target: ee3ee283-2255-45fc-ae2b-f2bf4bda9ca0
+        up:
+          - 0
+          - 1
+          - 0
+  - uuid: a4f781bf-e5c4-41cb-a111-34cbcf876f1c
+    components:
+      name: Terrain
+      transform:
+        translation:
+          - 0
+          - -3000
+          - 0
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 100000
+          - 5000
+          - 100000
+        parent: ~
+      static-mesh:
+        castShadows: 0
+        useTesselation: 1
+        materials:
+          - material:
+              uri: file:engine:/models/primitives/plane.obj#material.0
+            shader:
+              uri: file:engine:/shaders/terrain/procedural-terrain.shader
+        mesh:
+          uri: file:engine:/models/primitives/plane.obj

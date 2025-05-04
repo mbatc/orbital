@@ -1,12 +1,16 @@
 #pragma once
 
 #include "Subsystem.h"
+#include "scripting/WrenContext.h"
 
-namespace bfc {
-  namespace scripting {
-    class WrenContext;
-  }
-}
+namespace components {
+  struct Script {
+    bfc::String componentName; ///< Typename of the script component
+
+    bfc::scripting::wren::Value type;
+    bfc::scripting::wren::Value instance;
+  };
+} // namespace components
 
 namespace engine {
   class Scripting : public Subsystem {

@@ -11,6 +11,29 @@ namespace engine {
 
   constexpr EntityID InvalidEntity = 0;
 
+  struct ComponentTypeID {
+    ComponentTypeID() = default;
+
+    ComponentTypeID(bfc::type_index const & typeInfo, uint32_t variation = 0)
+      : typeInfo(typeInfo)
+      , variation(variation) {}
+
+    bool operator==(ComponentTypeID const & o) const {
+      return o.typeInfo == typeInfo && o.variation == variation;
+    }
+
+    bool operator!=(ComponentTypeID const & o) const {
+      return !operator==(o);
+    }
+
+    operator bfc::type_index const &() const {
+      return typeInfo;
+    }
+
+    bfc::type_index typeInfo  = bfc::TypeID<void>();
+    uint32_t        variation = 0;
+  };
+
   class Level;
   class LevelSerializer;
   class LevelCopyContext {
@@ -43,18 +66,18 @@ namespace engine {
     static bfc::Ref<ILevelComponentType> find(bfc::StringView const & name);
 
     /// Find the component type interface for a specific type.
-    static bfc::Ref<ILevelComponentType> find(bfc::type_index const & type);
+    static bfc::Ref<ILevelComponentType> find(ComponentTypeID const & type);
 
     /// Find the name of a component by type.
-    static bfc::StringView findName(bfc::type_index const & type);
+    static bfc::StringView findName(ComponentTypeID const & type);
 
     /// Get all registered component names.
     static bfc::Vector<bfc::String> names();
 
     /// Get all registered component types.
-    static bfc::Vector<bfc::type_index> types();
+    static bfc::Vector<ComponentTypeID> types();
 
-    virtual bfc::type_index type() const = 0;
+    virtual ComponentTypeID type() const = 0;
 
     virtual bfc::SerializedObject write(EntityID entity, ComponentSerializeContext const & context) const = 0;
 
@@ -94,7 +117,7 @@ namespace engine {
   /// Interface used by Levels for a component of type `T`.
   template<typename T>
   class LevelComponentType : public ILevelComponentType {
-    virtual bfc::type_index type() const override {
+    virtual ComponentTypeID type() const override {
       return bfc::TypeID<T>();
     }
 
@@ -130,6 +153,8 @@ namespace engine {
   bool registerComponentType(bfc::StringView const & name) {
     return ILevelComponentType::add(name, bfc::NewRef<LevelComponentType<T>>());
   }
+
+  bool registerComponentType(bfc::StringView const & name, bfc::Ref<ILevelComponentType> const & pType);
 
   class ILevelComponentStorage;
   namespace impl {
@@ -329,3 +354,12 @@ namespace engine {
     bfc::Map<EntityID, int64_t> m_entityToComponent;
   };
 } // namespace engine
+
+namespace std {
+  template<>
+  struct hash<engine::ComponentTypeID> {
+    size_t operator()(engine::ComponentTypeID const & o) const {
+      return bfc::hashCombine(o.typeInfo.hash_code(), o.variation);
+    }
+  };
+} // namespace std

@@ -1,9 +1,15 @@
 #include "LevelComponents.h"
 
 namespace engine {
+  namespace impl {
+    void ComponentStorageLevelAccess::SetOwner(ILevelComponentStorage * pStorage, Level * pLevel) {
+      pStorage->m_pLevel = pLevel;
+    }
+  } // namespace impl
+
   static bfc::Pool<bfc::Ref<ILevelComponentType>> g_interfaces;
   static bfc::Map<bfc::String, int64_t>           g_nameLookup;
-  static bfc::Map<bfc::type_index, int64_t>       g_typeLookup;
+  static bfc::Map<ComponentTypeID, int64_t>       g_typeLookup;
 
   bool ILevelComponentType::add(bfc::StringView const & name, bfc::Ref<ILevelComponentType> const & pType) {
     if (g_nameLookup.contains(name)) {
@@ -27,7 +33,7 @@ namespace engine {
     return g_interfaces[index];
   }
 
-  bfc::Ref<ILevelComponentType> ILevelComponentType::find(bfc::type_index const & type) {
+  bfc::Ref<ILevelComponentType> ILevelComponentType::find(ComponentTypeID const & type) {
     int64_t index = bfc::npos;
     if (!g_typeLookup.tryGet(type, &index)) {
       return nullptr;
@@ -35,7 +41,7 @@ namespace engine {
     return g_interfaces[index];
   }
 
-  bfc::StringView ILevelComponentType::findName(bfc::type_index const & type) {
+  bfc::StringView ILevelComponentType::findName(ComponentTypeID const & type) {
     auto pInterface = find(type);
     if (pInterface == nullptr) {
       return "";
@@ -54,7 +60,7 @@ namespace engine {
     return g_nameLookup.getKeys();
   }
 
-  bfc::Vector<bfc::type_index> ILevelComponentType::types() {
+  bfc::Vector<ComponentTypeID> ILevelComponentType::types() {
     return g_typeLookup.getKeys();
   }
 
@@ -65,9 +71,7 @@ namespace engine {
   ILevelComponentStorage::ILevelComponentStorage(Level * pOwner)
     : m_pLevel(pOwner) {}
 
-  namespace impl {
-    void ComponentStorageLevelAccess::SetOwner(ILevelComponentStorage * pStorage, Level * pLevel) {
-      pStorage->m_pLevel = pLevel;
-    }
-  } // namespace impl
+  bool registerComponentType(bfc::StringView const & name, bfc::Ref<ILevelComponentType> const & pType) {
+    ILevelComponentType::add(name, pType);
+  }
 } // namespace engine

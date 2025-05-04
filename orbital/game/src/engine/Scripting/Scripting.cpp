@@ -10,39 +10,143 @@
 
 #include "scripting/WrenContext.h"
 #include "platform/OS.h"
+
+#include "Levels/Level.h"
 #include "Levels/LevelSystem.h"
+#include "Levels/LevelComponents.h"
 
 using namespace bfc;
 using namespace scripting;
+using namespace components;
 
 namespace engine {
+  template<>
+  struct LevelComponent_OnPreErase<Script> {
+    inline static void onPreErase(Script * pComponent, Level * pLevel) {
+
+    }
+  };
+
+  template<>
+  struct LevelComponent_OnPostAdd<Script> {
+    inline static void onPostAdd(Script * pComponent, Level * pLevel) {
+
+    }
+  };
+
   namespace impl {
-    class ScriptComponent {
+    class WrenTypeSerializer {
     public:
-      wren::Value instance;
-      wren::Value type;
+
+
+      bfc::Vector<bfc::Pair<bfc::String, wren::Value>> m_fields;
     };
 
-    class LevelComponentAdapter {
+    class ScriptComponentTypeAdapter : public ILevelComponentType {
     public:
-      LevelComponentAdapter(wren::Value const& systemType) {
+      ScriptComponentTypeAdapter(wren::Value type, uint32_t const & variation)
+        : m_scriptType(type)
+        , m_variation(variation) {}
+
+      virtual ComponentTypeID type() const {
+        return ComponentTypeID(bfc::TypeID<Script>(), m_variation);
+      }
+
+      virtual SerializedObject write(EntityID entity, ComponentSerializeContext const & context) const {
+        BFC_UNUSED(entity, context);
+
+        // if (auto pScript = context.pLevel->tryGet<Script>(entity)) {
+        //   Set<String> seralizeable;
+        //   for (auto & method : pScript->instance.methods()) {
+        //     if (method.type == wren::MethodType_Setter) {
+        //       seralizeable.add(method.name);
+        //     }
+        //   }
+        // 
+        //   Map<String, SerializedObject> ret;
+        //   for (auto & method : pScript->instance.methods()) {
+        //     if (method.type == wren::MethodType_Getter && seralizeable.contains(method.name)) {
+        //       ret.add(method.name, );
+        // 
+        //     }
+        //   }
+        // 
+        // 
+        //   return SerializedObject::MakeMap(std::move(ret));
+        // }
+        // 
+        return SerializedObject::Empty();
+      }
+
+      virtual bool read(SerializedObject const & serialized, EntityID entity, ComponentDeserializeContext const & context) const {
+        BFC_UNUSED(serialized, entity, context);
+        return false;
+      }
+
+      virtual bool copy(LevelCopyContext * pContext, Level* pDstLevel, EntityID dstEntity, Level const& srcLevel, EntityID srcEntity) const {
+        if (auto * pScript = srcLevel.tryGet<Script>(srcEntity, m_variation)) {
+          auto & newScript   = pDstLevel->addVariant<Script>(dstEntity, m_variation);
+          newScript.type     = pScript->type;
+          newScript.instance = pScript->type.call(m_methods.construct);
+          return true;
+        }
+
+        return false;
+      }
+
+      virtual void * addComponent(Level * pDstLevel, EntityID entity) const {
+        auto & newScript   = pDstLevel->addVariant<Script>(entity, m_variation);
+        newScript.type     = m_scriptType;
+        newScript.instance = newScript.type.call(m_methods.construct);
+
+        // TODO: Cache wren::Value in Level::getData()
+        wren::Value(pDstLevel).call("add", m_scriptType, entity);
+
+        return &newScript;
+      }
+
+      bool bind() {
+        m_componentName = m_scriptType["type"];
+
+        for (auto& method : m_scriptType.methods()) {
+          switch (method.type) {
+            case m_scriptType["type"];
+          }
+        }
+      }
+
+      void unbind() {
 
       }
+
+      bfc::String getComponentName() const {
+        return m_componentName;
+      }
+
+    private:
+      wren::Value m_scriptType;
+      String      m_componentName;
+      uint32_t    m_variation = 0;
+
+      struct Methods {
+        wren::Value construct;
+      } m_methods;
     };
 
     class LevelSystemAdapter
-      : engine::ILevelUpdate
-      , engine::ILevelStop
-      , engine::ILevelPause
-      , engine::ILevelPlay
-      , engine::ILevelDeactivate
-      , engine::ILevelActivate
-      , engine::ILevelRenderDataCollector {
+      : public engine::ILevelUpdate
+      , public engine::ILevelStop
+      , public engine::ILevelPause
+      , public engine::ILevelPlay
+      , public engine::ILevelDeactivate
+      , public engine::ILevelActivate
+      , public engine::ILevelRenderDataCollector {
+    public:
       LevelSystemAdapter(wren::Value const & systemType)
         : m_type(systemType) {}
 
-      void bind() {
-        for (auto& method : m_type.methods()) {
+      bool bind() {
+        for (auto & method : m_type.methods()) {
           switch (method.type) {
           case wren::MethodType_Constructor: bindConstructor(method); break;
           case wren::MethodType_Method: bindMethod(method); break;
@@ -51,15 +155,58 @@ namespace engine {
 
         if (!m_methods.defaultConstruct.empty())
           m_instance = m_type.call(m_methods.defaultConstruct);
+
+        return !m_instance.empty();
       }
 
-      virtual void update(Level * pLevel, bfc::Timestamp dt) override {}
-      virtual void stop(Level * pLevel) override {}
-      virtual void pause(Level * pLevel) override {}
-      virtual void play(Level * pLevel) override {}
-      virtual void deactivate(Level * pLevel) override {}
-      virtual void activate(Level * pLevel) override {}
-      virtual void collectRenderData(RenderView * pRenderView, Level const * pLevel) override {}
+      bool hasUpdate() const {
+        return !m_methods.update.empty();
+      }
+      virtual void update(Level * pLevel, bfc::Timestamp dt) override {
+        m_instance.call(m_methods.update, pLevel, dt.secs());
+      }
+
+      bool hasStop() const {
+        return !m_methods.stop.empty();
+      }
+      virtual void stop(Level * pLevel) override {
+        m_instance.call(m_methods.stop, pLevel);
+      }
+
+      bool hasPause() const {
+        return !m_methods.pause.empty();
+      }
+      virtual void pause(Level * pLevel) override {
+        m_instance.call(m_methods.pause, pLevel);
+      }
+
+      bool hasPlay() const {
+        return !m_methods.play.empty();
+      }
+      virtual void play(Level * pLevel) override {
+        m_instance.call(m_methods.play, pLevel);
+      }
+
+      bool hasDeactivate() const {
+        return !m_methods.deactivate.empty();
+      }
+      virtual void deactivate(Level * pLevel) override {
+        m_instance.call(m_methods.deactivate, pLevel);
+      }
+
+      bool hasActivate() const {
+        return !m_methods.activate.empty();
+      }
+      virtual void activate(Level * pLevel) override {
+        m_instance.call(m_methods.activate, pLevel);
+      }
+
+      bool hasCollectRenderData() const {
+        return !m_methods.collectRenderData.empty();
+      }
+      virtual void collectRenderData(RenderView * pRenderView, Level const * pLevel) override {
+        m_instance.call(m_methods.collectRenderData, pRenderView, pLevel);
+      }
 
     private:
       void bindConstructor(wren::MethodDesc const& constructDesc) {
@@ -68,25 +215,25 @@ namespace engine {
       }
 
       void bindMethod(wren::MethodDesc const & methodDesc) {
-        if (methodDesc.name == "update")
+        if (methodDesc.name == "update" && methodDesc.numParams == 2)
           m_methods.update = methodDesc.handle();
 
-        if (methodDesc.name == "stop")
+        if (methodDesc.name == "stop" && methodDesc.numParams == 1)
           m_methods.stop = methodDesc.handle();
 
-        if (methodDesc.name == "pause")
+        if (methodDesc.name == "pause" && methodDesc.numParams == 1)
           m_methods.pause = methodDesc.handle();
 
-        if (methodDesc.name == "play")
+        if (methodDesc.name == "play" && methodDesc.numParams == 1)
           m_methods.play = methodDesc.handle();
 
-        if (methodDesc.name == "deactivate")
+        if (methodDesc.name == "deactivate" && methodDesc.numParams == 1)
           m_methods.deactivate = methodDesc.handle();
 
-        if (methodDesc.name == "activate")
+        if (methodDesc.name == "activate" && methodDesc.numParams == 1)
           m_methods.activate = methodDesc.handle();
 
-        if (methodDesc.name == "collectRenderData")
+        if (methodDesc.name == "collectRenderData" && methodDesc.numParams == 2)
           m_methods.defaultConstruct = methodDesc.handle();
       }
 
@@ -113,16 +260,65 @@ namespace engine {
 
     class EngineAPI {
     public:
-      void addComponent(wren::Value const & componentType, const char * uniqueName) {
-        
-        const char * type = componentType["type"];
-        BFC_LOG_INFO("Scripting", "Dynamic component type added: %s", type);
+      void addComponent(wren::Value const & componentType) {
+        m_unboundComponentTypes.pushBack(bfc::NewRef<ScriptComponentTypeAdapter>(componentType, m_variation++));
       }
 
-      void addSystem(wren::Value const & systemType, const char * uniqueName) {
-        const char * type = systemType["type"];
-        BFC_LOG_INFO("Scripting", "Dynamic component type added: %s", type);
+      void addSystem(wren::Value const & systemType) {
+        m_unboundSystems.pushBack(bfc::NewRef<LevelSystemAdapter>(systemType));
       }
+
+      void bind() {
+        for (auto& scriptType : m_unboundComponentTypes) {
+          if (scriptType->bind()) {
+            m_componentTypes.pushBack(scriptType);
+
+            registerComponentType(scriptType->getComponentName(), scriptType);
+
+            BFC_LOG_INFO("Scripting", "Dynamic component type added: %s", scriptType->getComponentName());
+          }
+        }
+
+        for (auto & system : m_unboundSystems) {
+          if (!system->bind()) {
+            continue;
+          }
+
+          if (system->hasActivate())
+            registerLevelActivate(system);
+
+          if (system->hasDeactivate())
+            registerLevelDeactivate(system);
+
+          if (system->hasPlay())
+            registerLevelPlay(system);
+
+          if (system->hasUpdate())
+            registerLevelUpdate(system);
+
+          if (system->hasPause())
+            registerLevelPause(system);
+
+          if (system->hasStop())
+            registerLevelStop(system);
+
+          if (system->hasCollectRenderData())
+            registerLevelRenderDataCollector(system);
+
+          m_systems.pushBack(system);
+        }
+
+        m_unboundSystems.clear();
+        m_unboundComponentTypes.clear();
+      }
+
+    private:
+      uint32_t                                          m_variation = 0;
+      bfc::Vector<bfc::Ref<ScriptComponentTypeAdapter>> m_unboundComponentTypes;
+      bfc::Vector<bfc::Ref<LevelSystemAdapter>>         m_unboundSystems;
+
+      bfc::Vector<bfc::Ref<ScriptComponentTypeAdapter>> m_componentTypes;
+      bfc::Vector<bfc::Ref<LevelSystemAdapter>>         m_systems;
     };
 
     class EngineWrenContext : public WrenContext {
