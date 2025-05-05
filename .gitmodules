@@ -13,7 +13,7 @@
 [submodule "vendor/ImGuizmo"]
 	path = vendor/ImGuizmo
 	url = https://github.com/CedricGuillemet/ImGuizmo.git
-[submodule "vendor/ImGuizmo"]
+[submodule "vendor/imgui"]
 	path = vendor/imgui
 	url = https://github.com/ocornut/imgui.git
 [submodule "vendor/glm"]
@@ -22,4 +22,3 @@
 [submodule "vendor/bullet3"]
 	path = vendor/bullet3
 	url = https://github.com/bulletphysics/bullet3.git
-
