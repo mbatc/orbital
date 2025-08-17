@@ -16,14 +16,9 @@ namespace engine {
   class RenderView;
   class RenderScene;
 
-  class RenderDataCollector {
-  public:
-    virtual void getRenderData(RenderView * pReviewView, Level const * pLevel) = 0; 
-  };
-
   class RenderScene {
   public:
-    RenderScene(bfc::Ref<Level> const & pLevel);
+    RenderScene(bfc::GraphicsDevice * pDevice, bfc::Ref<Level> const & pLevel);
 
     Level * getLevel() const;
 
@@ -34,8 +29,9 @@ namespace engine {
     bfc::Span<RenderView const> views() const;
 
   private:
+    bfc::GraphicsDevice *   m_pDevice;
     bfc::Ref<Level>         m_pLevel;
-    bfc::Vector<RenderData> m_renderData;
+    bfc::Vector<bfc::Ref<RenderData>> m_renderData;
     bfc::Vector<RenderView> m_views;
   };
 } // namespace engine

@@ -22,6 +22,11 @@ namespace engine {
       bfc::GraphicsDevice * pDevice        = nullptr;
       Viewport *            pViewport      = nullptr;
     };
+
+    struct OnMainViewportChanged {
+      bfc::Ref<Viewport> pOldViewport;
+      bfc::Ref<Viewport> pNewViewport;
+    };
   } // namespace events
 
   class Rendering : public Subsystem {

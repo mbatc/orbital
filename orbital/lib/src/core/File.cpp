@@ -215,7 +215,7 @@ namespace bfc {
 
     int64_t len = f.length();
     Vector<char> data(len + 1, 0);
-    int64_t bytes = f.read(data.data(), data.size()) == len;
+    int64_t bytes = f.read(data.data(), data.size());
     data.resize(bytes + 1, 0);
     *pContent = String(std::move(data));
     return true;

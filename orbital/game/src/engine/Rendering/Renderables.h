@@ -9,6 +9,13 @@ namespace engine {
   /// Mesh render data.
   /// Stores geometry and material information.
   struct MeshRenderable {
+    MeshRenderable() = default;
+    MeshRenderable(bfc::Mat4d const & modelMatrix, bfc::Mesh const & mesh, int64_t subMeshIndex, bfc::Ref<bfc::Material> pMaterial = nullptr,
+                   bfc::Ref<bfc::graphics::Program> pProgram = nullptr);
+    MeshRenderable(bfc::Mat4d const & modelMatrix, bfc::Mat4d const & normalMatrix, bfc::Mesh const & mesh, int64_t subMeshIndex,
+                   bfc::Ref<bfc::Material> pMaterial = nullptr,
+                   bfc::Ref<bfc::graphics::Program> pProgram = nullptr);
+
     int64_t    elementOffset;
     int64_t    elementCount;
     bfc::Mat4d modelMatrix;

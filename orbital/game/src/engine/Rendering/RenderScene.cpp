@@ -2,15 +2,16 @@
 #include "RenderData.h"
 #include "Renderables.h"
 #include "Renderer.h"
-#include "../Levels/CoreComponents.h"
 #include "platform/Events.h"
+#include "../Levels/CoreComponents.h"
+#include "../Levels/LevelSystem.h"
 
 using namespace bfc;
 
 namespace engine {
-  class StaticMeshCollector : public RenderDataCollector {
+  class StaticMeshCollector : public ILevelRenderDataCollector {
   public:
-    virtual void getRenderData(RenderView * pReviewView, Level const * pLevel) override {
+    virtual void collectRenderData(RenderView * pReviewView, Level const * pLevel) override {
       RenderData *                                    pRenderData = pReviewView->pRenderData;
       RenderableStorage<MeshRenderable> &             meshes      = pRenderData->renderables<MeshRenderable>();
       RenderableStorage<MeshShadowCasterRenderable> & shadows     = pRenderData->renderables<MeshShadowCasterRenderable>();
@@ -79,9 +80,9 @@ namespace engine {
     }
   };
   
-  class LightCollector : public RenderDataCollector {
+  class LightCollector : public ILevelRenderDataCollector {
   public:
-    virtual void getRenderData(RenderView * pReviewView, Level const * pLevel) override {
+    virtual void collectRenderData(RenderView * pReviewView, Level const * pLevel) override {
       RenderData * pRenderData = pReviewView->pRenderData;
   
       RenderableStorage<LightRenderable> & lights = pRenderData->renderables<LightRenderable>();
@@ -106,9 +107,9 @@ namespace engine {
     }
   };
   
-  class SkyboxCollector : public RenderDataCollector {
+  class SkyboxCollector : public ILevelRenderDataCollector {
   public:
-    virtual void getRenderData(RenderView * pReviewView, Level const * pLevel) override {
+    virtual void collectRenderData(RenderView * pReviewView, Level const * pLevel) override {
       RenderData * pRenderData = pReviewView->pRenderData;
   
       RenderableStorage<CubeMapRenderable> & skyboxes = pRenderData->renderables<CubeMapRenderable>();
@@ -126,9 +127,9 @@ namespace engine {
     }
   };
   
-  class PostProcessCollector : public RenderDataCollector {
+  class PostProcessCollector : public ILevelRenderDataCollector {
   public:
-    virtual void getRenderData(RenderView * pReviewView, Level const * pLevel) override {
+    virtual void collectRenderData(RenderView * pReviewView, Level const * pLevel) override {
       RenderData * pRenderData = pReviewView->pRenderData;
 
       auto & bloom    = pRenderData->renderables<PostProcessRenderable_Bloom>();
@@ -183,8 +184,9 @@ namespace engine {
     }
   };
 
-  RenderScene::RenderScene(bfc::Ref<Level> const & pLevel)
-    : m_pLevel(pLevel) {}
+  RenderScene::RenderScene(bfc::GraphicsDevice * pDevice, bfc::Ref<Level> const & pLevel)
+    : m_pLevel(pLevel)
+    , m_pDevice(pDevice) {}
 
   Level * RenderScene::getLevel() const {
     return m_pLevel.get();
@@ -192,9 +194,15 @@ namespace engine {
 
   void RenderScene::setViews(Span<RenderView> const & views) {
     m_views = views;
-    m_renderData.resize(m_views.size());
     for (auto & [i, view] : enumerate(m_views)) {
-      view.pRenderData = m_renderData.begin() + i;
+      if (i >= m_renderData.size())
+        m_renderData.pushBack(bfc::NewRef<RenderData>(m_pDevice));
+      else
+        m_renderData[i]->clear();
+    }
+
+    for (auto & [i, view] : enumerate(m_views)) {
+      view.pRenderData = m_renderData[i].get();
       view.updateCachedProperties();
     }
   }
@@ -212,10 +220,13 @@ namespace engine {
     for (auto & view : m_views) {
       view.pRenderData->clear();
 
-      staticMeshes.getRenderData(&view, m_pLevel.get());
-      lights.getRenderData(&view, m_pLevel.get());
-      skyboxes.getRenderData(&view, m_pLevel.get());
-      pps.getRenderData(&view, m_pLevel.get());
+      staticMeshes.collectRenderData(&view, m_pLevel.get());
+      lights.collectRenderData(&view, m_pLevel.get());
+      skyboxes.collectRenderData(&view, m_pLevel.get());
+      pps.collectRenderData(&view, m_pLevel.get());
+
+      // Collect from extensions
+      collectRenderData(&view, m_pLevel.get());
     }
   }
 

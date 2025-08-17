@@ -124,7 +124,7 @@ namespace bfc {
   class BFC_API ConstructorReflection {
   public:
     template<typename T, typename... Args>
-    ConstructorReflection(detail::CtorReflection<T, Args...> ctor) {
+    ConstructorReflection(ReflectConstructor<T, Args...> ctor) {
       m_unpackAndInvoke = getUnpackAndInvokeImpl(ctor, std::make_integer_sequence<int64_t, sizeof...(Args)>{});
     }
 
@@ -143,8 +143,9 @@ namespace bfc {
 
   private:
     template<typename T, typename... Args, int64_t... Indices>
-    std::function<bool(void *, Span<RuntimeObject>)> getUnpackAndInvokeImpl(detail::CtorReflection<T, Args...> ctor, std::integer_sequence<int64_t, Indices...>) const {
-      return [ctor](void * pInstance, Span<RuntimeObject> argList) {
+    std::function<bool(void *, Span<RuntimeObject>)> getUnpackAndInvokeImpl(ReflectConstructor<T, Args...>,
+                                                                            std::integer_sequence<int64_t, Indices...>) const {
+      return [](void * pInstance, Span<RuntimeObject> argList) {
         // Check arg count is correct
         if (argList.size() != sizeof...(Args))
           return false;
@@ -152,7 +153,7 @@ namespace bfc {
         if (((argList[Indices].typeInfo() != TypeID<Args>()) || ...))
           return false;
         // Unpack arguments and invoke method
-        ctor((T *)pInstance, static_cast<Args>(argList[Indices].get<std::remove_reference_t<Args>>())...);
+        ReflectConstructor<T, Args...>::call((T *)pInstance, static_cast<Args>(argList[Indices].get<std::remove_reference_t<Args>>())...);
         return true;
       };
     }
@@ -187,26 +188,26 @@ namespace bfc {
 
         // Add default/copy/move constructors (if applicable)
         m_constructors.reserve(m_constructors.size() + 3); // Make sure m_constructors doesn't reallocate so pointers below remain valid
-        if constexpr (staticReflection.hasDefaultConstructor()) {
-          m_constructors.pushBack(detail::CtorReflection<ClassT>{});
+        if constexpr (staticReflection.hasDefaultConstructor) {
+          m_constructors.pushBack(ReflectConstructor<ClassT>{});
           m_pDefaultConstructor =  &m_constructors.back();
         }
 
-        if constexpr (staticReflection.hasCopyConstructor()) {
-          m_constructors.pushBack(detail::CtorReflection<ClassT, ClassT const &>{});
+        if constexpr (staticReflection.hasCopyConstructor) {
+          m_constructors.pushBack(ReflectConstructor<ClassT, ClassT const &>{});
           m_pCopyConstructor = &m_constructors.back();
         }
 
-        if constexpr (staticReflection.hasMoveConstructor()) {
-          m_constructors.pushBack(detail::CtorReflection<ClassT, ClassT &&>{});
+        if constexpr (staticReflection.hasMoveConstructor) {
+          m_constructors.pushBack(ReflectConstructor<ClassT, ClassT &&>{});
           m_pMoveConstructor = &m_constructors.back();
         }
 
-        if constexpr (staticReflection.hasCopyAssign()) {
+        if constexpr (staticReflection.hasCopyAssign) {
           m_copyAssign = [](void * pDst, void const * pSrc) { *(ClassT *)pDst = *(ClassT const *)pSrc; };
         }
 
-        if constexpr (staticReflection.hasMoveAssign()) {
+        if constexpr (staticReflection.hasMoveAssign) {
           m_moveAssign = [](void * pDst, void * pSrc) { *(ClassT *)pDst = std::move(*(ClassT *)pSrc); };
         }
 
@@ -234,7 +235,7 @@ namespace bfc {
       }
 
       template<typename ClassT, typename... Args>
-      void add(char const *, detail::CtorReflection<Args...> ctor) {
+      void add(char const *, ReflectConstructor<ClassT, Args...> ctor) {
         m_constructors.pushBack(ctor);
       }
 

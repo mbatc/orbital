@@ -70,11 +70,29 @@ namespace engine {
     m_pViewportListener = m_pEditorViewport->getEvents()->addListener();
     m_pViewportListener->on([=](bfc::events::DroppedFiles const & e) {
       for (Filename const & file : e.files) {
+        BFC_LOG_INFO("LevelEditor", "File dropped. Path=%s", file);
+
         pLevels->Import(pLevels->getActiveLevel().get(), URI::File(file));
       }
     });
 
     m_pAppListener = pApp->addListener();
+
+    m_pAppListener->on([=](events::OnMainViewportChanged const & e) {
+      BFC_LOG_INFO("LevelEditor", "Mapping input devices from new viewport to the input subsystem");
+
+      if (e.pOldViewport != nullptr) {
+        for (auto [name, pDevice] : e.pOldViewport->getInputDevices()) {
+          pLevels->getApp()->findSubsystem<Input>()->setInputDevice(name, nullptr);
+        }
+      }
+
+      if (e.pNewViewport != nullptr) {
+        for (auto [name, pDevice] : e.pNewViewport->getInputDevices()) {
+          pLevels->getApp()->findSubsystem<Input>()->setInputDevice(name, pDevice);
+        }
+      }
+    });
 
     m_pAppListener->on([=](events::OnRenderViewport const & e) {
       if (m_pDrawData != nullptr && e.isMainViewport) {
@@ -86,6 +104,7 @@ namespace engine {
     });
 
     m_pAppListener->on([=](events::OnLevelActivated const & e) {
+      BFC_LOG_INFO("LevelEditor", "Level activated. Setting editor viewport level.");
       // TODO: May not want to always sync the editor level with the active level.
       //       e.g. editing a sub-level in an external window?
       m_pEditorViewport->setLevel(e.pLevel);
@@ -355,9 +374,6 @@ namespace engine {
 
       pLevels->setSimulateState(desiredState);
 
-      for (auto [name, pDevice] : pRendering->getMainViewport()->getInputDevices()) {
-        pLevels->getApp()->findSubsystem<Input>()->setInputDevice(name, nullptr);
-      }
 
       if (activateEditorViewport) {
         m_pEditorViewport->setLevel(pLevels->getActiveLevel());
@@ -369,10 +385,6 @@ namespace engine {
 
         pGameViewport->setLevel(pLevels->getActiveLevel());
         pRendering->setMainViewport(pGameViewport);
-      }
-
-      for (auto [name, pDevice] : pRendering->getMainViewport()->getInputDevices()) {
-        pLevels->getApp()->findSubsystem<Input>()->setInputDevice(name, pDevice);
       }
     }
 

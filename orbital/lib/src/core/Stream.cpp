@@ -189,7 +189,7 @@ namespace bfc {
       return nullptr;
     }
 
-    if (uri.scheme() == "file") {
+    if (uri.scheme().empty() || uri.scheme() == "file") {
       Ref<File> pFile = NewRef<File>();
       if (pFile->open(uri.path(), mode)) {
         return pFile;
@@ -202,7 +202,7 @@ namespace bfc {
   }
 
   bool uriExists(URI const & uri) {
-    if (uri.scheme() == "file") {
+    if (uri.scheme().empty() || uri.scheme() == "file") {
       return fileExists(uri.path().c_str());
     } else {
       return openURI(uri, FileMode_Read) != nullptr;

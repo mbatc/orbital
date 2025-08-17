@@ -3,7 +3,6 @@
 #include "Viewport/Viewport.h"
 
 #include "render/GraphicsDevice.h"
-#include "render/Shader.h"
 #include "platform/Window.h"
 #include "Levels/LevelManager.h"
 
@@ -83,12 +82,18 @@ namespace engine {
   }
 
   void Rendering::setMainViewport(bfc::Ref<Viewport> const & pViewport) {
+    events::OnMainViewportChanged changeEvent;
+    changeEvent.pOldViewport = m_pMainViewport;
+    changeEvent.pNewViewport = pViewport;
+
     if (m_pMainViewport != nullptr) {
       m_pMainViewport->getEvents()->stopListening(m_pWindow->getEvents());
     }
 
     m_pMainViewport = pViewport;
     m_pMainViewport->getEvents()->listenTo(m_pWindow->getEvents());
+
+    getEvents()->broadcast(changeEvent);
   }
 
   bfc::Ref<Viewport> Rendering::getMainViewport() {
