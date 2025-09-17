@@ -21,7 +21,7 @@ class OrbitalGameSystems;
 class Orbital : public engine::Application
 {
 public:
-  Orbital();
+  Orbital(bfc::String const & projectPath);
 
 private:
   // Core engine systems

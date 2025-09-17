@@ -8,6 +8,7 @@ namespace bfc {
     enum FolderID {
       FolderID_AppData,
       FolderID_Documents,
+      FolderID_Temp,
     };
 
     enum AccessFlag {

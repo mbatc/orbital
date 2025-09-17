@@ -14,6 +14,10 @@ namespace engine {
     struct Options {
       bfc::String company = "DefaultCompany";
       bfc::String name    = "DefaultApp";
+
+      struct Dev {
+        bfc::Filename projectPath;
+      } dev;
     };
 
     Application(Options const & options);
@@ -41,6 +45,8 @@ namespace engine {
     bfc::Filename getWorkingDirectory() const;
 
     bfc::Timestamp getDeltaTime() const;
+
+    Options::Dev const & getDevOptions() const;
 
     template<typename SubsystemType, typename... Args>
     bfc::Ref<SubsystemType> addSubsystem(Args&&... args) {

@@ -120,6 +120,10 @@ namespace engine {
     return m_timestep;
   }
 
+  Application::Options::Dev const & Application::getDevOptions() const {
+    return m_options.dev;
+  }
+
   bool Application::addSubsystem(bfc::Ref<Subsystem> const & pSystem) {
     std::scoped_lock guard{m_subsystemLock};
     if (findSubsystem_unlocked(pSystem->type) != nullptr) {
