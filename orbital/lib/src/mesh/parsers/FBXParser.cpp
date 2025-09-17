@@ -1,4 +1,6 @@
 #include "mesh/parsers/FBXParser.h"
+
+#ifdef BFC_ENABLE_FBX_SDK
 #include "core/Set.h"
 #include "core/Stream.h"
 
@@ -445,3 +447,24 @@ namespace bfc {
     return false;
   }
 } // namespace bfc
+
+#else
+
+namespace bfc {
+  bool FBXParser::read(Stream * pStream, Scene * pScene) {
+    BFC_UNUSED(pStream, pScene);
+    return false;
+  }
+
+  bool FBXParser::read(Stream * pStream, MeshData * pMesh, StringView const & resourceDir) {
+    BFC_UNUSED(pStream, pMesh, resourceDir);
+    return false;
+  }
+
+  bool FBXParser::write(Stream * pStream, MeshData const * pMesh) {
+    BFC_UNUSED(pStream, pMesh);
+    return false;
+  }
+} // namespace bfc
+
+#endif
