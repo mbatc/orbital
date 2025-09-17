@@ -15,6 +15,8 @@
 #include "ui/Widgets.h"
 #include "util/Log.h"
 #include "Viewport/GameViewport.h"
+#include "platform/OS.h"
+#include "core/File.h"
 #include "Rendering/DeferredRenderer.h"
 
 using namespace bfc;
@@ -201,6 +203,10 @@ namespace engine {
         getApp()->saveSettings();
       }
     }
+  }
+
+  void LevelEditor::rebuild() {
+    os::getSystemPath(os::FolderID_Documents);
   }
 
   bool LevelEditor::drawEntitySelector(bfc::StringView const & name, EntityID * pEntityID, Level * pLevel) {
