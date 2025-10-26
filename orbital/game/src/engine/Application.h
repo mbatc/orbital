@@ -40,6 +40,8 @@ namespace engine {
 
     bfc::Filename getWorkingDirectory() const;
 
+    bfc::Filename getTempDirectory() const;
+
     bfc::Timestamp getDeltaTime() const;
 
     template<typename SubsystemType, typename... Args>

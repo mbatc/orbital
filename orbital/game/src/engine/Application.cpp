@@ -116,6 +116,10 @@ namespace engine {
     return bfc::os::getCwd();
   }
 
+  bfc::Filename Application::getTempDirectory() const {
+    return bfc::os::getSystemPath(bfc::os::FolderID_Temp) / getCompany() / getName();
+  }
+
   bfc::Timestamp Application::getDeltaTime() const {
     return m_timestep;
   }

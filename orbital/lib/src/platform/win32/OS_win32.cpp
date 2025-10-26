@@ -36,6 +36,13 @@ namespace bfc {
     Filename getSystemPath(FolderID folder) {
       win32::ComInitHelper comInit;
 
+      if (folder == FolderID_Temp) {
+        wchar_t buffer[MAX_PATH + 1];
+        DWORD len = GetTempPathW(MAX_PATH + 1, buffer);
+
+        return len == 0 ? "" : fromWide(buffer);
+      }
+
       IKnownFolderManager * pManager = nullptr;
       HRESULT               hr       = CoCreateInstance(CLSID_KnownFolderManager, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pManager));
       if (FAILED(hr)) {

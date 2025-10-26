@@ -9,7 +9,7 @@
 #include "OrbitalEditor.h"
 
 Orbital::Orbital()
-  : Application({"Archive", "Orbital"}) {
+  : Application({"Archive", "Orbital" }) {
   bfc::URI repoBasePath     = bfc::URI::File(getBinaryPath()).resolveRelativeReference("../../../../../../");
   bfc::URI gameAssetsPath   = repoBasePath.resolveRelativeReference("assets/game");
   bfc::URI engineAssetsPath = repoBasePath.resolveRelativeReference("assets/engine");

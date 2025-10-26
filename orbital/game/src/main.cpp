@@ -2,10 +2,8 @@
 #include "util/Log.h"
 
 int main(int argc, char ** argv) {
-  auto lambda = [](int, float, bool) {};
-  using Type = bfc::function_type<decltype(lambda)>;
-
   Orbital orbital;
+
   auto logListener = orbital.addListener();
   logListener->on([](bfc::events::AddLog const & e) {
     const char * level = "INFO";
@@ -32,7 +30,8 @@ int main(int argc, char ** argv) {
     return 1;
   }
 
-  int result = orbital.run();
+  const int result = orbital.run();
+
   orbital.shutdown();
   return result;
 }
