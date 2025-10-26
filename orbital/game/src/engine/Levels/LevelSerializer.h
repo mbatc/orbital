@@ -3,7 +3,7 @@
 #include "core/SerializedObject.h"
 #include "core/Serialize.h"
 #include "core/typeindex.h"
-
+#include "util/ThreadPool.h"
 #include "Assets/AssetManager.h"
 
 namespace engine {
@@ -31,7 +31,7 @@ namespace engine {
   public:
     /// Construct a serializer.
     /// @param pManager The asset manager used to read/write assets.
-    LevelSerializer(AssetManager * pManager);
+    LevelSerializer(AssetManager * pManager, bfc::ThreadPool * pThreads = &bfc::ThreadPool::Global());
 
     /// Serialize a level from a URI.
     bool serialize(bfc::URI const & uri, Level const & level);
@@ -73,6 +73,21 @@ namespace engine {
     /// Serialize an entity ID
     static bfc::SerializedObject writeEntityID(EntityID const & entityID, Level const & level);
 
+    /// Begin reading a member of a component asynchronously
+    template<typename ComponentT, typename MemberT>
+    void readAsync(ComponentDeserializeContext const & ctx, MemberT ComponentT::* pMember, bfc::SerializedObject const & serialized) {
+      std::unique_lock guard{ m_lock };
+      m_asyncJobs.pushBack(m_pThreads->run(bfc::AsyncFlags_AlwaysRun | bfc::AsyncFlags_AllowRunInline, [serialized, ctx, pMember]() {
+        bfc::Uninitialized<MemberT> value;
+        serialized.read(value, ctx);
+
+        ctx.pSerializer->deferRead([ctx, pMember, v = std::move(value.take())](engine::Level & level) {
+          if (auto * pComponent = level.tryGet<ComponentT>(ctx.entity))
+            bfc::mem::construct(&(pComponent->*pMember), std::move(v));
+        });
+      }));
+    }
+
     /// Read an asset from `serialized` into `pAsset`.
     template<typename T>
     void readAsset(bfc::SerializedObject const & serialized, bfc::Ref<T> & pAsset) {
@@ -96,7 +111,25 @@ namespace engine {
 
   private:
     AssetManager * m_pManager = nullptr;
+    bfc::ThreadPool * m_pThreads = nullptr;
 
+    std::mutex                                      m_lock;
+    bfc::Vector<std::future<void>>                  m_asyncJobs;
     bfc::Vector<std::function<void(Level & level)>> m_deferred;
   };
+
 } // namespace engine
+
+namespace bfc {
+  template<typename T>
+  struct Serializer<Ref<T>> {
+    inline static SerializedObject write(Ref<T> const & o, engine::ComponentSerializeContext const & ctx) {
+      return ctx.pSerializer->writeAsset(o);
+    }
+
+    inline static bool read(SerializedObject const & s, Ref<T> & o, engine::ComponentDeserializeContext const & ctx) {
+      ctx.pSerializer->readAsset(s, o);
+      return true;
+    }
+  };
+}

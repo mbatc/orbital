@@ -1,5 +1,6 @@
 #include "framework/test.h"
 #include "util/ThreadPool.h"
+#include <chrono>
 
 using namespace bfc;
 using namespace std::chrono_literals;

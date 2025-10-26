@@ -1332,6 +1332,9 @@ namespace bfc {
   }
 
   uint64_t GraphicsDevice_OpenGL::submit(std::unique_ptr<graphics::CommandList> && pCommandList) {
+    if (pCommandList == nullptr)
+      return 0;
+
     m_queueLock.lock();
     uint64_t commandList = ++m_nextCommandListID;
     m_commandListQueue.pushBack(std::move(pCommandList));

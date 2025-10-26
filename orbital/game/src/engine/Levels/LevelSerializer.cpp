@@ -6,8 +6,9 @@
 using namespace bfc;
 
 namespace engine {
-  LevelSerializer::LevelSerializer(AssetManager * pManager)
-    : m_pManager(pManager) {}
+  LevelSerializer::LevelSerializer(AssetManager * pManager, ThreadPool * pThreads)
+    : m_pManager(pManager)
+    , m_pThreads(pThreads) {}
 
   bool LevelSerializer::serialize(URI const & uri, Level const & level) {
     return m_pManager->getFileSystem()->serialize(uri, serialize(level));
@@ -120,17 +121,25 @@ namespace engine {
       }
     }
 
+    std::unique_lock guard{ m_lock };
+    for (int64_t i = 0; i < m_asyncJobs.size(); ++i) {
+      guard.unlock();
+      m_asyncJobs[i].wait();
+      guard.lock();
+    }
+    m_asyncJobs.clear();
+
+    auto deferredJobs = std::move(m_deferred);
+    guard.unlock();
     // Run deferred reads
-    for (auto & cb : m_deferred) {
+    for (auto & cb : deferredJobs) {
       cb(level);
     }
-
-    m_deferred.clear();
-
     return true;
   }
 
   void LevelSerializer::deferRead(std::function<void(Level & level)> const & callback) {
+    std::unique_lock guard{m_lock};
     m_deferred.pushBack(callback);
   }
 

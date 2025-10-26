@@ -3,12 +3,16 @@
 
 namespace engine {
   struct {
+    // Scene behaviour extensions
     bfc::Vector<bfc::Ref<ILevelActivate>>   activators;
     bfc::Vector<bfc::Ref<ILevelDeactivate>> deactivators;
     bfc::Vector<bfc::Ref<ILevelPlay>>       players;
     bfc::Vector<bfc::Ref<ILevelPause>>      pausers;
     bfc::Vector<bfc::Ref<ILevelStop>>       stoppers;
     bfc::Vector<bfc::Ref<ILevelUpdate>>     updaters;
+
+    // Rendering extensions
+    bfc::Vector<bfc::Ref<ILevelRenderDataCollector>> renderDataCollectors;
   } static s_systems;
 
   void registerLevelActivate(bfc::Ref<ILevelActivate> const & pActivator) {
@@ -41,6 +45,11 @@ namespace engine {
       s_systems.updaters.pushBack(pUpdater);
   }
 
+  void registerLevelRenderDataCollector(bfc::Ref<ILevelRenderDataCollector> const & pCollector) {
+    if (!s_systems.renderDataCollectors.contains(pCollector))
+      s_systems.renderDataCollectors.pushBack(pCollector);
+  }
+
   void playLevel(Level * pLevel) {
     for (auto const & pSystem : s_systems.players)
       pSystem->play(pLevel);
@@ -69,5 +78,10 @@ namespace engine {
   void deactivateLevel(Level * pLevel) {
     for (auto const & pSystem : s_systems.deactivators)
       pSystem->deactivate(pLevel);
+  }
+
+  void collectRenderData(RenderView * pRenderView, Level const * pLevel) {
+    for (auto const & pSystem : s_systems.renderDataCollectors)
+      pSystem->collectRenderData(pRenderView, pLevel);
   }
 } // namespace engine

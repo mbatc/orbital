@@ -1,4 +1,5 @@
 #include "Renderer.h"
+#include "RenderData.h"
 
 using namespace bfc;
 
@@ -69,6 +70,10 @@ namespace engine {
   }
 
   void Renderer::render(bfc::graphics::CommandList * pCmdList, Vector<RenderView> const & views) {
+    for (RenderView const & view : views) {
+      view.pRenderData->submitUploadList();
+    }
+
     for (FeatureRenderer * pNewFeature : m_added) {
       pNewFeature->onAdded(pCmdList, this);
     }

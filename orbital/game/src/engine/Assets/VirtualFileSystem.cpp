@@ -89,6 +89,10 @@ namespace engine {
     if (!read(resource, &data, false)) {
       return false;
     }
+
+    if (!data.empty() && data.back() != 0)
+      data.pushBack(0);
+
     *pContent = std::move((Vector<char>&)data);
     return true;
   }

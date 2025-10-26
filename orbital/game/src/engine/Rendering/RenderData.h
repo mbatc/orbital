@@ -14,12 +14,14 @@ namespace engine {
   /// This class stores renderable data
   class RenderData {
   public:
+    RenderData(bfc::GraphicsDevice * pGraphicsDevice);
+
     ~RenderData();
 
     /// Get storage for a specific renderable type.
     template<typename T>
     RenderableStorage<T> & renderables() {
-      RenderableStorageBase *& pStorage = m_renderables.getOrAdd(TypeID<T>());
+      RenderableStorageBase *& pStorage = m_renderables.getOrAdd(bfc::TypeID<T>());
       if (pStorage == nullptr) {
         pStorage = new RenderableStorage<T>;
       }
@@ -78,7 +80,14 @@ namespace engine {
       return b;
     }
 
+    bfc::graphics::CommandList * getUploadCommandList();
+    void                         submitUploadList();
+
+    bfc::GraphicsDevice * getGraphicsDevice() const;
+
   private:
+    bfc::GraphicsDevice *                              m_pGraphics;
+    std::unique_ptr<bfc::graphics::CommandList>        m_pUpload;
     bfc::Map<bfc::type_index, RenderableStorageBase *> m_renderables; ///< Lookup renderable list by type.
   };
 } // namespace engine

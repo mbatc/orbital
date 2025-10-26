@@ -93,7 +93,6 @@ namespace engine {
     ui::Input("Max", &pComponent->extents.max);
   }
 
-  
   void PostProcess_TonemapEditor::draw(LevelEditor * pEditor, Ref<Level> const & pLevel, EntityID entityID, components::PostProcess_Tonemap * pComponent) {
     ui::Input("Exposure", &pComponent->exposure);
   }

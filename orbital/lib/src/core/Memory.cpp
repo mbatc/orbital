@@ -1,4 +1,5 @@
 #include "core/Memory.h"
+#include <cstring>
 
 namespace bfc
 {
@@ -14,6 +15,14 @@ namespace bfc
 
     void free(void *ptr) {
       ::std::free(ptr);
+    }
+
+    char* strdup(const char* str) {
+      return _strdup(str);
+    }
+
+    void strcpy(char * dst, size_t bufferSize, const char * src) {
+      strcpy_s(dst, bufferSize, src);
     }
   }
 }

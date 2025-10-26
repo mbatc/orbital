@@ -272,7 +272,7 @@ namespace bfc {
 
     template<typename Context>
     static bool read(SerializedObject const & s, Uninitialized<T> & o, Context const & ctx) {
-      return deserialize(o.get(), ctx);
+      return s.read(o.get(), ctx);
     }
   };
 

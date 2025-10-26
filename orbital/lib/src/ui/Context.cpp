@@ -211,8 +211,11 @@ namespace bfc {
       // Setup display size every frame to accommodate for window resizing
       float dpiScale             = platformIO.Viewports[0]->DpiScale;
       io.DisplayFramebufferScale = ImVec2(1, 1);
+
       // Scale display size using the primary monitors DPI scale.
       io.DisplaySize = size / dpiScale;
+      io.DisplaySize.x = math::max(1.0f, io.DisplaySize.x);
+      io.DisplaySize.y = math::max(1.0f, io.DisplaySize.y);
 
       // Update OS mouse position
       updateMouseData();

@@ -6,6 +6,7 @@
 #include "math/MathTypes.h"
 #include "util/UUID.h"
 #include "render/GraphicsDevice.h"
+#include "util/ThreadPool.h"
 
 namespace bfc {
   class Mesh;
@@ -202,20 +203,6 @@ namespace engine {
 }
 
 namespace bfc {
-  // A Specific serializer type that should be specialized for more control over entity component serialization.
-  template<typename T>
-  struct Serializer<Ref<T>> {
-    // Default implementation delegates to a bfc serialize implementation for the component type.
-    inline static SerializedObject write(Ref<T> const & o, engine::ComponentSerializeContext const & ctx) {
-      return ctx.pSerializer->writeAsset(o);
-    }
-
-    inline static bool read(SerializedObject const & s, Ref<T> & o, engine::ComponentDeserializeContext const & ctx) {
-      ctx.pSerializer->readAsset(s, o);
-      return true;
-    }
-  };
-
   template<>
   struct Serializer<components::Transform> {
     inline static SerializedObject write(components::Transform const & o, engine::ComponentSerializeContext const & ctx) {
@@ -269,9 +256,10 @@ namespace bfc {
 
     inline static bool read(SerializedObject const & s, components::ShadedMaterial & o, engine::ComponentDeserializeContext const & ctx) {
       if (s.get("uri") || s.get("uuid")) {
-        s.read(o.pMaterial, ctx);
-        mem::construct(&o.pProgram);
+        ctx.pSerializer->readAsync(ctx, &components::ShadedMaterial::pMaterial, s);
       } else {
+        ctx.pSerializer->readAsync(ctx, &components::ShadedMaterial::pMaterial, s.get("material"));
+        ctx.pSerializer->readAsync(ctx, &components::ShadedMaterial::pProgram, s.get("shader"));
         s.get("material").read(o.pMaterial, ctx);
         s.get("shader").read(o.pProgram, ctx);
       }
@@ -296,8 +284,9 @@ namespace bfc {
                             engine::ComponentDeserializeContext const & ctx) {
       s.get("castShadows").readOrConstruct(o.castShadows, true);
       s.get("useTesselation").readOrConstruct(o.useTesselation, false);
-      s.get("mesh").read(o.pMesh, ctx);
-      s.get("materials").read(o.materials, ctx);
+
+      ctx.pSerializer->readAsync(ctx, &components::StaticMesh::pMesh, s.get("mesh"));
+      ctx.pSerializer->readAsync(ctx, &components::StaticMesh::materials, s.get("materials"));
 
       return true;
     }
@@ -310,8 +299,7 @@ namespace bfc {
     }
 
     inline static bool read(SerializedObject const & s, components::Skybox & o, engine::ComponentDeserializeContext const & ctx) {
-      ctx.pSerializer->readAsset(s.get("texture"), o.pTexture);
-
+      ctx.pSerializer->readAsync(ctx, &components::Skybox::pTexture, s.get("texture"));
       return true;
     }
   };
@@ -327,14 +315,12 @@ namespace bfc {
     }
 
     inline static bool read(SerializedObject const & s, components::PostProcess_Bloom & o, engine::ComponentDeserializeContext const & ctx) {
-      mem::construct(&o);
+      s.get("filterRadius").readOrConstruct(o.filterRadius, 0.005f);
+      s.get("strength").read(o.strength, 0.04f);
+      s.get("threshold").read(o.threshold, 0.25f);
+      s.get("dirtIntensity").read(o.dirtIntensity, 1.0f);
 
-      s.get("filterRadius").read(o.filterRadius);
-      s.get("strength").read(o.strength);
-      s.get("threshold").read(o.threshold);
-      s.get("dirtIntensity").read(o.dirtIntensity);
-
-      ctx.pSerializer->readAsset(s.get("dirt"), o.dirt);
+      ctx.pSerializer->readAsync(ctx, &components::PostProcess_Bloom::dirt, s.get("dirt"));
 
       return true;
     }

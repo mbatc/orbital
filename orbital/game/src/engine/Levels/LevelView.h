@@ -77,7 +77,7 @@ namespace engine {
       if (((pManagers == nullptr) || ...))
         return;
 
-      std::array<conditional_const_t<IsConst, ILevelComponentStorage>*, sizeof...(Components)> itr = {pManagers...};
+      std::array<bfc::conditional_const_t<IsConst, ILevelComponentStorage> *, sizeof...(Components)> itr = {pManagers...};
       for (auto const & pManager : itr) {
         if (m_pIterator == nullptr || pManager->size() < m_pIterator->size()) {
           m_pIterator = pManager;
@@ -118,8 +118,8 @@ namespace engine {
     }
 
   protected:
-    std::tuple<ManagerPtr<Components>...>                m_managers;
-    bfc::conditional_const_t<IsConst, ILevelComponentStorage>* m_pIterator;
+    std::tuple<ManagerPtr<Components>...>                       m_managers;
+    bfc::conditional_const_t<IsConst, ILevelComponentStorage> * m_pIterator;
   };
 
   template<typename... Components>

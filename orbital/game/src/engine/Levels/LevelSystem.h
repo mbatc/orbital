@@ -36,12 +36,21 @@ namespace engine {
     virtual void update(Level * pLevel, bfc::Timestamp dt) = 0;
   };
 
+  class RenderView;
+  class RenderView;
+  class ILevelRenderDataCollector {
+  public:
+    virtual void collectRenderData(RenderView * pRenderView, Level const * pLevel) = 0;
+  };
+
   void registerLevelActivate(bfc::Ref<ILevelActivate> const & pActivator);
   void registerLevelDeactivate(bfc::Ref<ILevelDeactivate> const & pDeactivator);
   void registerLevelPlay(bfc::Ref<ILevelPlay> const & pPlayer);
   void registerLevelPause(bfc::Ref<ILevelPause> const & pPauser);
   void registerLevelStop(bfc::Ref<ILevelStop> const & pStopper);
   void registerLevelUpdate(bfc::Ref<ILevelUpdate> const & pUpdater);
+  void registerLevelRenderDataCollector(bfc::Ref<ILevelRenderDataCollector> const & pCollector);
+
   template<typename T, typename... Args>
   void registerLevelSystem(Args &&... args) {
     bfc::Ref<T> pSystem = bfc::NewRef<T>(std::forward<Args>(args)...);
@@ -63,6 +72,9 @@ namespace engine {
 
     if constexpr (std::is_base_of_v<ILevelUpdate, T>)
       registerLevelUpdate(pSystem);
+
+    if constexpr (std::is_base_of_v<ILevelRenderDataCollector, T>)
+      registerLevelRenderDataCollector(pSystem);
   }
 
   void playLevel(Level * pLevel);
@@ -71,4 +83,6 @@ namespace engine {
   void updateLevel(Level * pLevel, bfc::Timestamp dt);
   void activateLevel(Level * pLevel);
   void deactivateLevel(Level * pLevel);
+
+  void collectRenderData(RenderView * pRenderView, Level const * pLevel);
 }
