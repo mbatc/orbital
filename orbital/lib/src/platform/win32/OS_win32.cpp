@@ -273,7 +273,6 @@ namespace bfc {
       switch (folder) {
       case FolderID_AppData: *pID = FOLDERID_RoamingAppData; break;
       case FolderID_Documents: *pID = FOLDERID_Documents; break;
-      case FolderID_Temp: *pID = FOLDERIO_Temp; break;
       default: return false;
       }
       return true;

@@ -205,10 +205,6 @@ namespace engine {
     }
   }
 
-  void LevelEditor::rebuild() {
-    os::getSystemPath(os::FolderID_Documents);
-  }
-
   bool LevelEditor::drawEntitySelector(bfc::StringView const & name, EntityID * pEntityID, Level * pLevel) {
     bool        changed      = false;
     bfc::String selectedName = "";

@@ -17,16 +17,6 @@ namespace engine {
   class LevelManager;
   class VirtualFileSystem;
 
-  namespace events {
-    struct OnSaveSession {
-      Stream * pStream;
-    };
-
-    struct OnRestoreSession {
-      Stream * pStream;
-    };
-  }
-
   class LevelEditor : public Subsystem {
   public:
     struct {
@@ -44,10 +34,6 @@ namespace engine {
     virtual bool init(Application * pApp) override;
     virtual void shutdown() override;
     virtual void loop(Application * pApp) override;
-
-    /// Rebuild the application.
-    /// Requires closing, rebuilding, and relaunching the application.
-    void rebuild();
 
     // Component editors
     class IComponentEditor {

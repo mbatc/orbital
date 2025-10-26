@@ -6,12 +6,6 @@
 int main(int argc, char ** argv) {
   Orbital orbital;
 
-  const auto exePath = bfc::os::getExePath();
-  const auto solutionPath = bfc::URI::File(exePath).resolveRelativeReference("../../../../../../vs2022/Orbital.sln");
-
-  Orbital orbital(solutionPath.path().path());
-  orbital.getDevOptions().projectPath;
-
   auto logListener = orbital.addListener();
   logListener->on([](bfc::events::AddLog const & e) {
     const char * level = "INFO";
