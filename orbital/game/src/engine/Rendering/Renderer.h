@@ -158,8 +158,13 @@ namespace engine {
 
     template<typename T>
     void setResource(bfc::StringView const & name, bfc::Ref<T> const & pResource) {
-      auto &registered = m_resources.getOrAdd(name, {});
+      auto &registered = m_resources.getOrAdd(name);
       registered.addOrSet(bfc::TypeID<T>(), pResource);
+    }
+    
+    template<typename T>
+    void setResource(bfc::StringView const & name, T * pResource) {
+      return setResource(name, bfc::Ref<T>(pResource, [](T *) {}));
     }
 
     template<typename T>
@@ -170,7 +175,7 @@ namespace engine {
         return nullptr;
       }
 
-      return pRegistered->getOr(bfc::TypeID<T>(), nullptr);
+      return std::static_pointer_cast<T>(pRegistered->getOr(bfc::TypeID<T>(), nullptr));
     }
 
     /// Get the available resource names

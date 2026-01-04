@@ -77,7 +77,15 @@ namespace engine {
       for (Filename const & file : e.files) {
         BFC_LOG_INFO("LevelEditor", "File dropped. Path=%s", file);
 
-        pLevels->Import(pLevels->getActiveLevel().get(), URI::File(file));
+        if (file.extension().equals("level", true)) {
+          pLevels->setActiveLevel(pLevels->load(URI::File(file)));
+
+          if (pLevels->getSimulateState() == SimulateState_Stopped) {
+            settings.startupLevel.set(URI::File(file));
+          }
+        } else {
+          pLevels->Import(pLevels->getActiveLevel().get(), URI::File(file));
+        }
       }
     });
 
@@ -384,7 +392,6 @@ namespace engine {
       bool activateEditorViewport = desiredState == SimulateState_Stopped;
 
       pLevels->setSimulateState(desiredState);
-
 
       if (activateEditorViewport) {
         m_pEditorViewport->setLevel(pLevels->getActiveLevel());

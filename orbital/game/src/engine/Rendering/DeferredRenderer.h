@@ -31,7 +31,7 @@ namespace engine {
 
     struct Resources {
       inline static bfc::StringView gbuffer = "gbuffer";
-      inline static bfc::StringView defaultMaterial;
+      inline static bfc::StringView postProcessStack = "post-process-stack";
     };
 
     DeferredRenderer(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets);

@@ -72,11 +72,14 @@ namespace {
     }
 
     virtual void renderView(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) override {
+      auto pGBuffer = pRenderer->getResource<bfc::graphics::RenderTarget>(engine::DeferredRenderer::Resources::gbuffer);
+
       // TODO: Bind the gbuffer as the render target before rendering.
       //       How do I get the gbuffer target from the renderer?
       // pCmdList->bindRenderTarget(m_pGBuffer->getRenderTarget());
 
       auto const & terrains = view.pRenderData->renderables<ProceduralTerrainRenderable>();
+      pCmdList->bindRenderTarget(pGBuffer);
       pCmdList->bindProgram(m_terrainShader);
       pCmdList->bindVertexArray(m_quad->getVertexArray());
       pCmdList->bindUniformBuffer(m_terrainUBO, TerrainBufferBindPoint);
@@ -96,6 +99,8 @@ namespace {
         m_terrainUBO.upload(pCmdList);
         pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
       }
+
+      pCmdList->bindRenderTarget(view.renderTarget);
     }
 
     virtual void endView(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) override {

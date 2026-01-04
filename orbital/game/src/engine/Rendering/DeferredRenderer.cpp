@@ -832,6 +832,11 @@ namespace engine {
 
     m_defaultMaterial.upload(pCmdList);
 
+    // Set resources
+    setResource(Resources::gbuffer,          &m_gbuffer);
+    setResource(Resources::gbuffer,          m_gbuffer.getRenderTarget());
+    setResource(Resources::postProcessStack, &m_postProc);
+
     // Add renderer features
     addFeature<Feature_MeshBasePass>(Phase::Base::mesh, pAssets, &m_gbuffer, &m_modelData);
     addFeature<Feature_LightingPass>(Phase::lighting, pCmdList, pAssets, &m_gbuffer, &m_finalTarget, &m_modelData);
