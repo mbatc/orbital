@@ -50,6 +50,8 @@ namespace engine {
     for (int64_t i = m_subsystems.size() - 1; i >= 0; --i) {
       m_subsystems[i]->shutdown();
     }
+
+    saveSettings();
   }
 
   bfc::Ref<Subsystem> Application::findSubsystem(bfc::type_index const & type) const {

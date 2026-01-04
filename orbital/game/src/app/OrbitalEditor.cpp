@@ -1,5 +1,6 @@
 #include "OrbitalEditor.h"
 #include "Editor/PlayerControlEditor.h"
+#include "Editor/ProceduralTerrainEditor.h"
 #include "Application.h"
 #include "Input.h"
 
@@ -16,5 +17,7 @@ bool OrbitalEditor::init(engine::Application * pApp) {
   pLevelEditor->addComponentEditor<VehicleCameraControllerEditor>();
   pLevelEditor->addComponentEditor<VehicleControllerEditor>();
   pLevelEditor->addComponentEditor<VehicleVelocityEditor>();
+
+  pLevelEditor->addComponentEditor<ProceduralPlanetEditor>();
   return true;
 }

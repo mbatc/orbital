@@ -1,15 +1,19 @@
 #include "GameViewport.h"
 #include "Levels/Level.h"
 #include "Levels/CoreComponents.h"
+#include "Rendering/DeferredRenderer.h"
 
 using namespace bfc;
 
 namespace engine {
-  GameViewport::GameViewport(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets)
-    : Viewport(pCmdList, pAssets, "Game") {
+  GameViewport::GameViewport(bfc::Ref<Renderer> const & pRenderer)
+    : Viewport(pRenderer, "Game") {
     m_mouse.attachTo(getEvents());
     m_keyboard.attachTo(getEvents());
   }
+
+  GameViewport::GameViewport(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets)
+    : GameViewport(bfc::NewRef<DeferredRenderer>(pCmdList, pAssets)) {}
 
   Vector<RenderView> GameViewport::collectViews(bfc::graphics::RenderTargetRef renderTarget) const {
     Level * pLevel = getLevel();

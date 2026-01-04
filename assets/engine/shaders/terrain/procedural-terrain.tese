@@ -1,11 +1,9 @@
 #version 430
 
 #include "../common.glsl"
-#include "../noise.glsl"
+#include "procedural-terrain-common.glsl"
 
 layout (triangles, equal_spacing, ccw) in;
-
-const float maxHeight = 1;
 
 in vec3 tcsout_position0[];
 in vec2 tcsout_uv0[];
@@ -50,12 +48,12 @@ void main()
   vec3 B = cross(N, T);
   vsout_tbnMat0 = mat3(T, B, N);
 
-  uint seed = 0x578437adU; // can be set to something else if you want a different set of random values
-  float scale = 10;
-  float noise = perlinNoise(vsout_uv0 * scale, 1, 6, 0.5, 2.0, seed); // multiple octaves
+  float noise = perlinNoise(terrain.sampleOffset + vsout_uv0 * terrain.scale, 1, 6, 0.5, 2.0, terrain.seed); // multiple octaves
   noise = (noise + 1.0) * 0.5; // convert from range [-1, 1] to range [0, 1]
 
-  vsout_position0 = (modelMatrix * vec4(position + normal * noise * maxHeight, 1)).xyz;
+  float h = terrain.minHeight + noise * (terrain.maxHeight - terrain.minHeight);
+
+  vsout_position0 = (modelMatrix * vec4(position + normal * h, 1)).xyz;
 
   gl_Position = viewProjMatrix * vec4(vsout_position0, 1);
 }

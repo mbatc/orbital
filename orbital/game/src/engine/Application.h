@@ -78,11 +78,11 @@ namespace engine {
       return getSetting<T>(name);
     }
 
+    void saveSettings();
+
   private:
     bool addSubsystem(bfc::Ref<Subsystem> const& pSystem);
     bfc::Ref<Subsystem> findSubsystem_unlocked(bfc::type_index const & type) const;
-
-    void saveSettings();
 
     Options m_options;
 

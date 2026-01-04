@@ -198,7 +198,7 @@ namespace engine {
             shadowMapData.atlasIndex = m_shadowAtlas.allocate(1.0f);
           }
         }
-        // Reslove allocations
+        // Resolve allocations
         m_shadowAtlas.pack();
 
         int64_t                 lightIndex = -1;
@@ -833,14 +833,14 @@ namespace engine {
     m_defaultMaterial.upload(pCmdList);
 
     // Add renderer features
-    addFeature<Feature_MeshBasePass>(pAssets, &m_gbuffer, &m_modelData);
-    addFeature<Feature_LightingPass>(pCmdList, pAssets, &m_gbuffer, &m_finalTarget, &m_modelData);
-    addFeature<Feature_Skybox>(pAssets, &m_finalTarget);
-    addFeature<Feature_SSAO>(pAssets, &m_postProc);
-    addFeature<Feature_SSR>(pAssets, &m_postProc);
-    addFeature<Feature_Bloom>(pAssets, &m_postProc);
-    addFeature<Feature_Exposure>(pAssets, &m_postProc);
-    addFeature<Feature_PostProcess>(pAssets, &m_postProc, &m_gbuffer, &m_finalColourTarget);
+    addFeature<Feature_MeshBasePass>(Phase::Base::mesh, pAssets, &m_gbuffer, &m_modelData);
+    addFeature<Feature_LightingPass>(Phase::lighting, pCmdList, pAssets, &m_gbuffer, &m_finalTarget, &m_modelData);
+    addFeature<Feature_Skybox>(Phase::skybox, pAssets, &m_finalTarget);
+    addFeature<Feature_SSAO>(Phase::postProcess, pAssets, &m_postProc);
+    addFeature<Feature_SSR>(Phase::postProcess, pAssets, &m_postProc);
+    addFeature<Feature_Bloom>(Phase::postProcess, pAssets, &m_postProc);
+    addFeature<Feature_Exposure>(Phase::postProcess, pAssets, &m_postProc);
+    addFeature<Feature_PostProcess>(Phase::postProcess, pAssets, &m_postProc, &m_gbuffer, &m_finalColourTarget);
   }
 
   graphics::RenderTargetRef DeferredRenderer::getFinalTarget() const {

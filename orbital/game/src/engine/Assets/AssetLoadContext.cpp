@@ -1,7 +1,7 @@
 #include "AssetLoadContext.h"
 #include "AssetManager.h"
 #include "Application.h"
-#include "engine/Rendering/Rendering.h"
+#include "Rendering/Rendering.h"
 #include "render/GraphicsDevice.h"
 
 using namespace bfc;

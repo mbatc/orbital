@@ -83,6 +83,18 @@ namespace bfc {
       BufferBinding_PBRMaterial,
       BufferBinding_Count,
     };
+
+    inline bfc::Mat4d calcNormalMatrix(bfc::Mat4d const & modelMatrix) {
+      return glm::transpose(glm::inverse(modelMatrix));
+    }
+
+    inline bfc::Mat4d calcMvpMatrix(bfc::Mat4d const & modelMatrix, bfc::Mat4d const & viewMatrix, bfc::Mat4d const & projectionMatrix) {
+      return projectionMatrix * viewMatrix * modelMatrix;
+    }
+
+    inline bfc::Mat4d calcMvpMatrix(bfc::Mat4d const & modelMatrix, bfc::Mat4d const & viewProjectionMatrix) {
+      return viewProjectionMatrix * modelMatrix;
+    }
   }
 }
 

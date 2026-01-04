@@ -11,10 +11,11 @@ namespace bfc {
 
 namespace engine {
   class Level;
-  class DeferredRenderer;
+  class Renderer;
   class AssetManager;
   class Viewport {
   public:
+    Viewport(bfc::Ref<Renderer> const & pRenderer, bfc::StringView const & viewportName);
     Viewport(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets, bfc::StringView const & viewportName);
 
     /// Render the viewport.
@@ -40,7 +41,7 @@ namespace engine {
     bfc::Events const * getEvents() const;
     bfc::Events *       getEvents();
 
-    DeferredRenderer *    getRenderer() const;
+    Renderer *            getRenderer() const;
     bfc::GraphicsDevice * getGraphics() const;
 
     /// Get the input devices exposed by this viewport.
@@ -54,6 +55,6 @@ namespace engine {
     bfc::Vec2i m_size;
     bfc::Events m_events;
 
-    bfc::Ref<DeferredRenderer> m_pRenderer;
+    bfc::Ref<Renderer> m_pRenderer;
   };
 } // namespace engine

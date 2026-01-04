@@ -20,6 +20,20 @@ namespace engine {
 
   class DeferredRenderer : public Renderer {
   public:
+    struct Phase {
+      struct Base {
+        inline static const bfc::StringView mesh = "base.mesh";
+      };
+      inline static const bfc::StringView lighting = "lighting";
+      inline static const bfc::StringView skybox = "skybox";
+      inline static const bfc::StringView postProcess = "post-process";
+    };
+
+    struct Resources {
+      inline static bfc::StringView gbuffer = "gbuffer";
+      inline static bfc::StringView defaultMaterial;
+    };
+
     DeferredRenderer(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets);
 
     static constexpr int64_t ColourTargetBindPointBase  = 0;

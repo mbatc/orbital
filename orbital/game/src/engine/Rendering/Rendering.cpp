@@ -15,18 +15,15 @@ namespace engine {
     graphicsDevice_registerOpenGL();
   }
 
-  GraphicsDevice* Rendering::getDevice() const
-  {
+  GraphicsDevice* Rendering::getDevice() const {
     return m_pDevice.get();
   }
 
-  Window* Rendering::getMainWindow() const
-  {
+  Window* Rendering::getMainWindow() const {
     return m_pWindow.get();
   }
 
-  bool Rendering::init(Application *pApp)
-  {
+  bool Rendering::init(Application *pApp) {
     m_pWindow = NewRef<Window>(pApp);
     m_pWindow->setTitle(pApp->getName());
     m_pWindow->show();
@@ -51,14 +48,14 @@ namespace engine {
     return true;
   }
 
-  void Rendering::shutdown()
-  {
+  void Rendering::shutdown() {
     m_pDevice = nullptr;
     m_pWindow = nullptr;
   }
 
-  void Rendering::loop(Application * pApp)
-  {
+  void Rendering::loop(Application * pApp) {
+    m_renderers.eraseIf([](const auto & o) { return o.expired(); });
+
     auto pCmdList = m_pDevice->createCommandList();
 
     BFC_UNUSED(pApp);
@@ -94,6 +91,25 @@ namespace engine {
     m_pMainViewport->getEvents()->listenTo(m_pWindow->getEvents());
 
     getEvents()->broadcast(changeEvent);
+  }
+
+  void Rendering::registerExtension(bfc::Ref<IRenderingExtension> const & pExtension) {
+    m_extensions.pushBack(pExtension);
+
+    for (bfc::WeakRef<Renderer> const & pRenderer : m_renderers)
+      if (auto pLocked = pRenderer.lock())
+        pExtension->apply(pLocked.get());
+  }
+
+  bool Rendering::unregisterExtension(bfc::Ref<IRenderingExtension> const & pExtension) {
+    return m_extensions.eraseValue(pExtension);
+  }
+
+  void Rendering::registerRenderer(bfc::Ref<Renderer> const & pRenderer) {
+    for (bfc::Ref<IRenderingExtension> const & pExtension : m_extensions)
+      pExtension->apply(pRenderer.get());
+
+    m_renderers.pushBack(pRenderer);
   }
 
   bfc::Ref<Viewport> Rendering::getMainViewport() {

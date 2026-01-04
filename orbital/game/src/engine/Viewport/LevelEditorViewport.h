@@ -8,7 +8,6 @@ namespace bfc {
 
 namespace engine {
   class Level;
-  class DeferredRenderer;
   class AssetManager;
   class EditorCamera {
   public:
@@ -54,6 +53,7 @@ namespace engine {
 
   class LevelEditorViewport : public Viewport {
   public:
+    LevelEditorViewport(bfc::Ref<Renderer> const & pRenderer);
     LevelEditorViewport(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets);
 
     virtual bfc::Vector<RenderView> collectViews(bfc::graphics::RenderTargetRef renderTarget) const override;

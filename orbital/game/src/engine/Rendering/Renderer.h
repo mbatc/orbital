@@ -5,8 +5,7 @@
 #include "geometry/Geometry.h"
 #include "math/MathTypes.h"
 #include "render/GraphicsDevice.h"
-
-#include <typeindex>
+#include "core/typeindex.h"
 
 namespace bfc {
   class ShaderPool;
@@ -117,9 +116,12 @@ namespace engine {
 
     /// Add a feature to the renderer.
     template<typename T, typename... Args>
-    T * addFeature(Args... args) {
+    T * addFeature(bfc::StringView const & phase, Args... args) {
       T * pRenderer = new T(args...);
-      m_features.pushBack(pRenderer);
+      if (m_phases.tryAdd(phase, {})) {
+        m_phaseOrder.pushBack(phase);
+      }
+      m_phases[phase].pushBack(pRenderer);
       m_added.pushBack(pRenderer);
       return pRenderer;
     }
@@ -127,19 +129,52 @@ namespace engine {
     /// Resize the targets for the renderer.
     /// Ideally we could remove this, but for now this is an easy way to resize intermediate resources.
     virtual void onResize(bfc::graphics::CommandList * pCmdList, bfc::Vec2i size) {
-      for (auto * pFeature : m_features) {
-        pFeature->onResize(pCmdList, this, size);
+      for (auto & [phase, features] : m_phases) {
+        for (auto & pFeature : features) {
+          pFeature->onResize(pCmdList, this, size);
+        }
       }
     }
 
     /// Render a collection of RenderView's
     virtual void render(bfc::graphics::CommandList * pCmdList, bfc::Vector<RenderView> const & views);
 
+    /// Get the number of phases in the renderer
+    int64_t numPhases() const;
+
+    bfc::StringView getPhase(int64_t index) const;
+
     /// Get the number of features in the renderer.
-    int64_t numFeatures() const;
+    int64_t numFeatures(bfc::StringView const & phase) const;
 
     /// Get a feature in the renderer.
-    FeatureRenderer * getFeature(int64_t index) const;
+    FeatureRenderer * getFeature(bfc::StringView const & phase, int64_t index) const;
+
+    /// Get the order that the phases are rendered in.
+    bfc::Span<bfc::String> getPhaseOrder() const;
+
+    /// Set the phase order. Any unspecified phases will not be rendered.
+    void setPhaseOrder(bfc::Vector<bfc::String> const & phases);
+
+    template<typename T>
+    void setResource(bfc::StringView const & name, bfc::Ref<T> const & pResource) {
+      auto &registered = m_resources.getOrAdd(name, {});
+      registered.addOrSet(bfc::TypeID<T>(), pResource);
+    }
+
+    template<typename T>
+    bfc::Ref<T> getResource(bfc::StringView const& name) const {
+      auto * pRegistered = m_resources.tryGet(name);
+
+      if (pRegistered == nullptr) {
+        return nullptr;
+      }
+
+      return pRegistered->getOr(bfc::TypeID<T>(), nullptr);
+    }
+
+    /// Get the available resource names
+    bfc::Span<bfc::StringView> listResources() const;
 
     /// Get the renderers graphics device.
     bfc::GraphicsDevice * getGraphicsDevice() const;
@@ -151,7 +186,10 @@ namespace engine {
   private:
     bfc::GraphicsDevice * m_pDevice = nullptr;
 
-    bfc::Vector<FeatureRenderer *> m_features;
+    bfc::Vector<bfc::String>                              m_phaseOrder;
+    bfc::Map<bfc::String, bfc::Vector<FeatureRenderer *>> m_phases;
+
+    bfc::Map<bfc::String, bfc::Map<bfc::type_index, bfc::Ref<void>>> m_resources;
 
     // Features added to the renderer.
     // These will be initialised on the next render.

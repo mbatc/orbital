@@ -1,7 +1,6 @@
 #version 430
 
 #include "../common.glsl"
-#include "../noise.glsl"
 
 layout (vertices=3) out;
 
@@ -17,17 +16,17 @@ out vec3 tcsout_tangent0[];
 
 float GetTessLevel(float Distance0, float Distance1)
 {
-    float AvgDistance = (Distance0 + Distance1) / 2.0;
+  float AvgDistance = (Distance0 + Distance1) / 2.0;
 
-    if (AvgDistance <= 2.0) {
-        return 10.0;
-    }
-    else if (AvgDistance <= 5.0) {
-        return 7.0;
-    }
-    else {
-        return 3.0;
-    }
+  if (AvgDistance <= 2.0) {
+    return 10.0;
+  }
+  else if (AvgDistance <= 5.0) {
+    return 7.0;
+  }
+  else {
+    return 3.0;
+  }
 }
 
 void main()

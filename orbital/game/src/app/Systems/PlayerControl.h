@@ -37,7 +37,6 @@ class PlayerControlSystem
 public:
   PlayerControlSystem(bfc::Ref<engine::Input> const & pInput);
 
-  // Inherited via ILevelUpdate
   virtual void update(engine::Level * pLevel, bfc::Timestamp dt) override;
   virtual void play(engine::Level * pLevel) override;
   virtual void pause(engine::Level * pLevel) override;
@@ -49,7 +48,7 @@ private:
 
 namespace engine {
   template<>
-  struct engine::LevelComponent_OnCopy<VehicleCameraController> {
+  struct LevelComponent_OnCopy<VehicleCameraController> {
     inline static void onCopy(LevelCopyContext * pContext, Level * pDstLevel, EntityID dstEntity, Level const & srcLevel,
                             VehicleCameraController const & component) {
       BFC_UNUSED(srcLevel);
@@ -60,7 +59,7 @@ namespace engine {
   };
 
   template<>
-  struct engine::LevelComponent_OnCopy<VehicleController> {
+  struct LevelComponent_OnCopy<VehicleController> {
     inline static void onCopy(LevelCopyContext * pContext, Level * pDstLevel, EntityID dstEntity, Level const & srcLevel, VehicleController const & component) {
       BFC_UNUSED(srcLevel);
 

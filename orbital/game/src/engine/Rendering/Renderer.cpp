@@ -54,19 +54,38 @@ namespace engine {
     : m_pDevice(pDevice) {}
 
   Renderer::~Renderer() {
-    for (FeatureRenderer *& pFeature : m_features) {
-      delete pFeature;
+    for (auto & [_, features] : m_phases) {
+      for (FeatureRenderer *& pFeature : features) {
+        delete pFeature;
+      }
     }
     m_added.clear();
-    m_features.clear();
+    m_phases.clear();
   }
 
-  int64_t Renderer::numFeatures() const {
-    return m_features.size();
+  /// Get the number of phases in the renderer
+  int64_t Renderer::numPhases() const {
+    return m_phases.size();
   }
 
-  FeatureRenderer * Renderer::getFeature(int64_t index) const {
-    return m_features[index];
+  bfc::StringView Renderer::getPhase(int64_t index) const {
+    return m_phases.getKeys()[index];
+  }
+
+  int64_t Renderer::numFeatures(bfc::StringView const & phase) const {
+    return m_phases[phase].size();
+  }
+
+  FeatureRenderer * Renderer::getFeature(bfc::StringView const & phase, int64_t index) const {
+    return m_phases[phase][index];
+  }
+
+  bfc::Span<bfc::String> Renderer::getPhaseOrder() const {
+    return m_phaseOrder.getView();
+  }
+
+  void Renderer::setPhaseOrder(bfc::Vector<bfc::String> const & phases) {
+    m_phaseOrder = phases;
   }
 
   void Renderer::render(bfc::graphics::CommandList * pCmdList, Vector<RenderView> const & views) {
@@ -79,8 +98,10 @@ namespace engine {
     }
     m_added.clear();
 
-    for (FeatureRenderer * pFeature : m_features) {
-      pFeature->beginFrame(pCmdList, this, views);
+    for (auto & phase : m_phaseOrder) {
+      for (FeatureRenderer * pFeature : m_phases[phase]) {
+        pFeature->beginFrame(pCmdList, this, views);
+      }
     }
 
     GraphicsDevice * pDevice = getGraphicsDevice();
@@ -96,16 +117,22 @@ namespace engine {
 
       beginView(pCmdList, view);
 
-      for (FeatureRenderer * pFeature : m_features) {
-        pFeature->beginView(pCmdList, this, view);
+      for (auto & phase : m_phaseOrder) {
+        for (FeatureRenderer * pFeature : m_phases[phase]) {
+          pFeature->beginView(pCmdList, this, view);
+        }
       }
 
-      for (FeatureRenderer * pFeature : m_features) {
-        pFeature->renderView(pCmdList, this, view);
+      for (auto & phase : m_phaseOrder) {
+        for (FeatureRenderer * pFeature : m_phases[phase]) {
+          pFeature->renderView(pCmdList, this, view);
+        }
       }
 
-      for (FeatureRenderer * pFeature : m_features) {
-        pFeature->endView(pCmdList, this, view);
+      for (auto & phase : m_phaseOrder) {
+        for (FeatureRenderer * pFeature : m_phases[phase]) {
+          pFeature->endView(pCmdList, this, view);
+        }
       }
 
       endView(pCmdList, view);
@@ -113,8 +140,10 @@ namespace engine {
       pCmdList->popState();
     }
 
-    for (FeatureRenderer * pFeature : m_features) {
-      pFeature->endFrame(pCmdList, this, views);
+    for (auto & phase : m_phaseOrder) {
+      for (FeatureRenderer * pFeature : m_phases[phase]) {
+        pFeature->endFrame(pCmdList, this, views);
+      }
     }
   }
 

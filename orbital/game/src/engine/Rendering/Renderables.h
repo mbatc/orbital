@@ -15,6 +15,7 @@ namespace engine {
     MeshRenderable(bfc::Mat4d const & modelMatrix, bfc::Mat4d const & normalMatrix, bfc::Mesh const & mesh, int64_t subMeshIndex,
                    bfc::Ref<bfc::Material> pMaterial = nullptr,
                    bfc::Ref<bfc::graphics::Program> pProgram = nullptr);
+    static bfc::Mat4d calcNormalMatrix(bfc::Mat4d const & modelMatrix);
 
     int64_t    elementOffset;
     int64_t    elementCount;

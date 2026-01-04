@@ -156,7 +156,8 @@ namespace engine {
 
       for (const auto& [type, pComponents] : components()) {
         auto pInterface = ILevelComponentType::find(type);
-        pInterface->copy(&context, pDstLevel, dstEntity, *this, src);
+        if (pInterface != nullptr)
+          pInterface->copy(&context, pDstLevel, dstEntity, *this, src);
       }
     }
 

@@ -15,6 +15,8 @@ namespace bfc {
 
 namespace engine {
   class Viewport;
+  class Renderer;
+  class Rendering;
 
   namespace events {
     struct OnRenderViewport {
@@ -28,6 +30,12 @@ namespace engine {
       bfc::Ref<Viewport> pNewViewport;
     };
   } // namespace events
+
+  class Renderer;
+  class IRenderingExtension {
+  public:
+    virtual void apply(Renderer * pRenderer) = 0;
+  };
 
   class Rendering : public Subsystem {
   public:
@@ -46,6 +54,15 @@ namespace engine {
     /// Set the viewport rendered to the main window.
     void setMainViewport(bfc::Ref<Viewport> const & pViewport);
 
+    /// Register a renderer extension
+    void registerExtension(bfc::Ref<IRenderingExtension> const & pExtension);
+
+    /// Unregister a renderer extension
+    bool unregisterExtension(bfc::Ref<IRenderingExtension> const & pExtension);
+
+    /// Register a renderer with the rendering system.
+    void registerRenderer(bfc::Ref<Renderer> const & pRenderer);
+
     /// Get the viewport rendered to the main window.
     bfc::Ref<Viewport> getMainViewport();
 
@@ -55,6 +72,9 @@ namespace engine {
     bfc::Ref<bfc::EventListener>    m_pListener     = nullptr;
     bfc::Ref<Viewport>              m_pMainViewport = nullptr;
     bfc::Setting<bfc::String>       m_api;
+
+    bfc::Vector<bfc::WeakRef<Renderer>>        m_renderers;
+    bfc::Vector<bfc::Ref<IRenderingExtension>> m_extensions;
 
     uint64_t m_lastFrameFence = 0;
   };

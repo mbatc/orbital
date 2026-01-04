@@ -1,0 +1,101 @@
+entities:
+  - uuid: ff1dddf6-9550-4b14-8d9d-55931f57bf0e
+    components:
+      transform:
+        translation:
+          - 0
+          - 0
+          - 0
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 10
+          - 10
+          - 10
+        parent: ~
+      name: Planet
+      procedural-planet:
+        seed: 81231231
+        scale: 1
+        minHeight: 0
+        maxHeight: 1
+  - uuid: 52c4c185-0905-4213-bc00-de0efc16ac95
+    components:
+      transform:
+        translation:
+          - 0
+          - 0
+          - 0
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 1
+          - 1
+          - 1
+        parent: ~
+      name: Skybox
+      skybox:
+        texture:
+          uri: file:game:skybox/nebula.skybox
+  - uuid: dce0aaab-72fb-41e6-b604-58ebe463d21a
+    components:
+      transform:
+        translation:
+          - 0
+          - 0
+          - -2
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 1
+          - 1
+          - 1
+        parent: ~
+      name: Cube
+      static-mesh:
+        castShadows: 0
+        useTesselation: 0
+        materials: ~
+        mesh:
+          uri: file:engine:/models/primitives/cube.obj
+  - uuid: cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd
+    components:
+      transform:
+        translation:
+          - 0
+          - 0
+          - 0
+        ypr:
+          - 57.295779513082323
+          - 58.310078088704387
+          - 58.310078088704422
+        scale:
+          - 1
+          - 1
+          - 1
+        parent: ~
+      name: Light
+      light:
+        type: sun
+        colour:
+          - 0.87254899740219116
+          - 0.87254899740219116
+          - 0.87254899740219116
+        ambient:
+          - 0.12745100259780884
+          - 0.12745100259780884
+          - 0.12745100259780884
+        attenuation:
+          - 0
+          - 0
+          - 1
+        strength: 1
+        innerConeAngle: 30.000001907348633
+        outerConeAngle: 35
+        castShadows: 1

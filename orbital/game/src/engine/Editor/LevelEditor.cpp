@@ -15,6 +15,7 @@
 #include "ui/Widgets.h"
 #include "util/Log.h"
 #include "Viewport/GameViewport.h"
+#include "Rendering/DeferredRenderer.h"
 
 using namespace bfc;
 
@@ -61,7 +62,11 @@ namespace engine {
     // Create an editor viewport and render the active level.
     {
       auto pInitCmdList = pRendering->getDevice()->createCommandList();
-      m_pEditorViewport = NewRef<LevelEditorViewport>(pInitCmdList.get(), pAssets.get());
+
+      auto pRenderer = bfc::NewRef<DeferredRenderer>(pInitCmdList.get(), pAssets.get());
+      pRendering->registerRenderer(pRenderer);
+
+      m_pEditorViewport = NewRef<LevelEditorViewport>(pRenderer);
       pRendering->getDevice()->submit(std::move(pInitCmdList));
     }
 
@@ -180,6 +185,12 @@ namespace engine {
         for (AssetHandle handle : pAssets->findHandles<bfc::graphics::Program>()) {
           pAssets->reload(handle);
         }
+      }
+      if (kbd.isPressed(KeyCode_2)) {
+        // Reload all the shaders
+        BFC_LOG_INFO("LevelEditor", "Saving app settings");
+
+        getApp()->saveSettings();
       }
     }
   }

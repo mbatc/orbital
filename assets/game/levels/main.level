@@ -269,7 +269,7 @@ entities:
         useTesselation: 1
         materials:
           - material:
-              uri: file:engine:/models/primitives/plane.obj#material.0
+              uri: file:game:models/donut/dohey.obj#material.2
             shader:
               uri: file:engine:/shaders/terrain/procedural-terrain.shader
         mesh:

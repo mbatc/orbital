@@ -2,7 +2,7 @@
 #include "input/Keyboard.h"
 #include "input/Mouse.h"
 #include "platform/KeyCode.h"
-
+#include "Rendering/DeferredRenderer.h"
 using namespace bfc;
 
 namespace engine {
@@ -113,12 +113,15 @@ namespace engine {
     return projectionMat(aspect) * viewMat();
   }
 
-  LevelEditorViewport::LevelEditorViewport(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets) 
-    : Viewport(pCmdList, pAssets, "LevelEditor")
+  LevelEditorViewport::LevelEditorViewport(bfc::Ref<Renderer> const & pRenderer)
+    : Viewport(pRenderer, "LevelEditor")
     , camera(&m_mouse, &m_keyboard) {
     m_mouse.attachTo(getEvents());
     m_keyboard.attachTo(getEvents());
   }
+
+  LevelEditorViewport::LevelEditorViewport(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets) 
+    : LevelEditorViewport(bfc::NewRef<DeferredRenderer>(pCmdList, pAssets)) {}
 
   Vector<RenderView> LevelEditorViewport::collectViews(bfc::graphics::RenderTargetRef renderTarget) const {
     RenderView view;
