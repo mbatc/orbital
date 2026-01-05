@@ -3,6 +3,7 @@
 #include "../material-pbr.glsl"
 #include "../gbuffer-out.glsl"
 #include "../noise.glsl"
+#include "procedural-terrain-common.glsl"
 
 in vec3 vsout_position0;
 in vec2 vsout_uv0;
@@ -15,12 +16,9 @@ void main()
   normal = normal * 2.0 - 1.0;
   normal = normalize(vsout_tbnMat0 * normal);
 
-  uint seed = 0x578437adU; // can be set to something else if you want a different set of random values
-  float scale = 10;
-  float noise = perlinNoise(vsout_uv0 * scale, 1, 6, 0.5, 2.0, seed); // multiple octaves
-  noise = (noise + 1.0) * 0.5; // convert from range [-1, 1] to range [0, 1]
+  float h = sampleTerrainHeight(vsout_uv0);
 
-  gbuffer_SetColour(noise * albedo);
+  gbuffer_SetColour(h * albedo);
   // gbuffer_SetColour(vec4(vsout_uv0, 0, 1));
   gbuffer_SetAmbient(texture2D(ambientMap, vsout_uv0) * ambient);
   gbuffer_SetPosition(vec4(vsout_position0, 1));

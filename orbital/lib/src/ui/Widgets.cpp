@@ -70,6 +70,10 @@ namespace bfc {
       return ImGui::SliderScalarN(name.c_str(), dataType, pValue, (int)count, pMin, pMax, format, ImGuiSliderFlags_None);
     }
 
+    bool LogSlider(String const & name, ImGuiDataType dataType, void * pValue, void const * pMin, void const * pMax, char const * format, int64_t count) {
+      return ImGui::SliderScalarN(name.c_str(), dataType, pValue, (int)count, pMin, pMax, format, ImGuiSliderFlags_Logarithmic);
+    }
+
     bool FilterInput(String const& name, String* pFilter, FilterSettings* pSettings) {
       return Input(name, pFilter);
     }

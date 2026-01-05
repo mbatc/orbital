@@ -21,6 +21,8 @@ namespace components {
     float scale     = 1;
     float minHeight = 0;
     float maxHeight = 1;
+
+    double radius   = 1;
   };
 } // namespace components
 
@@ -50,6 +52,7 @@ namespace bfc {
         {"scale", serialize(o.scale)},
         {"minHeight", serialize(o.minHeight)},
         {"maxHeight", serialize(o.maxHeight)},
+        {"radius", serialize(o.maxHeight)},
       });
     }
 
@@ -61,6 +64,7 @@ namespace bfc {
       s.get("scale").readOrConstruct(o.scale, 1.0f);
       s.get("minHeight").readOrConstruct(o.minHeight, 0.0f);
       s.get("maxHeight").readOrConstruct(o.maxHeight, 1.0f);
+      s.get("radius").readOrConstruct(o.radius, 1.0);
 
       return true;
     }

@@ -35,10 +35,11 @@ namespace {
 
   struct ProceduralTerrainRenderable {
     bfc::Mat4d transform;
-    uint32_t   seed = 0;
+    uint32_t   seed      = 0;
     float      scale     = 1;
     float      minHeight = 0;
     float      maxHeight = 5;
+    double     radius    = 0;
   };
 
   class ProceduralTerrainFeatureRenderer : public engine::FeatureRenderer {
@@ -48,9 +49,9 @@ namespace {
     struct TerrainUBO {
       bfc::Vec2 sampleOffset = { 0, 0 };
       uint32_t  seed = 0;
-      float     scale = 1;
       float     minHeight = 0;
       float     maxHeight = 5;
+      float     scale = 1;
     };
 
     ProceduralTerrainFeatureRenderer(engine::AssetManager *pAssetManager)
@@ -78,6 +79,9 @@ namespace {
       //       How do I get the gbuffer target from the renderer?
       // pCmdList->bindRenderTarget(m_pGBuffer->getRenderTarget());
 
+      bfc::graphics::StateManager * pState = pRenderer->getGraphicsDevice()->getStateManager();
+      pCmdList->pushState(bfc::graphics::State::EnableDepthRead{true}, bfc::graphics::State::EnableDepthWrite{true}, bfc::graphics::State::EnableBlend{false});
+
       auto const & terrains = view.pRenderData->renderables<ProceduralTerrainRenderable>();
       pCmdList->bindRenderTarget(pGBuffer);
       pCmdList->bindProgram(m_terrainShader);
@@ -86,21 +90,28 @@ namespace {
       pCmdList->bindUniformBuffer(m_modelUBO, bfc::renderer::BufferBinding_ModelBuffer);
 
       for (auto const& terrain : terrains) {
-        m_modelUBO.data.modelMatrix  = terrain.transform;
-        m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(terrain.transform);
-        m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(terrain.transform, view.getViewProjectionMatrix());
+        int64_t tiles = (int64_t)ceil(terrain.radius);
+        for (int64_t y = -tiles; y < tiles; ++y) {
+          for (int64_t x = -tiles; x < tiles; ++x) {
+            m_modelUBO.data.modelMatrix  = terrain.transform * glm::translate(bfc::Vec3d(x, 0, y));
+            m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(terrain.transform);
+            m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(terrain.transform, view.getViewProjectionMatrix());
 
-        m_terrainUBO.data.seed      = terrain.seed;
-        m_terrainUBO.data.scale     = terrain.scale;
-        m_terrainUBO.data.maxHeight = terrain.maxHeight;
-        m_terrainUBO.data.minHeight = terrain.minHeight;
+            m_terrainUBO.data.seed         = terrain.seed;
+            m_terrainUBO.data.scale        = terrain.scale;
+            m_terrainUBO.data.maxHeight    = terrain.maxHeight;
+            m_terrainUBO.data.minHeight    = terrain.minHeight;
+            m_terrainUBO.data.sampleOffset = {x, y};
 
-        m_modelUBO.upload(pCmdList);
-        m_terrainUBO.upload(pCmdList);
-        pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
+            m_modelUBO.upload(pCmdList);
+            m_terrainUBO.upload(pCmdList);
+            pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
+          }
+        }
       }
 
       pCmdList->bindRenderTarget(view.renderTarget);
+      pCmdList->popState();
     }
 
     virtual void endView(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) override {
@@ -158,6 +169,7 @@ void ProceduralTerrainSystem::collectRenderData(engine::RenderView * pRenderView
     renderable.minHeight = planet.minHeight;
     renderable.maxHeight = planet.maxHeight;
     renderable.scale     = planet.scale;
+    renderable.radius    = planet.radius;
     terrains.pushBack(renderable);
   }
 }

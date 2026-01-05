@@ -48,10 +48,7 @@ void main()
   vec3 B = cross(N, T);
   vsout_tbnMat0 = mat3(T, B, N);
 
-  float noise = perlinNoise(terrain.sampleOffset + vsout_uv0 * terrain.scale, 1, 6, 0.5, 2.0, terrain.seed); // multiple octaves
-  noise = (noise + 1.0) * 0.5; // convert from range [-1, 1] to range [0, 1]
-
-  float h = terrain.minHeight + noise * (terrain.maxHeight - terrain.minHeight);
+  float h = sampleTerrainHeight(vsout_uv0);
 
   vsout_position0 = (modelMatrix * vec4(position + normal * h, 1)).xyz;
 

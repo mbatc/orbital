@@ -416,10 +416,10 @@ namespace bfc {
       case KeyCode_Space: return ImGuiKey_Space;
       case KeyCode_Enter: return ImGuiKey_Enter;
       case KeyCode_Escape: return ImGuiKey_Escape;
-      case KeyCode_Control: return ImGuiKey_LeftCtrl;
-      case KeyCode_Shift: return ImGuiKey_LeftShift;
-      case KeyCode_Alt: return ImGuiKey_LeftAlt;
-      case KeyCode_Super: return ImGuiKey_LeftSuper;
+      case KeyCode_Control: return ImGuiKey_ModCtrl;
+      case KeyCode_Shift: return ImGuiKey_ModShift;
+      case KeyCode_Alt: return ImGuiKey_ModAlt;
+      case KeyCode_Super: return ImGuiKey_ModSuper;
       case KeyCode_0: return ImGuiKey_0;
       case KeyCode_1: return ImGuiKey_1;
       case KeyCode_2: return ImGuiKey_2;
