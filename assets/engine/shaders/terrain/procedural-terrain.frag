@@ -18,7 +18,7 @@ void main()
 
   float h = sampleTerrainHeight(vsout_uv0);
 
-  gbuffer_SetColour(h * albedo);
+  gbuffer_SetColour(vec4(vec3(h * albedo), 1));
   // gbuffer_SetColour(vec4(vsout_uv0, 0, 1));
   gbuffer_SetAmbient(texture2D(ambientMap, vsout_uv0) * ambient);
   gbuffer_SetPosition(vec4(vsout_position0, 1));
@@ -29,4 +29,5 @@ void main()
     texture2D(aoMap, vsout_uv0).x,
     1
   ));
+  gbuffer_SetRMAO(vec4(1));
 }
