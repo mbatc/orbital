@@ -90,9 +90,9 @@ namespace {
       pCmdList->bindUniformBuffer(m_modelUBO, bfc::renderer::BufferBinding_ModelBuffer);
 
       for (auto const& terrain : terrains) {
-        int64_t tiles = (int64_t)ceil(terrain.radius);
-        for (int64_t y = -tiles; y < tiles; ++y) {
-          for (int64_t x = -tiles; x < tiles; ++x) {
+        int64_t nTiles = (int64_t)ceil(terrain.radius);
+        for (int64_t y = -nTiles; y < nTiles; ++y) {
+          for (int64_t x = -nTiles; x < nTiles; ++x) {
             m_modelUBO.data.modelMatrix  = terrain.transform * glm::translate(bfc::Vec3d(x, 0, y));
             m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(terrain.transform);
             m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(terrain.transform, view.getViewProjectionMatrix());
@@ -101,7 +101,7 @@ namespace {
             m_terrainUBO.data.scale        = terrain.scale;
             m_terrainUBO.data.maxHeight    = terrain.maxHeight;
             m_terrainUBO.data.minHeight    = terrain.minHeight;
-            m_terrainUBO.data.sampleOffset = {x, y};
+            m_terrainUBO.data.sampleOffset = {nTiles + x, nTiles + y};
 
             m_modelUBO.upload(pCmdList);
             m_terrainUBO.upload(pCmdList);
