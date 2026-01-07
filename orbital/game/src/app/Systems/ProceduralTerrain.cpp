@@ -7,31 +7,105 @@
 #include "Rendering/Renderables.h"
 
 namespace {
-  // class QuadTree {
-  // public:
-  //   void insert();
-  //   void join();
-  // 
-  //   struct Node {
-  //     int64_t  leaf = -1;
-  //     uint64_t children[4];
-  //   };
-  // 
-  //   struct Leaf {
-  // 
-  //   };
-  // 
-  //   bfc::Pool<Node> nodes;
-  //   bfc::Pool<Leaf> leaves;
-  // };
-  //
-  // struct StreamingContext {
-  // 
-  // };
-  // 
-  // bfc::Ref<StreamingContext> getStreamingContext() {
-  //   return bfc::NewRef<StreamingContext>();
-  // }
+  class QuadTree {
+  public:
+    static uint64_t layerFromSize(double sz) {
+      return uint64_t(std::log2(1.0 / sz));
+    }
+
+    bool insert(bfc::Vec3u64 const & coord) {
+      return insert(coord, 0);
+    }
+
+    bool join(uint64_t node) {
+      if (!nodes.isUsed(node)) {
+        return false;
+      }
+
+      if (!nodes[node].split) {
+        return false;
+      }
+
+      for (uint8_t i = 0; i < 4; ++i) {
+        join(nodes[node].children[i]);
+
+        nodes.erase(nodes[node].children[i]);
+        nodes[node].children[i] = -1;
+      }
+
+      nodes[node].split = false;
+      return true;
+    }
+
+    bool split(uint64_t node) {
+      if (!nodes.isUsed(node)) {
+        return false;
+      }
+
+      if (nodes[node].split) {
+        return false;
+      }
+
+      uint64_t childNodes[] = {
+        nodes.emplace(),
+        nodes.emplace(),
+        nodes.emplace(),
+        nodes.emplace(),
+      };
+      std::memcpy(nodes[node].children, childNodes, sizeof(childNodes));
+      auto & parent = nodes[node];
+      parent.split = true;
+
+      for (uint8_t i = 0; i < 4; ++i) {
+        nodes[parent.children[i]].coord = parent.child(i);
+      }
+      return true;
+    }
+
+    struct Node {
+      bfc::Vec3u64 coord;
+      uint64_t     children[4];
+      bool         split = false;
+
+      int64_t layerDimensions() const {
+        return 1ull << coord.z;
+      }
+
+      double size() const {
+        return 1.0f / layerDimensions();
+      }
+
+      bfc::Vec3u64 parent() const {
+        bfc::Vec3u64 parent = coord;
+        parent.z -= 1;
+        parent.x = parent.x / 2;
+        parent.y = parent.y / 2;
+        return parent;
+      }
+
+      bfc::Vec3u64 child(uint8_t index) const {
+        bfc::Vec3u64 child = coord;
+        child.z += 1;
+        child.x = child.x * 2 + (index % 2);
+        child.y = child.y * 2 + (index / 2);
+        return child;
+      }
+    };
+
+  private:
+    bool isSplit(uint64_t node) {
+      return nodes[node].split != -1;
+    }
+
+    bool insert(bfc::Vec3u64 const & coord, uint64_t root) {
+      if (nodes[root].coord.z == coord.z)
+        return nodes[root].coord == coord;
+
+
+    }
+
+    bfc::Pool<Node> nodes;
+  };
 
   struct ProceduralTerrainRenderable {
     bfc::Mat4d transform;
@@ -40,6 +114,11 @@ namespace {
     float      minHeight = 0;
     float      maxHeight = 5;
     double     radius    = 0;
+
+    float      frequency = 1.0f;
+    uint32_t   octaves   = 6;
+    float      persistance = 0.5f;
+    float      lacurnarity = 2.0f;
   };
 
   class ProceduralTerrainFeatureRenderer : public engine::FeatureRenderer {
@@ -51,7 +130,13 @@ namespace {
       uint32_t  seed = 0;
       float     minHeight = 0;
       float     maxHeight = 5;
+
+      // This stuff is probably going to be configured based on biome
       float     scale = 1;
+      float     frequency;
+      uint32_t  octaves;
+      float     persistance;
+      float     lacurnarity;
     };
 
     ProceduralTerrainFeatureRenderer(engine::AssetManager *pAssetManager)
@@ -91,17 +176,28 @@ namespace {
 
       for (auto const& terrain : terrains) {
         int64_t nTiles = (int64_t)ceil(terrain.radius);
+
+        auto terrainInverseTransform = glm::inverse(terrain.transform);
+        auto cameraTerrainSpace      = bfc::Vec3d(terrainInverseTransform * bfc::Vec4d(view.getCameraPosition(), 1));
+        auto terrainCenter           = glm::floor(cameraTerrainSpace);
+        terrainCenter.y              = 0;
+
         for (int64_t y = -nTiles; y < nTiles; ++y) {
           for (int64_t x = -nTiles; x < nTiles; ++x) {
-            m_modelUBO.data.modelMatrix  = terrain.transform * glm::translate(bfc::Vec3d(x, 0, y));
+            const bfc::Vec3d tileCoord         = terrainCenter + bfc::Vec3d(x, 0, y);
+            m_modelUBO.data.modelMatrix  = terrain.transform * glm::translate(tileCoord);
             m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(terrain.transform);
             m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(terrain.transform, view.getViewProjectionMatrix());
 
+            m_terrainUBO.data.sampleOffset = {nTiles + tileCoord.x, nTiles + tileCoord.z};
             m_terrainUBO.data.seed         = terrain.seed;
             m_terrainUBO.data.scale        = terrain.scale;
             m_terrainUBO.data.maxHeight    = terrain.maxHeight;
             m_terrainUBO.data.minHeight    = terrain.minHeight;
-            m_terrainUBO.data.sampleOffset = {nTiles + x, nTiles + y};
+            m_terrainUBO.data.frequency    = terrain.frequency;
+            m_terrainUBO.data.octaves      = terrain.octaves;
+            m_terrainUBO.data.persistance  = terrain.persistance;
+            m_terrainUBO.data.lacurnarity  = terrain.lacurnarity;
 
             m_modelUBO.upload(pCmdList);
             m_terrainUBO.upload(pCmdList);
@@ -164,12 +260,16 @@ void ProceduralTerrainSystem::collectRenderData(engine::RenderView * pRenderView
 
   for (auto const & [transform, planet] : pLevel->getView<components::Transform, components::ProceduralPlanet>()) {
     ProceduralTerrainRenderable renderable;
-    renderable.transform = transform.globalTransform(pLevel);
-    renderable.seed      = planet.seed;
-    renderable.minHeight = planet.minHeight;
-    renderable.maxHeight = planet.maxHeight;
-    renderable.scale     = planet.scale;
-    renderable.radius    = planet.radius;
+    renderable.transform   = transform.globalTransform(pLevel);
+    renderable.seed        = planet.seed;
+    renderable.minHeight   = planet.minHeight;
+    renderable.maxHeight   = planet.maxHeight;
+    renderable.scale       = planet.scale;
+    renderable.radius      = planet.radius;
+    renderable.frequency   = planet.frequency;
+    renderable.octaves     = planet.octaves;
+    renderable.persistance = planet.persistance;
+    renderable.lacurnarity = planet.lacurnarity;
     terrains.pushBack(renderable);
   }
 }

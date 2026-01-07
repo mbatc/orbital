@@ -89,57 +89,57 @@ vec3 perlinFade(vec3 t) {
 }
 
 float perlinNoise(vec2 position, uint seed) {
-    vec2 floorPosition = floor(position);
-    vec2 fractPosition = position - floorPosition;
-    uvec2 cellCoordinates = uvec2(floorPosition);
-    float value1 = dot(perlinGradientDirection(cellCoordinates, seed), fractPosition);
-    float value2 = dot(perlinGradientDirection(cellCoordinates + uvec2(1, 0), seed), fractPosition - vec2(1.0, 0.0));
-    float value3 = dot(perlinGradientDirection(cellCoordinates + uvec2(0, 1), seed), fractPosition - vec2(0.0, 1.0));
-    float value4 = dot(perlinGradientDirection(cellCoordinates + uvec2(1, 1), seed), fractPosition - vec2(1.0, 1.0));
-    return perlinInterpolate(value1, value2, value3, value4, perlinFade(fractPosition));
+  vec2 floorPosition = floor(position);
+  vec2 fractPosition = position - floorPosition;
+  uvec2 cellCoordinates = uvec2(floorPosition);
+  float value1 = dot(perlinGradientDirection(cellCoordinates, seed), fractPosition);
+  float value2 = dot(perlinGradientDirection(cellCoordinates + uvec2(1, 0), seed), fractPosition - vec2(1.0, 0.0));
+  float value3 = dot(perlinGradientDirection(cellCoordinates + uvec2(0, 1), seed), fractPosition - vec2(0.0, 1.0));
+  float value4 = dot(perlinGradientDirection(cellCoordinates + uvec2(1, 1), seed), fractPosition - vec2(1.0, 1.0));
+  return perlinInterpolate(value1, value2, value3, value4, perlinFade(fractPosition));
 }
 
-float perlinNoise(vec2 position, int frequency, int octaveCount, float persistence, float lacunarity, uint seed) {
-    float value = 0.0;
-    float amplitude = 1.0;
-    float currentFrequency = float(frequency);
-    uint currentSeed = seed;
-    for (int i = 0; i < octaveCount; i++) {
-        currentSeed = hash(currentSeed, 0x0U); // create a new seed for each octave
-        value += perlinNoise(position * currentFrequency, currentSeed) * amplitude;
-        amplitude *= persistence;
-        currentFrequency *= lacunarity;
-    }
-    return value;
+float perlinNoise(vec2 position, float frequency, uint octaveCount, float persistence, float lacunarity, uint seed) {
+  float value = 0.0;
+  float amplitude = 1.0;
+  float currentFrequency = frequency;
+  uint currentSeed = seed;
+  for (int i = 0; i < octaveCount; i++) {
+    currentSeed = hash(currentSeed, 0x0U); // create a new seed for each octave
+    value += perlinNoise(position * currentFrequency, currentSeed) * amplitude;
+    amplitude *= persistence;
+    currentFrequency *= lacunarity;
+  }
+  return value;
 }
 
 float perlinNoise(vec3 position, uint seed) {
-    vec3 floorPosition = floor(position);
-    vec3 fractPosition = position - floorPosition;
-    uvec3 cellCoordinates = uvec3(floorPosition);
-    float value1 = dot(perlinGradientDirection(cellCoordinates, seed), fractPosition);
-    float value2 = dot(perlinGradientDirection(cellCoordinates + uvec3(1, 0, 0), seed), fractPosition - vec3(1, 0, 0));
-    float value3 = dot(perlinGradientDirection(cellCoordinates + uvec3(0, 1, 0), seed), fractPosition - vec3(0, 1, 0));
-    float value4 = dot(perlinGradientDirection(cellCoordinates + uvec3(1, 1, 0), seed), fractPosition - vec3(1, 1, 0));
-    float value5 = dot(perlinGradientDirection(cellCoordinates + uvec3(0, 0, 1), seed), fractPosition - vec3(0, 0, 1));
-    float value6 = dot(perlinGradientDirection(cellCoordinates + uvec3(1, 0, 1), seed), fractPosition - vec3(1, 0, 1));
-    float value7 = dot(perlinGradientDirection(cellCoordinates + uvec3(0, 1, 1), seed), fractPosition - vec3(0, 1, 1));
-    float value8 = dot(perlinGradientDirection(cellCoordinates + uvec3(1, 1, 1), seed), fractPosition - vec3(1, 1, 1));
-    return perlinInterpolate(value1, value2, value3, value4, value5, value6, value7, value8, perlinFade(fractPosition));
+  vec3 floorPosition = floor(position);
+  vec3 fractPosition = position - floorPosition;
+  uvec3 cellCoordinates = uvec3(floorPosition);
+  float value1 = dot(perlinGradientDirection(cellCoordinates, seed), fractPosition);
+  float value2 = dot(perlinGradientDirection(cellCoordinates + uvec3(1, 0, 0), seed), fractPosition - vec3(1, 0, 0));
+  float value3 = dot(perlinGradientDirection(cellCoordinates + uvec3(0, 1, 0), seed), fractPosition - vec3(0, 1, 0));
+  float value4 = dot(perlinGradientDirection(cellCoordinates + uvec3(1, 1, 0), seed), fractPosition - vec3(1, 1, 0));
+  float value5 = dot(perlinGradientDirection(cellCoordinates + uvec3(0, 0, 1), seed), fractPosition - vec3(0, 0, 1));
+  float value6 = dot(perlinGradientDirection(cellCoordinates + uvec3(1, 0, 1), seed), fractPosition - vec3(1, 0, 1));
+  float value7 = dot(perlinGradientDirection(cellCoordinates + uvec3(0, 1, 1), seed), fractPosition - vec3(0, 1, 1));
+  float value8 = dot(perlinGradientDirection(cellCoordinates + uvec3(1, 1, 1), seed), fractPosition - vec3(1, 1, 1));
+  return perlinInterpolate(value1, value2, value3, value4, value5, value6, value7, value8, perlinFade(fractPosition));
 }
 
-float perlinNoise(vec3 position, int frequency, int octaveCount, float persistence, float lacunarity, uint seed) {
-    float value = 0.0;
-    float amplitude = 1.0;
-    float currentFrequency = float(frequency);
-    uint currentSeed = seed;
-    for (int i = 0; i < octaveCount; i++) {
-        currentSeed = hash(currentSeed, 0x0U); // create a new seed for each octave
-        value += perlinNoise(position * currentFrequency, currentSeed) * amplitude;
-        amplitude *= persistence;
-        currentFrequency *= lacunarity;
-    }
-    return value;
+float perlinNoise(vec3 position, float frequency, uint octaveCount, float persistence, float lacunarity, uint seed) {
+  float value = 0.0;
+  float amplitude = 1.0;
+  float currentFrequency = frequency;
+  uint currentSeed = seed;
+  for (int i = 0; i < octaveCount; i++) {
+    currentSeed = hash(currentSeed, 0x0U); // create a new seed for each octave
+    value += perlinNoise(position * currentFrequency, currentSeed) * amplitude;
+    amplitude *= persistence;
+    currentFrequency *= lacunarity;
+  }
+  return value;
 }
 
 #endif // NOISE_GLSL

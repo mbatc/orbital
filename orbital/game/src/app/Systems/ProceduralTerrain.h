@@ -22,7 +22,12 @@ namespace components {
     float minHeight = 0;
     float maxHeight = 1;
 
-    double radius   = 1;
+    double radius = 1;
+
+    float    frequency   = 1.0f;
+    uint32_t octaves     = 6;
+    float    persistance = 0.5f;
+    float    lacurnarity = 2.0f;
   };
 } // namespace components
 
@@ -52,7 +57,11 @@ namespace bfc {
         {"scale", serialize(o.scale)},
         {"minHeight", serialize(o.minHeight)},
         {"maxHeight", serialize(o.maxHeight)},
-        {"radius", serialize(o.maxHeight)},
+        {"radius", serialize(o.radius)},
+        {"frequency", serialize(o.frequency)},
+        {"octaves", serialize(o.octaves)},
+        {"persistance", serialize(o.persistance)},
+        {"lacurnarity", serialize(o.lacurnarity)},
       });
     }
 
@@ -65,7 +74,10 @@ namespace bfc {
       s.get("minHeight").readOrConstruct(o.minHeight, 0.0f);
       s.get("maxHeight").readOrConstruct(o.maxHeight, 1.0f);
       s.get("radius").readOrConstruct(o.radius, 1.0);
-
+      s.get("frequency").readOrConstruct(o.frequency, 1.0f);
+      s.get("octaves").readOrConstruct(o.octaves, 6);
+      s.get("persistance").readOrConstruct(o.persistance, 0.5f);
+      s.get("lacurnarity").readOrConstruct(o.lacurnarity, 2.0f);
       return true;
     }
   };

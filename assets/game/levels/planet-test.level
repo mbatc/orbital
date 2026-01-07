@@ -3,24 +3,25 @@ entities:
     components:
       transform:
         translation:
-          - 0
-          - 0
-          - 0
+          - 0.5
+          - -0.5
+          - 0.5
         ypr:
           - -0
           - 0
           - 0
         scale:
-          - 10
-          - 10
-          - 10
+          - 1
+          - 1
+          - 1
         parent: ~
       name: Planet
       procedural-planet:
-        seed: 81231231
+        seed: 749457408
         scale: 1
         minHeight: 0
         maxHeight: 1
+        radius: 1
   - uuid: 52c4c185-0905-4213-bc00-de0efc16ac95
     components:
       transform:
@@ -47,15 +48,15 @@ entities:
         translation:
           - 0
           - 0
-          - -2
+          - 0
         ypr:
           - -0
           - 0
           - 0
         scale:
-          - 1
-          - 1
-          - 1
+          - 10
+          - 0.001
+          - 10
         parent: ~
       name: Cube
       static-mesh:
