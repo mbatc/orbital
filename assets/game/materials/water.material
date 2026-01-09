@@ -1,0 +1,19 @@
+name: "water"
+colours:
+  - key:
+      first: baseColour
+      second: 0
+    value:
+      - 0.05
+      - 0.05
+      - 1
+      - 1
+values:
+  - key:
+      first: roughness
+      second: 0
+    value: 0.9
+  - key:
+      first: metalness
+      second: 0
+    value: 0.1
