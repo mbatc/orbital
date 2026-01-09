@@ -7,6 +7,10 @@
 #include "../math/MathTypes.h"
 
 namespace bfc {
+  template<typename T>
+  struct Serializer;
+  class SerializedObject;
+
   enum MeshDeformerMode {
     MeshDeformerMode_Normalize,
     MeshDeformerMode_Additive,
@@ -16,6 +20,7 @@ namespace bfc {
   class BFC_API MeshData {
   public:
     class BFC_API Material {
+      friend Serializer<bfc::MeshData::Material>;
     public:
       using PropertyID = Pair<String, int64_t>;
 
@@ -152,4 +157,26 @@ namespace bfc {
 
   BFC_API int64_t write(Stream * pStream, MeshData const * pValue, int64_t count);
   BFC_API int64_t read(Stream * pStream, MeshData * pValue, int64_t count);
+
+  template<>
+  struct Serializer<bfc::MeshData::Material> {
+    template<typename Context>
+    static SerializedObject write(bfc::MeshData::Material const & o, Context const & ctx) {
+      return SerializedObject::MakeMap({
+        { "name", serialize(o.getName(), ctx) },
+        { "textures", serialize(o.m_textures, ctx) },
+        { "colours", serialize(o.m_colours, ctx) },
+        { "values", serialize(o.m_values, ctx) },
+      });
+    }
+
+    template<typename Context>
+    static bool read(SerializedObject const & s, bfc::MeshData::Material & o, Context const & ctx) {
+      s.get("name").readOrConstruct(o.m_name);
+      s.get("textures").readOrConstruct(o.m_textures);
+      s.get("colours").readOrConstruct(o.m_colours);
+      s.get("values").readOrConstruct(o.m_values);
+      return true;
+    }
+  };
 }

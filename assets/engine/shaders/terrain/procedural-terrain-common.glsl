@@ -9,6 +9,7 @@
 
 layout(std140, binding=BND_UBO_Terrain) uniform Terrain {
   vec2  sampleOffset;
+  float sampleSize;
   uint  seed;
   float minHeight;
   float maxHeight;
@@ -21,7 +22,7 @@ layout(std140, binding=BND_UBO_Terrain) uniform Terrain {
 
 float sampleTerrain(vec2 uv) {
   float noise = perlinNoise(
-    abs((terrain.sampleOffset + uv) * terrain.scale),
+    abs((terrain.sampleOffset + uv * terrain.sampleSize) * terrain.scale),
     terrain.frequency,
     terrain.octaves,
     terrain.persistance,

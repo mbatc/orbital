@@ -218,6 +218,33 @@ namespace bfc {
     }
 
     template<typename T>
+    Vector2<T> clamp(Vector2<T> const & value, Vector2<T> const & minValue, Vector2<T> const & maxValue) {
+      return {
+        clamp(value.x, minValue.x, maxValue.x),
+        clamp(value.y, minValue.y, maxValue.y)
+      };
+    }
+
+    template<typename T>
+    Vector3<T> clamp(Vector3<T> const & value, Vector3<T> const & minValue, Vector3<T> const & maxValue) {
+      return {
+        clamp(value.x, minValue.x, maxValue.x),
+        clamp(value.y, minValue.y, maxValue.y),
+        clamp(value.z, minValue.z, maxValue.z)
+      };
+    }
+
+    template<typename T>
+    Vector4<T> clamp(Vector4<T> const & value, Vector4<T> const & minValue, Vector4<T> const & maxValue) {
+      return {
+        clamp(value.x, minValue.x, maxValue.x),
+        clamp(value.y, minValue.y, maxValue.y),
+        clamp(value.z, minValue.z, maxValue.z),
+        clamp(value.w, minValue.w, maxValue.w)
+      };
+    }
+
+    template<typename T>
     T abs(T const & o) {
       return glm::abs(o);
     }

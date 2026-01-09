@@ -49,7 +49,6 @@ void main()
     tcsout_tangent0[1] * gl_TessCoord.y +
     tcsout_tangent0[2] * gl_TessCoord.z);
 
-
   vec3 T = normalize(vec3(normalMatrix * vec4(tangent, 0.0)));
   vec3 N = normalize(vec3(normalMatrix * vec4(normal, 0.0)));
 

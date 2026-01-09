@@ -9,8 +9,60 @@
 namespace {
   class QuadTree {
   public:
+    struct Node {
+      bfc::Vec3u64 coord;
+      uint64_t     children[4];
+      bool         split = false;
+
+      int64_t layerDimensions() const {
+        return tilesAtLayer(coord.z);
+      }
+
+      double size() const {
+        return 1.0f / layerDimensions();
+      }
+
+      bfc::Vec3u64 parent() const {
+        bfc::Vec3u64 parent = coord;
+        parent.z -= 1;
+        parent.x = parent.x / 2;
+        parent.y = parent.y / 2;
+        return parent;
+      }
+
+      bfc::Vec3u64 child(uint8_t index) const {
+        bfc::Vec3u64 child = coord;
+        child.z += 1;
+        child.x = child.x * 2 + (index % 2);
+        child.y = child.y * 2 + (index / 2);
+        return child;
+      }
+    };
+
+    QuadTree() {
+      nodes.emplace(Node{{0, 0, 0}});
+    }
+
     static uint64_t layerFromSize(double sz) {
       return uint64_t(std::log2(1.0 / sz));
+    }
+
+    static uint64_t tilesAtLayer(uint64_t layer) {
+      return 1ull << layer;
+    }
+
+    void trySplit(std::function<bool(Node const&)> const & predicate, uint64_t root = 0, bool joinOnFail = false) {
+      if (!predicate(nodes[root])) {
+        if (joinOnFail)
+          join(root);
+        return;
+      }
+
+      split(root);
+
+      for (uint8_t i = 0; i < 4; ++i) {
+        trySplit(predicate, nodes[root].children[i]);
+      }
     }
 
     bool insert(bfc::Vec3u64 const & coord) {
@@ -47,10 +99,10 @@ namespace {
       }
 
       uint64_t childNodes[] = {
-        nodes.emplace(),
-        nodes.emplace(),
-        nodes.emplace(),
-        nodes.emplace(),
+        (uint64_t)nodes.emplace(),
+        (uint64_t)nodes.emplace(),
+        (uint64_t)nodes.emplace(),
+        (uint64_t)nodes.emplace(),
       };
       std::memcpy(nodes[node].children, childNodes, sizeof(childNodes));
       auto & parent = nodes[node];
@@ -62,46 +114,31 @@ namespace {
       return true;
     }
 
-    struct Node {
-      bfc::Vec3u64 coord;
-      uint64_t     children[4];
-      bool         split = false;
-
-      int64_t layerDimensions() const {
-        return 1ull << coord.z;
+    void forLeaves(std::function<void(Node const &)> const & cb) {
+      for (auto& node : nodes) {
+        if (!node.split) {
+          cb(node);
+        }
       }
-
-      double size() const {
-        return 1.0f / layerDimensions();
-      }
-
-      bfc::Vec3u64 parent() const {
-        bfc::Vec3u64 parent = coord;
-        parent.z -= 1;
-        parent.x = parent.x / 2;
-        parent.y = parent.y / 2;
-        return parent;
-      }
-
-      bfc::Vec3u64 child(uint8_t index) const {
-        bfc::Vec3u64 child = coord;
-        child.z += 1;
-        child.x = child.x * 2 + (index % 2);
-        child.y = child.y * 2 + (index / 2);
-        return child;
-      }
-    };
+    }
 
   private:
     bool isSplit(uint64_t node) {
-      return nodes[node].split != -1;
+      return nodes[node].split;
     }
 
     bool insert(bfc::Vec3u64 const & coord, uint64_t root) {
-      if (nodes[root].coord.z == coord.z)
+      const int64_t diff = coord.z - nodes[root].coord.z;
+      if (diff <= 0)
         return nodes[root].coord == coord;
 
+      split(root);
 
+      const auto    childCoord = bfc::Vec2u64(coord) / uint64_t(1ull << (diff - 1));
+      const auto    localCoord = childCoord - bfc::Vec2u64(nodes[root].child(0));
+      const int64_t childIndex = localCoord.y * 2 + localCoord.x;
+
+      return insert(coord, nodes[root].children[childIndex]);
     }
 
     bfc::Pool<Node> nodes;
@@ -127,6 +164,8 @@ namespace {
 
     struct TerrainUBO {
       bfc::Vec2 sampleOffset = { 0, 0 };
+      float     sampleSize     = 1.0f;
+
       uint32_t  seed = 0;
       float     minHeight = 0;
       float     maxHeight = 5;
@@ -174,36 +213,48 @@ namespace {
       pCmdList->bindUniformBuffer(m_terrainUBO, TerrainBufferBindPoint);
       pCmdList->bindUniformBuffer(m_modelUBO, bfc::renderer::BufferBinding_ModelBuffer);
 
-      for (auto const& terrain : terrains) {
-        int64_t nTiles = (int64_t)ceil(terrain.radius);
-
+      for (auto const & terrain : terrains) {
+        auto camPos                  = view.getCameraPosition();
         auto terrainInverseTransform = glm::inverse(terrain.transform);
         auto cameraTerrainSpace      = bfc::Vec3d(terrainInverseTransform * bfc::Vec4d(view.getCameraPosition(), 1));
-        auto terrainCenter           = glm::floor(cameraTerrainSpace);
-        terrainCenter.y              = 0;
+        std::swap(cameraTerrainSpace.y, cameraTerrainSpace.z);
 
-        for (int64_t y = -nTiles; y < nTiles; ++y) {
-          for (int64_t x = -nTiles; x < nTiles; ++x) {
-            const bfc::Vec3d tileCoord         = terrainCenter + bfc::Vec3d(x, 0, y);
-            m_modelUBO.data.modelMatrix  = terrain.transform * glm::translate(tileCoord);
-            m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(terrain.transform);
-            m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(terrain.transform, view.getViewProjectionMatrix());
+        QuadTree tree;
+        tree.trySplit([&](QuadTree::Node const & node) {
+          if (node.coord.z >= 20)
+            return false;
+          const double sz     = node.size();
+          const double halfSz = sz / 2;
+          const auto   center = bfc::Vec3d(node.coord.x, node.coord.y, 0) * sz + bfc::Vec3d(halfSz, halfSz, 0);
+          const double dist2  = glm::length2(center - cameraTerrainSpace);
+          return dist2 < sz * sz * 1.5 * 1.5;
+        }, 0, true);
 
-            m_terrainUBO.data.sampleOffset = {nTiles + tileCoord.x, nTiles + tileCoord.z};
-            m_terrainUBO.data.seed         = terrain.seed;
-            m_terrainUBO.data.scale        = terrain.scale;
-            m_terrainUBO.data.maxHeight    = terrain.maxHeight;
-            m_terrainUBO.data.minHeight    = terrain.minHeight;
-            m_terrainUBO.data.frequency    = terrain.frequency;
-            m_terrainUBO.data.octaves      = terrain.octaves;
-            m_terrainUBO.data.persistance  = terrain.persistance;
-            m_terrainUBO.data.lacurnarity  = terrain.lacurnarity;
+        tree.forLeaves([&](QuadTree::Node const & node) {
+          const double     size          = node.size();
+          const bfc::Vec3d tileCoord     = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
+          const bfc::Mat4d tileTransform = terrain.transform * glm::translate(tileCoord) * glm::scale(bfc::Vec3d(size, 1, size)) *
+                                           glm::translate(bfc::Vec3d(0.5, 0, 0.5));
 
-            m_modelUBO.upload(pCmdList);
-            m_terrainUBO.upload(pCmdList);
-            pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
-          }
-        }
+          m_modelUBO.data.modelMatrix  = tileTransform;
+          m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(tileTransform);
+          m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(tileTransform, view.getViewProjectionMatrix());
+
+          m_terrainUBO.data.sampleOffset = {tileCoord.x, tileCoord.z};
+          m_terrainUBO.data.sampleSize   = (float)node.size();
+          m_terrainUBO.data.seed         = terrain.seed;
+          m_terrainUBO.data.scale        = terrain.scale;
+          m_terrainUBO.data.maxHeight    = terrain.maxHeight;
+          m_terrainUBO.data.minHeight    = terrain.minHeight;
+          m_terrainUBO.data.frequency    = terrain.frequency;
+          m_terrainUBO.data.octaves      = terrain.octaves;
+          m_terrainUBO.data.persistance  = terrain.persistance;
+          m_terrainUBO.data.lacurnarity  = terrain.lacurnarity;
+
+          m_modelUBO.upload(pCmdList);
+          m_terrainUBO.upload(pCmdList);
+          pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
+        });
       }
 
       pCmdList->bindRenderTarget(view.renderTarget);

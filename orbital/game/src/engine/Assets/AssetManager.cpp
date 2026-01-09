@@ -5,6 +5,7 @@
 #include "Assets/ShaderLoader.h"
 #include "Assets/TextureLoader.h"
 #include "Assets/SkyboxLoader.h"
+#include "Assets/MaterialLoader.h"
 
 #include "Application.h"
 #include "Rendering/Rendering.h"
@@ -29,6 +30,8 @@ namespace engine {
     registerLoader("core.texture", NewRef<engine::Texture2DLoader>(pRendering->getDevice()));
     registerLoader("core.shader", NewRef<engine::ShaderLoader>(pRendering->getDevice()));
     registerLoader("core.skybox", NewRef<engine::SkyboxLoader>(pRendering->getDevice()));
+    registerLoader("core.materialdata", NewRef<engine::MaterialFileLoader>());
+    registerLoader("core.material", NewRef<engine::MaterialLoader>(pRendering->getDevice()));
 
     return true;
   }

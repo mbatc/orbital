@@ -18,7 +18,13 @@ void main()
 
   float h = sampleTerrain(vsout_uv0);
 
-  gbuffer_SetColour(vec4(vec3(0.3, 1, 0.3), 1));
+  if (h < 0.505) {
+    gbuffer_SetColour(vec4(vec3(1, 1, 0.3), 1));
+  } else if (h > 0.9) {
+    gbuffer_SetColour(vec4(vec3(1, 1, 1), 1));
+  } else {
+    gbuffer_SetColour(vec4(vec3(0.3, 1, 0.3), 1));
+  }
   // gbuffer_SetColour(vec4(normal, 1));
   gbuffer_SetAmbient(texture2D(ambientMap, vsout_uv0) * ambient);
   gbuffer_SetPosition(vec4(vsout_position0, 1));
@@ -29,5 +35,5 @@ void main()
     texture2D(aoMap, vsout_uv0).x,
     1
   ));
-  gbuffer_SetRMAO(vec4(1));
+  gbuffer_SetRMAO(vec4(1, 0, 1, 0));
 }

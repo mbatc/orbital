@@ -2,6 +2,7 @@
 #include "Application.h"
 #include "Assets/AssetManager.h"
 #include "ui/Widgets.h"
+#include "mesh/Mesh.h"
 
 using namespace bfc;
 
@@ -77,11 +78,30 @@ namespace engine {
     ui::Separator();
     ui::Label("Materials");
 
-    for (int64_t i = 0; i < pComponent->materials.size(); ++i) {
-      ImGui::PushID((int)i);
-      LevelEditor::drawAssetSelector("Material %lld", &pComponent->materials[i].pMaterial, pAssets, pFileSystem);
-      LevelEditor::drawAssetSelector("Shader   %lld", &pComponent->materials[i].pProgram, pAssets, pFileSystem);
-      ImGui::PopID();
+    if (pComponent->pMesh != nullptr) {
+      for (int64_t i = 0; i < pComponent->pMesh->getSubmeshCount(); ++i) {
+        ImGui::PushID((int)i);
+        engine::Asset<bfc::Material> pMaterial;
+        engine::Asset<bfc::graphics::Program> pProgram;
+        if (i < pComponent->materials.size()) {
+          pMaterial = pComponent->materials[i].pMaterial;
+          pProgram = pComponent->materials[i].pProgram;
+        }
+
+        bool changed = false;
+        changed |= LevelEditor::drawAssetSelector(bfc::String::format("Material %lld", i), &pMaterial, pAssets, pFileSystem);
+        changed |= LevelEditor::drawAssetSelector(bfc::String::format("Shader   %lld", i), &pProgram, pAssets, pFileSystem);
+        if (changed) {
+          if (i >= pComponent->materials.size()) {
+            pComponent->materials.resize(i + 1);
+          }
+
+          pComponent->materials[i].pMaterial = pMaterial;
+          pComponent->materials[i].pProgram  = pProgram;
+        }
+
+        ImGui::PopID();
+      }
     }
   }
 

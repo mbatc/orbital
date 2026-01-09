@@ -3,25 +3,29 @@ entities:
     components:
       transform:
         translation:
-          - 0.5
-          - -0.5
-          - 0.5
+          - -50
+          - 0
+          - -50
         ypr:
           - -0
           - 0
           - 0
         scale:
-          - 1
-          - 1
-          - 1
+          - 100
+          - 100
+          - 100
         parent: ~
       name: Planet
       procedural-planet:
-        seed: 749457408
-        scale: 1
-        minHeight: 0
-        maxHeight: 1
+        seed: 1145324672
+        scale: 4.3589739799499512
+        minHeight: -0.019999999552965164
+        maxHeight: 0.019999999552965164
         radius: 1
+        frequency: 1
+        octaves: 10
+        persistance: 0.62563997507095337
+        lacurnarity: 2
   - uuid: 52c4c185-0905-4213-bc00-de0efc16ac95
     components:
       transform:
@@ -46,25 +50,28 @@ entities:
     components:
       transform:
         translation:
+          - 0.5
           - 0
-          - 0
-          - 0
+          - 0.5
         ypr:
           - -0
           - 0
           - 0
         scale:
-          - 10
-          - 0.001
-          - 10
-        parent: ~
+          - 1
+          - 1
+          - 1
+        parent: ff1dddf6-9550-4b14-8d9d-55931f57bf0e
       name: Cube
       static-mesh:
         castShadows: 0
         useTesselation: 0
-        materials: ~
+        materials:
+          - material:
+              uri: file:game:/materials/water.material
+            shader: ~
         mesh:
-          uri: file:engine:/models/primitives/cube.obj
+          uri: file:engine:/models/primitives/plane.obj
   - uuid: cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd
     components:
       transform:
@@ -85,18 +92,18 @@ entities:
       light:
         type: sun
         colour:
-          - 0.87254899740219116
-          - 0.87254899740219116
-          - 0.87254899740219116
+          - 0.88235294818878174
+          - 1
+          - 0
         ambient:
-          - 0.12745100259780884
-          - 0.12745100259780884
-          - 0.12745100259780884
+          - 0.38725489377975464
+          - 0.38725489377975464
+          - 0.38725489377975464
         attenuation:
           - 0
           - 0
           - 1
-        strength: 1
+        strength: 3
         innerConeAngle: 30.000001907348633
         outerConeAngle: 35
-        castShadows: 1
+        castShadows: 0

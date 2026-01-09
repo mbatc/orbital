@@ -311,7 +311,7 @@ namespace engine {
 
     ImGui::PopID();
 
-    return false;
+    return changed;
   }
 
   void LevelEditor::drawUI(bfc::Ref<LevelManager> const & pLevels, bfc::Ref<AssetManager> const & pAssets, bfc::Ref<Rendering> const & pRendering,
@@ -397,8 +397,11 @@ namespace engine {
         m_pEditorViewport->setLevel(pLevels->getActiveLevel());
         pRendering->setMainViewport(m_pEditorViewport);
       } else if (activateGameViewport) {
-        auto pInitCmdList  = pRendering->getDevice()->createCommandList();
-        auto pGameViewport = NewRef<GameViewport>(pInitCmdList.get(), pAssets.get());
+        auto pInitCmdList = pRendering->getDevice()->createCommandList();
+        auto pRenderer    = bfc::NewRef<DeferredRenderer>(pInitCmdList.get(), pAssets.get());
+        pRendering->registerRenderer(pRenderer);
+
+        auto pGameViewport = NewRef<GameViewport>(pRenderer);
         pRendering->getDevice()->submit(std::move(pInitCmdList));
 
         pGameViewport->setLevel(pLevels->getActiveLevel());
@@ -432,7 +435,7 @@ namespace engine {
 
       if (ImGui::Selectable("Save Level As")) {
         FileDialog dialog;
-        dialog.setFilter({".level"}, {"Orbital Game Level"});
+        dialog.setFilter({"level"}, {"Orbital Game Level"});
         if (pLevel->sourceUri.has_value())
           dialog.setFile(pLevel->sourceUri.value().path());
 

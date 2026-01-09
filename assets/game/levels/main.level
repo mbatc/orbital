@@ -22,13 +22,13 @@ entities:
       light:
         type: sun
         colour:
-          - 0.93137252330780029
-          - 0.86960327625274658
-          - 0.82636481523513794
+          - 0.73039215803146362
+          - 0.54505616426467896
+          - 0.41532105207443237
         ambient:
-          - 0.17647057771682739
-          - 0.17647057771682739
-          - 0.17647057771682739
+          - 0.19607841968536377
+          - 0.19607841968536377
+          - 0.19607841968536377
         attenuation:
           - 0
           - 0
@@ -69,38 +69,6 @@ entities:
             shader: ~
         mesh:
           uri: file:game:models/launchpad/launchpad.obj
-  - uuid: 26d66b8e-378f-480b-8043-d623bb821cd0
-    components:
-      name: The Dohey
-      transform:
-        translation:
-          - 10
-          - 1
-          - 0
-        ypr:
-          - -0
-          - 0
-          - 0
-        scale:
-          - 10
-          - 10
-          - 10
-        parent: 7dffda28-7bff-410b-a009-cb3d4bce4ccb
-      static-mesh:
-        castShadows: 1
-        useTesselation: 0
-        materials:
-          - material:
-              uri: file:game:models/donut/dohey.obj#material.0
-            shader: ~
-          - material:
-              uri: file:game:models/donut/dohey.obj#material.1
-            shader: ~
-          - material:
-              uri: file:game:models/donut/dohey.obj#material.2
-            shader: ~
-        mesh:
-          uri: file:game:models/donut/dohey.obj
   - uuid: 0ae29b5c-19b1-4437-87a4-c9ab08975d4b
     components:
       name: shuttle
@@ -196,8 +164,8 @@ entities:
           - 1
         parent: faa40acd-185a-4ebe-81f4-3dc8b6903f2f
       camera:
-        farPlane: 100000
-        nearPlane: 0.10000000149011612
+        farPlane: 1000000
+        nearPlane: 100
         viewportSize:
           - 1
           - 1
@@ -247,50 +215,73 @@ entities:
           - 0
           - 1
           - 0
-  - uuid: a4f781bf-e5c4-41cb-a111-34cbcf876f1c
+  - uuid: ff1dddf6-9550-4b14-8d9d-55931f57bf0e
     components:
       name: Terrain
       transform:
         translation:
+          - -0.5
           - 0
-          - -10
+          - -0.5
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 1
+          - 1
+          - 1
+        parent: 2a8bf698-833b-45f4-a689-5718ad94c9ee
+      procedural-planet:
+        seed: 1145324672
+        scale: 4.3589739799499512
+        minHeight: -0.019999999552965164
+        maxHeight: 0.019999999552965164
+        radius: 1
+        frequency: 1
+        octaves: 10
+        persistance: 0.62563997507095337
+        lacurnarity: 2
+  - uuid: dce0aaab-72fb-41e6-b604-58ebe463d21a
+    components:
+      name: Water
+      transform:
+        translation:
+          - 0
+          - 0
           - 0
         ypr:
           - -0
           - 0
           - 0
         scale:
-          - 1000
-          - 10
-          - 1000
-        parent: 7dffda28-7bff-410b-a009-cb3d4bce4ccb
+          - 1
+          - 1
+          - 1
+        parent: 2a8bf698-833b-45f4-a689-5718ad94c9ee
       static-mesh:
         castShadows: 0
-        useTesselation: 1
+        useTesselation: 0
         materials:
           - material:
-              uri: file:game:models/donut/dohey.obj#material.2
-            shader:
-              uri: file:engine:/shaders/terrain/procedural-terrain.shader
+              uri: file:game:/materials/water.material
+            shader: ~
         mesh:
           uri: file:engine:/models/primitives/plane.obj
-  - uuid: cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd
+  - uuid: 2a8bf698-833b-45f4-a689-5718ad94c9ee
     components:
-      name: Post-Processsing
-      post-process-volume:
-        enabled: 0
-        extents:
-          min:
-            - -5
-            - -5
-            - -5
-          max:
-            - 5
-            - 5
-            - 5
-        infinite: 0
-        effects: 4294967304
-      post-process-ssao:
-        bias: 0.10000000149011612
-        radius: 0.5
-        strength: 1
+      name: Planet
+      transform:
+        translation:
+          - 90000
+          - -1200
+          - -8000
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 1000000
+          - 1000000
+          - 1000000
+        parent: ~

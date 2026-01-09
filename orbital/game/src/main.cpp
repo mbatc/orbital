@@ -1,5 +1,6 @@
 #include "app/Orbital.h"
 #include "util/Log.h"
+#include "mesh/MeshData.h"
 
 int main(int argc, char ** argv) {
   Orbital orbital;

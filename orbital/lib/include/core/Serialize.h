@@ -450,8 +450,8 @@ namespace bfc {
 
     template<typename Context>
     static bool read(SerializedObject const & s, Pair<Key, Value> & o, Context const & ctx) {
-      bool success = elm[firstName].read(o.first, ctx);
-      success &= elm[secondName].read(o.second, ctx);
+      bool success = s.get(firstName).read(o.first, ctx);
+      success &= s.get(secondName).read(o.second, ctx);
       return success;
     }
   };
