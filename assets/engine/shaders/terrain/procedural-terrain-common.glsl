@@ -21,7 +21,7 @@ layout(std140, binding=BND_UBO_Terrain) uniform Terrain {
 } terrain;
 
 struct TerrainBiome {
-  vec4 colours[3];
+  vec4 colour;
   float frequency;
   uint  octaves;
   float persistance;
@@ -32,7 +32,7 @@ struct TerrainBiome {
 
 TerrainBiome terrainBiomes[3] = {
   {
-    {  },
+    { 0.3, 1, 0.3, 1 },
     1.0,
     3,
     0.5,
@@ -41,7 +41,7 @@ TerrainBiome terrainBiomes[3] = {
     0.52
   },
   {
-    {  },
+    { 0.6, 0.6, 0.6, 1 },
     1.0,
     3,
     0.5,
@@ -50,7 +50,7 @@ TerrainBiome terrainBiomes[3] = {
     0.52
   },
   {
-    {  },
+    { 1, 1, 1, 1 },
     1.0,
     3,
     0.5,
@@ -68,8 +68,7 @@ float sampleBiome(vec2 uv) {
     terrain.persistance,
     terrain.lacurnarity,
     terrain.seed); // multiple octaves
-
-
+  return (noise + 1.0) * 0.5; // convert from range [-1, 1] to range [0, 1]
 }
 
 float sampleTerrain(vec2 uv) {
@@ -81,6 +80,26 @@ float sampleTerrain(vec2 uv) {
     terrain.lacurnarity,
     terrain.seed); // multiple octaves
   return (noise + 1.0) * 0.5; // convert from range [-1, 1] to range [0, 1]
+}
+
+struct TerrainSample {
+  float height;
+  uint  biomeIndex;
+  float biome;
+};
+
+float sampleBiome(vec2 uv) {
+
+}
+
+float sampleTerrainByBiome(vec2 uv) {
+  TerrainSample sample;
+  sample.biome      = sampleBiome(uv);
+  sample.biomeIndex = min(biome * terrainBiomes.length, terrainBiomes.length - 1);
+  sample.height     = sampleTerrain();
+
+
+  return sample;
 }
 
 float sampleTerrainHeight(vec2 uv) {
