@@ -121,11 +121,17 @@ namespace bfc {
     BufferedReader bufferedReader(pStream); // Buffered because we are often reading a large amount of data
     TextReader     reader(&bufferedReader);
 
-    // Reserve memory based on file size to reduce allocations
-    // pMesh->normals.reserve(data.size() / 60);
-    // pMesh->triangles.reserve(data.size() / 180);
-    // pMesh->positions.reserve(data.size() / 60);
-    // pMesh->uvs.reserve(data.size() / 60);
+    {
+      const int64_t len = pStream->length();
+      // Reserve memory based on file size to reduce allocations
+      if (len != -1) {
+
+        pMesh->normals.reserve(len / 60);
+        pMesh->triangles.reserve(len / 180);
+        pMesh->positions.reserve(len / 60);
+        pMesh->uvs.reserve(len / 60);
+      }
+    }
 
     String               mtlFile = "";
     String               curMat  = "";

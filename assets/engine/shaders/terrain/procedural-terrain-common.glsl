@@ -20,6 +20,58 @@ layout(std140, binding=BND_UBO_Terrain) uniform Terrain {
   float lacurnarity;
 } terrain;
 
+struct TerrainBiome {
+  vec4 colours[3];
+  float frequency;
+  uint  octaves;
+  float persistance;
+  float lacurnarity;
+  float minHeight;
+  float maxHeight;
+};
+
+TerrainBiome terrainBiomes[3] = {
+  {
+    {  },
+    1.0,
+    3,
+    0.5,
+    2,
+    0,
+    0.52
+  },
+  {
+    {  },
+    1.0,
+    3,
+    0.5,
+    2,
+    0,
+    0.52
+  },
+  {
+    {  },
+    1.0,
+    3,
+    0.5,
+    2,
+    0,
+    0.52
+  }
+};
+
+float sampleBiome(vec2 uv) {
+  float noise = perlinNoise(
+    abs((terrain.sampleOffset + uv * terrain.sampleSize) * terrain.scale),
+    terrain.frequency,
+    1,
+    terrain.persistance,
+    terrain.lacurnarity,
+    terrain.seed); // multiple octaves
+
+
+}
+
 float sampleTerrain(vec2 uv) {
   float noise = perlinNoise(
     abs((terrain.sampleOffset + uv * terrain.sampleSize) * terrain.scale),
