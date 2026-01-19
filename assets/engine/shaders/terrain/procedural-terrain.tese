@@ -32,12 +32,13 @@ void main()
     tcsout_normal0[1] * gl_TessCoord.y +
     tcsout_normal0[2] * gl_TessCoord.z;
 
-  float h = sampleTerrainHeight(vsout_uv0);
-  vec3 displaced = position + up * h;
-
   float d = 1.0 / gl_TessLevelOuter[0];
-  float dx = sampleTerrainHeight(vsout_uv0 + vec2(d, 0));
-  float dy = sampleTerrainHeight(vsout_uv0 + vec2(0, d));
+
+  const int useBiomes = 1;
+  float h  = useBiomes == 0 ? sampleTerrainHeight(vsout_uv0)              : sampleTerrainHeightByBiome(vsout_uv0).height;
+  float dx = useBiomes == 0 ? sampleTerrainHeight(vsout_uv0 + vec2(d, 0)) : sampleTerrainHeightByBiome(vsout_uv0 + vec2(d, 0)).height;
+  float dy = useBiomes == 0 ? sampleTerrainHeight(vsout_uv0 + vec2(0, d)) : sampleTerrainHeightByBiome(vsout_uv0 + vec2(0, d)).height;
+  vec3 displaced = position + up * h;
   vec3 normal = normalize(
     cross(
       displaced - (position + vec3(0, 0, d) + up * dy),

@@ -16,7 +16,7 @@ void main()
   normal = normal * 2.0 - 1.0;
   normal = normalize(vsout_tbnMat0 * normal);
 
-  float h = sampleTerrain(vsout_uv0);
+  float h = sampleTerrainByBiome(vsout_uv0).height;
 
   if (h < 0.505) {
     gbuffer_SetColour(vec4(vec3(1, 1, 0.3), 1));

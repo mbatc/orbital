@@ -31,4 +31,20 @@ layout(std140, binding=BND_UBO_Model) uniform Model {
   mat4 mvpMatrix;
 };
 
+float mapLinear(float value, float inMin, float inMax, float outMin, float outMax) {
+  return (value - inMin) / (inMax - inMin) * (outMax - outMin) + outMin;
+}
+
+vec2 mapLinear(vec2 value, vec2 inMin, vec2 inMax, vec2 outMin, vec2 outMax) {
+  return (value - inMin) / (inMax - inMin) * (outMax - outMin) + outMin;
+}
+
+vec3 mapLinear(vec3 value, vec3 inMin, vec3 inMax, vec3 outMin, vec3 outMax) {
+  return (value - inMin) / (inMax - inMin) * (outMax - outMin) + outMin;
+}
+
+vec4 mapLinear(vec4 value, vec4 inMin, vec4 inMax, vec4 outMin, vec4 outMax) {
+  return (value - inMin) / (inMax - inMin) * (outMax - outMin) + outMin;
+}
+
 #endif // COMMON_GLSL

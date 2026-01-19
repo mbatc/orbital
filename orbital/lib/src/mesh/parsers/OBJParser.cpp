@@ -125,7 +125,6 @@ namespace bfc {
       const int64_t len = pStream->length();
       // Reserve memory based on file size to reduce allocations
       if (len != -1) {
-
         pMesh->normals.reserve(len / 60);
         pMesh->triangles.reserve(len / 180);
         pMesh->positions.reserve(len / 60);
