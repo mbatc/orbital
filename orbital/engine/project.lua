@@ -1,7 +1,7 @@
 
-project "game"
+project "engine"
 
-kind         "ConsoleApp"
+kind         "StaticLib"
 architecture "x64"
 language     "C++"
 cppdialect   "C++17"
@@ -9,8 +9,7 @@ characterset "MBCS"
 
 includedirs {
   "../lib/include",
-  "../engine/src",
-  "src/app",
+  "src/engine",
   "src",
 
   ORBITAL_ROOT .. "vendor/glm/",
@@ -18,12 +17,10 @@ includedirs {
 
 dependson {
   "lib",
-  "engine"
 }
 
 links {
   "lib",
-  "engine"
 }
 
 files {
@@ -39,6 +36,6 @@ files {
   "src/**.h",
   "src/**.inl",
   "src/**.cpp",
-
+  
   "assets/**"
 }

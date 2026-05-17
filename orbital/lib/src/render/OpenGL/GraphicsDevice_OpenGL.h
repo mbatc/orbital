@@ -319,6 +319,8 @@ namespace bfc {
       CommandList_OpenGL(GraphicsDevice * pDevice, RenderTargetRef defaultTarget, VertexArrayRef emptyVertexArray, uint32_t lastTextureUnit);
 
       virtual void execute() const override;
+      virtual void setDebugName(StringView const & name) override;
+      virtual void addDebugTag(StringView const & tag) override;
 
       // Pipeline state
       virtual void bindProgram(ProgramRef programID) override;
@@ -398,6 +400,8 @@ namespace bfc {
         m_trackedResources.clear();
         m_commandBuffer.reset();
       }
+
+      String m_debugName;
 
       int64_t  m_indexCount  = -1;
       int64_t  m_vertexCount = -1;

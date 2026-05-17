@@ -1,0 +1,353 @@
+#include "ProceduralTerrain.h"
+#include "Levels/CoreComponents.h"
+#include "Rendering/Rendering.h"
+#include "Rendering/Renderer.h"
+#include "Rendering/DeferredRenderer.h"
+#include "Rendering/RenderData.h"
+#include "Rendering/Renderables.h"
+
+namespace {
+  
+  static bfc::Mat4d faceTransforms[bfc::CubeMapFace_Count] = {
+    bfc::math::translation(bfc::math::right<double> * 0.5)
+      * glm::toMat4(glm::angleAxis(glm::half_pi<double>(), bfc::math::forward<double>)), // CubeMapFace_Right,
+
+    bfc::math::translation(-bfc::math::right<double> * 0.5)
+      * glm::toMat4(glm::angleAxis(-glm::half_pi<double>(), bfc::math::forward<double>)),  // CubeMapFace_Left,
+
+    bfc::math::translation(bfc::math::up<double> * 0.5), // CubeMapFace_Top,
+
+    bfc::math::translation(-bfc::math::up<double> * 0.5)
+      * glm::toMat4(glm::angleAxis(glm::pi<double>(), bfc::math::right<double>)), // CubeMapFace_Bottom,
+
+    bfc::math::translation(bfc::math::forward<double> * 0.5)
+      * glm::toMat4(glm::angleAxis(-glm::half_pi<double>(), bfc::math::right<double>)), // CubeMapFace_Front
+
+    bfc::math::translation(-bfc::math::forward<double> * 0.5)
+      * glm::toMat4(glm::angleAxis(glm::half_pi<double>(), bfc::math::right<double>)), // CubeMapFace_Back,
+  };
+
+  class QuadTree {
+  public:
+    struct Node {
+      bfc::Vec3u64 coord;
+      uint64_t     children[4];
+      bool         split = false;
+
+      int64_t layerDimensions() const {
+        return tilesAtLayer(coord.z);
+      }
+
+      double size() const {
+        return 1.0f / layerDimensions();
+      }
+
+      bfc::Vec3u64 parent() const {
+        bfc::Vec3u64 parent = coord;
+        parent.z -= 1;
+        parent.x = parent.x / 2;
+        parent.y = parent.y / 2;
+        return parent;
+      }
+
+      bfc::Vec3u64 child(uint8_t index) const {
+        bfc::Vec3u64 child = coord;
+        child.z += 1;
+        child.x = child.x * 2 + (index % 2);
+        child.y = child.y * 2 + (index / 2);
+        return child;
+      }
+    };
+
+    QuadTree() {
+      nodes.emplace(Node{{0, 0, 0}});
+    }
+
+    static uint64_t layerFromSize(double sz) {
+      return uint64_t(std::log2(1.0 / sz));
+    }
+
+    static uint64_t tilesAtLayer(uint64_t layer) {
+      return 1ull << layer;
+    }
+
+    void trySplit(std::function<bool(Node const&)> const & predicate, uint64_t root = 0, bool joinOnFail = false) {
+      if (!predicate(nodes[root])) {
+        if (joinOnFail)
+          join(root);
+        return;
+      }
+
+      split(root);
+
+      for (uint8_t i = 0; i < 4; ++i) {
+        trySplit(predicate, nodes[root].children[i]);
+      }
+    }
+
+    bool insert(bfc::Vec3u64 const & coord) {
+      return insert(coord, 0);
+    }
+
+    bool join(uint64_t node) {
+      if (!nodes.isUsed(node)) {
+        return false;
+      }
+
+      if (!nodes[node].split) {
+        return false;
+      }
+
+      for (uint8_t i = 0; i < 4; ++i) {
+        join(nodes[node].children[i]);
+
+        nodes.erase(nodes[node].children[i]);
+        nodes[node].children[i] = -1;
+      }
+
+      nodes[node].split = false;
+      return true;
+    }
+
+    bool split(uint64_t node) {
+      if (!nodes.isUsed(node)) {
+        return false;
+      }
+
+      if (nodes[node].split) {
+        return false;
+      }
+
+      uint64_t childNodes[] = {
+        (uint64_t)nodes.emplace(),
+        (uint64_t)nodes.emplace(),
+        (uint64_t)nodes.emplace(),
+        (uint64_t)nodes.emplace(),
+      };
+      std::memcpy(nodes[node].children, childNodes, sizeof(childNodes));
+      auto & parent = nodes[node];
+      parent.split = true;
+
+      for (uint8_t i = 0; i < 4; ++i) {
+        nodes[parent.children[i]].coord = parent.child(i);
+      }
+      return true;
+    }
+
+    void forLeaves(std::function<void(Node const &)> const & cb) {
+      for (auto& node : nodes) {
+        if (!node.split) {
+          cb(node);
+        }
+      }
+    }
+
+  private:
+    bool isSplit(uint64_t node) {
+      return nodes[node].split;
+    }
+
+    bool insert(bfc::Vec3u64 const & coord, uint64_t root) {
+      const int64_t diff = coord.z - nodes[root].coord.z;
+      if (diff <= 0)
+        return nodes[root].coord == coord;
+
+      split(root);
+
+      const auto    childCoord = bfc::Vec2u64(coord) / uint64_t(1ull << (diff - 1));
+      const auto    localCoord = childCoord - bfc::Vec2u64(nodes[root].child(0));
+      const int64_t childIndex = localCoord.y * 2 + localCoord.x;
+
+      return insert(coord, nodes[root].children[childIndex]);
+    }
+
+    bfc::Pool<Node> nodes;
+  };
+
+  struct ProceduralTerrainRenderable {
+    bfc::Mat4d transform;
+    uint32_t   seed      = 0;
+    float      scale     = 1;
+    float      minHeight = 0;
+    float      maxHeight = 5;
+    double     radius    = 0;
+
+    float      frequency = 1.0f;
+    uint32_t   octaves   = 6;
+    float      persistance = 0.5f;
+    float      lacurnarity = 2.0f;
+  };
+
+  class ProceduralTerrainFeatureRenderer : public engine::FeatureRenderer {
+  public:
+    static constexpr int64_t TerrainBufferBindPoint = 4; // TODO: Register these with shader compiler. Shader compiler should provide the bind points.
+
+    struct TerrainUBO {
+      bfc::Mat4 sampleTransform  = glm::identity<bfc::Mat4d>();
+      bfc::Vec2 sampleOffset = { 0, 0 };
+      float     sampleSize     = 1.0f;
+
+      uint32_t  seed = 0;
+      float     minHeight = 0;
+      float     maxHeight = 5;
+
+      // This stuff is probably going to be configured based on biome
+      float     scale = 1;
+      float     frequency;
+      uint32_t  octaves;
+      float     persistance;
+      float     lacurnarity;
+    };
+
+    ProceduralTerrainFeatureRenderer(engine::AssetManager *pAssetManager)
+      : m_terrainShader(pAssetManager, bfc::URI::File("engine:shaders/terrain/procedural-terrain.shader"))
+      , m_quad(pAssetManager, bfc::URI::File("engine:models/primitives/plane.obj")) {}
+
+    virtual void onResize(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, bfc::Vec2i const & size) {
+
+    }
+
+    virtual void beginFrame(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, bfc::Vector<engine::RenderView> const & views) {
+      for (const auto & view : views) {
+        view.getCameraFrustum();
+      }
+    }
+
+    virtual void beginView(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) override {
+
+    }
+
+    virtual void renderView(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) override {
+      auto pGBuffer = pRenderer->getResource<bfc::graphics::RenderTarget>(engine::DeferredRenderer::Resources::gbuffer);
+
+      // TODO: Bind the gbuffer as the render target before rendering.
+      //       How do I get the gbuffer target from the renderer?
+      // pCmdList->bindRenderTarget(m_pGBuffer->getRenderTarget());
+
+      bfc::graphics::StateManager * pState = pRenderer->getGraphicsDevice()->getStateManager();
+      pCmdList->pushState(bfc::graphics::State::EnableDepthRead{true}, bfc::graphics::State::EnableDepthWrite{true}, bfc::graphics::State::EnableBlend{false});
+
+      auto const & terrains = view.pRenderData->renderables<ProceduralTerrainRenderable>();
+      pCmdList->bindRenderTarget(pGBuffer);
+      pCmdList->bindProgram(m_terrainShader);
+      pCmdList->bindVertexArray(m_quad->getVertexArray());
+      pCmdList->bindUniformBuffer(m_terrainUBO, TerrainBufferBindPoint);
+      pCmdList->bindUniformBuffer(m_modelUBO, bfc::renderer::BufferBinding_ModelBuffer);
+
+      for (auto const & terrain : terrains) {
+        for (bfc::Mat4d const & side : faceTransforms) {
+          auto camPos                  = view.getCameraPosition();
+          auto terrainInverseTransform = glm::inverse(terrain.transform * side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)));
+          auto cameraTerrainSpace      = bfc::Vec3d(terrainInverseTransform * bfc::Vec4d(view.getCameraPosition(), 1));
+          std::swap(cameraTerrainSpace.y, cameraTerrainSpace.z);
+
+          QuadTree tree;
+          tree.trySplit(
+            [&](QuadTree::Node const & node) {
+              if (node.coord.z >= 20)
+                return false;
+              const double sz     = node.size();
+              const double halfSz = sz / 2;
+              const auto   center = bfc::Vec3d(node.coord.x, node.coord.y, 0) * sz + bfc::Vec3d(halfSz, halfSz, 0);
+              const double dist2  = glm::length2(center - cameraTerrainSpace);
+              return dist2 < sz * sz * 1.5 * 1.5;
+            },
+            0, true);
+
+          tree.forLeaves([&](QuadTree::Node const & node) {
+            const double     size      = node.size();
+            const bfc::Vec3d tileCoord = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
+            const bfc::Mat4d sampleTransform = side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)) * glm::translate(tileCoord) *
+                                               glm::scale(bfc::Vec3d(size, 1, size)) * glm::translate(bfc::Vec3d(0.5, 0, 0.5));
+            // const bfc::Mat4d tileTransform   = terrain.transform * sampleTransform;
+
+            m_modelUBO.data.modelMatrix  = terrain.transform;
+            m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(terrain.transform);
+            m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(terrain.transform, view.getViewProjectionMatrix());
+
+            m_terrainUBO.data.sampleTransform = sampleTransform;
+            m_terrainUBO.data.sampleOffset  = {tileCoord.x, tileCoord.z};
+            m_terrainUBO.data.sampleSize    = (float)node.size();
+            m_terrainUBO.data.seed          = terrain.seed;
+            m_terrainUBO.data.scale         = terrain.scale;
+            m_terrainUBO.data.maxHeight     = terrain.maxHeight;
+            m_terrainUBO.data.minHeight     = terrain.minHeight;
+            m_terrainUBO.data.frequency     = terrain.frequency;
+            m_terrainUBO.data.octaves       = terrain.octaves;
+            m_terrainUBO.data.persistance   = terrain.persistance;
+            m_terrainUBO.data.lacurnarity   = terrain.lacurnarity;
+
+            m_modelUBO.upload(pCmdList);
+            m_terrainUBO.upload(pCmdList);
+            pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
+          });
+        }
+      }
+
+      pCmdList->bindRenderTarget(view.renderTarget);
+      pCmdList->popState();
+    }
+
+    virtual void endView(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) override {
+
+    }
+
+  private:
+    engine::Asset<bfc::graphics::Program>       m_terrainShader;
+    engine::Asset<bfc::Mesh>                    m_quad;
+    bfc::graphics::StructuredBuffer<TerrainUBO> m_terrainUBO;
+    bfc::graphics::StructuredBuffer<bfc::renderer::ModelBuffer> m_modelUBO;
+  };
+
+  class ProceduralTerrainRenderingExtension : public engine::IRenderingExtension {
+  public:
+    ProceduralTerrainRenderingExtension(bfc::Ref<engine::AssetManager> const & pAssets)
+      : m_pAssets(pAssets) {}
+
+    virtual void apply(engine::Renderer * pRenderer) override {
+      pRenderer->addFeature<ProceduralTerrainFeatureRenderer>(engine::DeferredRenderer::Phase::Base::mesh, m_pAssets.get());
+    }
+
+    bfc::Ref<engine::AssetManager> m_pAssets;
+  };
+}
+
+ProceduralTerrainSystem::ProceduralTerrainSystem(bfc::Ref<engine::Rendering> const & pRendering, bfc::Ref<engine::AssetManager> const & pAssets) {
+  pRendering->registerExtension(bfc::NewRef<ProceduralTerrainRenderingExtension>(pAssets));
+}
+
+void ProceduralTerrainSystem::update(engine::Level * pLevel, bfc::Timestamp dt) {
+
+}
+
+void ProceduralTerrainSystem::play(engine::Level * pLevel) {
+
+}
+
+void ProceduralTerrainSystem::pause(engine::Level * pLevel) {
+
+}
+
+void ProceduralTerrainSystem::stop(engine::Level * pLevel) {
+
+}
+
+void ProceduralTerrainSystem::collectRenderData(engine::RenderView * pRenderView, engine::Level const * pLevel) {
+  engine::RenderData & renderData = *pRenderView->pRenderData;
+  auto &               terrains     = renderData.renderables<ProceduralTerrainRenderable>();
+
+  for (auto const & [transform, planet] : pLevel->getView<components::Transform, components::ProceduralPlanet>()) {
+    ProceduralTerrainRenderable renderable;
+    renderable.transform   = transform.globalTransform(pLevel);
+    renderable.seed        = planet.seed;
+    renderable.minHeight   = planet.minHeight;
+    renderable.maxHeight   = planet.maxHeight;
+    renderable.scale       = planet.scale;
+    renderable.radius      = planet.radius;
+    renderable.frequency   = planet.frequency;
+    renderable.octaves     = planet.octaves;
+    renderable.persistance = planet.persistance;
+    renderable.lacurnarity = planet.lacurnarity;
+    terrains.pushBack(renderable);
+  }
+}

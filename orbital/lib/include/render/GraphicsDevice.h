@@ -662,6 +662,11 @@ namespace bfc {
       /// Should only be called from a render thread.
       virtual void execute() const = 0;
 
+      /// Set the name of the command list for debugging.
+      virtual void setDebugName(StringView const & name) = 0;
+      /// Add a tag into the command stream for debugging.
+      virtual void addDebugTag(StringView const & tag) = 0;
+
       // Pipeline state
       virtual void bindProgram(ProgramRef programID)                                                                    = 0;
       virtual void bindVertexArray(VertexArrayRef vertexArrayID)                                                        = 0;

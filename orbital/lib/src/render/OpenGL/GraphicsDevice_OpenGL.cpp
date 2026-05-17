@@ -610,6 +610,20 @@ namespace bfc {
       m_commandBuffer.execute(m_pDevice);
     }
 
+    void CommandList_OpenGL::setDebugName(StringView const& name) {
+      m_debugName = name;
+    }
+
+    void CommandList_OpenGL::addDebugTag(StringView const& tag) {
+      struct DebugTag
+      {
+        char        tag[64];
+        static void execute(DebugTag const *, GraphicsDevice *, impl::CommandBuffer const *) {}
+      } cmd;
+      std::memcpy(cmd.tag, tag.data(), bfc::math::min(tag.length(), (int64_t)sizeof(cmd.tag)));
+      add(cmd);
+    }
+
     void CommandList_OpenGL::bindProgram(ProgramRef programID) {
       impl::OpenGL::BindProgram cmd;
       cmd.pProgram = &ToGL(programID);
