@@ -5,12 +5,10 @@
 
 // TODO: These could be defined by the application compiling
 //       the shader.
-#define BND_UBO_Terrain 4
+#define BND_UBO_Terrain     4
+#define BND_UBO_TerrainTile 5
 
 layout(std140, binding=BND_UBO_Terrain) uniform Terrain {
-  mat4  sampleTransform;
-  vec2  sampleOffset;
-  float sampleSize;
   uint  seed;
   float minHeight;
   float maxHeight;
@@ -21,26 +19,14 @@ layout(std140, binding=BND_UBO_Terrain) uniform Terrain {
   float lacurnarity;
 } terrain;
 
-float sampleTerrain(vec2 uv) {
-  float noise = perlinNoise(
-    abs((terrain.sampleOffset + uv * terrain.sampleSize) * terrain.scale),
-    terrain.frequency,
-    terrain.octaves,
-    terrain.persistance,
-    terrain.lacurnarity,
-    terrain.seed); // multiple octaves
-  return (noise + 1.0) * 0.5; // convert from range [-1, 1] to range [0, 1]
-}
-
-float sampleTerrainHeight(vec2 uv) {
-  float noise = sampleTerrain(uv);
-
-  return terrain.minHeight + noise * (terrain.maxHeight - terrain.minHeight);
-}
+layout(std140, binding=BND_UBO_TerrainTile) uniform TerrainTile {
+  mat4  sampleTransform;
+  float tileSize;
+} terrainTile;
 
 float sampleTerrain(vec3 coord) {
   float noise = perlinNoise(
-    abs((vec3(terrain.sampleOffset, 0) + coord * terrain.sampleSize) * terrain.scale),
+    (coord + vec3(2)) * terrain.scale,
     terrain.frequency,
     terrain.octaves,
     terrain.persistance,

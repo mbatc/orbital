@@ -101,6 +101,9 @@ namespace bfc {
     /// Resolve a relative URI reference.
     URI resolveRelativeReference(URI const & reference, bool strict = false) const;
 
+    /// Calculate the path of this uri, relative to `base`
+    URI relativeTo(URI const & base) const;
+
   private:
     URI replacePartPrefixed(StringView const & section, StringView const & replace, StringView const & prefixOnEmpty) const;
     URI replacePartSuffixed(StringView const & section, StringView const & replace, StringView const & suffixOnEmpty) const;

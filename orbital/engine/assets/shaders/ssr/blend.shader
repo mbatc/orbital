@@ -1,5 +1,5 @@
 src:
-  vert:
-    file: ../general/fullscreen.vert
-  frag:
-    file: blend.frag 
+- key: vert
+  value: ../general/fullscreen.vert
+- key: frag
+  value: blend.frag

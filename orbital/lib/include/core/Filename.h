@@ -39,6 +39,8 @@ namespace bfc {
 
     Filename addPrefix(StringView const & prefix) const;
 
+    Filename relativeTo(Filename const & base) const;
+
     bool isNetworkPath() const;
     bool isAbsolutePath() const;
     static bool isAbsolutePath(StringView const & path);

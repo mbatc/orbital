@@ -80,6 +80,13 @@ namespace engine {
     return m_phases[phase][index];
   }
 
+  int64_t Renderer::ensurePhase(bfc::StringView const & name) {
+    if (m_phases.tryAdd(name, {})) {
+      m_phaseOrder.pushBack(name);
+    }
+    return m_phaseOrder.size() - 1;
+  }
+
   bfc::Span<bfc::String> Renderer::getPhaseOrder() const {
     return m_phaseOrder.getView();
   }
@@ -145,6 +152,10 @@ namespace engine {
         pFeature->endFrame(pCmdList, this, views);
       }
     }
+  }
+
+  bfc::Vector<bfc::String> Renderer::listResources() const {
+    return m_resources.getKeys();
   }
 
   GraphicsDevice * Renderer::getGraphicsDevice() const {

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Editor/LevelEditor.h"
-#include "Systems/ProceduralTerrain.h"
+#include "Systems/ProceduralPlanet.h"
 
 class ProceduralPlanetEditor : public engine::LevelEditor::ComponentEditor<components::ProceduralPlanet> {
 public:

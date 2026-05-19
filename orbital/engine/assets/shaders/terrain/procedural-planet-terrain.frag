@@ -16,20 +16,20 @@ void main()
   normal = texture(normalMap, vsout_uv0).rgb;
   normal = normal * 2.0 - 1.0;
   normal = normalize(vsout_tbnMat0 * normal);
-  
+
   float h = sampleTerrainHeight(vsout_samplePosition0);
 
-  if (h < 0.505) {
+  if (h < 0.001) {
     gbuffer_SetColour(vec4(vec3(1, 1, 0.3), 1));
-  } else if (h > 0.9) {
+  } else if (h > 0.025) {
     gbuffer_SetColour(vec4(vec3(1, 1, 1), 1));
   } else {
     gbuffer_SetColour(vec4(vec3(0.3, 1, 0.3), 1));
   }
-  // gbuffer_SetColour(vec4(normal, 1));
+
   gbuffer_SetAmbient(texture2D(ambientMap, vsout_uv0) * ambient);
-  gbuffer_SetPosition(vec4(vsout_position0, 1));
-  gbuffer_SetNormal(vec4(normal / 2 + vec3(0.5), 1));
+  gbuffer_SetPosition(vsout_position0);
+  gbuffer_SetNormal(normal);
   gbuffer_SetRMAO(vec4(
     roughness * texture2D(roughnessMap, vsout_uv0).x,
     metalness * texture2D(metalnessMap, vsout_uv0).x,

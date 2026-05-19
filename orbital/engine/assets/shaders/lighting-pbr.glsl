@@ -110,7 +110,7 @@ vec3 FresnelSchlick(float cosTheta, vec3 F0) {
     return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
-vec3 CalcLighting(vec3 colour, vec3 lightDirection, float attenuation, vec3 viewDirection, vec3 F0, vec3 albedo, vec3 normal, float roughness, float metalness) {    
+vec3 CalcLighting(vec3 colour, vec3 lightDirection, float attenuation, vec3 viewDirection, vec3 F0, vec3 albedo, vec3 normal, float roughness, float metalness) {
   // Calculate radiance
   vec3 halfway  = normalize(viewDirection + lightDirection);
   vec3 radiance = colour * attenuation;

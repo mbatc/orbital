@@ -1,0 +1,93 @@
+entities:
+  - uuid: 41f97534-3288-49c6-8bcb-692211c39996
+    components:
+      name: Environment
+      skybox:
+        texture:
+          uri: file:game:skybox/nebula.skybox
+      transform:
+        translation:
+          - 0
+          - 0
+          - 0
+        ypr:
+          - -45.000000000000028
+          - 45.000000000000028
+          - 4.4979835663949474e-15
+        scale:
+          - 1
+          - 1
+          - 1
+        parent: ~
+      light:
+        type: sun
+        colour:
+          - 0.97015571594238281
+          - 1
+          - 0.66176474094390869
+        ambient:
+          - 0
+          - 0
+          - 0
+        attenuation:
+          - 0
+          - 0
+          - 1
+        strength: 5
+        innerConeAngle: 30.000001907348633
+        outerConeAngle: 35
+        castShadows: 1
+  - uuid: df92936c-f60e-4678-ae86-99d7f8939d9a
+    components:
+      name: Planet
+      transform:
+        translation:
+          - 0
+          - 0
+          - 0
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 1
+          - 1
+          - 1
+        parent: ~
+      procedural-planet:
+        seed: 2523052544
+        scale: 1
+        minHeight: -0.067264996469020844
+        maxHeight: 0.058295998722314835
+        radius: 10
+        frequency: 1
+        octaves: 7
+        persistance: 0.63228702545166016
+        lacurnarity: 2
+  - uuid: 1640f207-607b-4c22-9665-be843b9c299d
+    components:
+      post-process-volume:
+        enabled: 1
+        extents:
+          min:
+            - -5
+            - -5
+            - -5
+          max:
+            - 5
+            - 5
+            - 5
+        infinite: 1
+        effects: 0
+      post-process-bloom:
+        filterRadius: 0.004999999888241291
+        strength: 0.039999999105930328
+        threshold: 0.25
+        dirtIntensity: 1
+        dirt:
+          uri: file:engine:/textures/terrain/rough_stone_tiles.jpg
+      post-process-ssr:
+        maxDistance: 1
+        resolution: 0.30000001192092896
+        steps: 10
+        thickness: 0.5

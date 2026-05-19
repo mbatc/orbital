@@ -64,6 +64,17 @@ namespace engine {
     return virtualDriveTarget.resolveRelativeReference(relativeURI, false);
   }
 
+  bfc::URI VirtualFileSystem::toVirtualUri(bfc::URI const & uri) const {
+    for (auto & [drive, root] : m_drives) {
+      bfc::URI      relativeUri  = uri.relativeTo(root);
+      bfc::Filename relativePath = relativeUri.path();
+      if (relativePath.isAbsolutePath() || relativePath.path().startsWith("../"))
+        continue;
+      return relativeUri.withPath(String::format("%s:%s", drive, relativePath));
+    }
+    return uri;
+  }
+
   bool VirtualFileSystem::read(URI const & resource, Vector<uint8_t> * pContent, bool binary) const {
     const int64_t readSize = 32 * 1024 * 1024ll;
     auto          pStream  = open(resource, binary ? FileMode_ReadBinary : FileMode_Read);

@@ -118,9 +118,7 @@ namespace engine {
     template<typename T, typename... Args>
     T * addFeature(bfc::StringView const & phase, Args... args) {
       T * pRenderer = new T(args...);
-      if (m_phases.tryAdd(phase, {})) {
-        m_phaseOrder.pushBack(phase);
-      }
+      ensurePhase(phase);
       m_phases[phase].pushBack(pRenderer);
       m_added.pushBack(pRenderer);
       return pRenderer;
@@ -149,6 +147,10 @@ namespace engine {
 
     /// Get a feature in the renderer.
     FeatureRenderer * getFeature(bfc::StringView const & phase, int64_t index) const;
+
+    /// Add a phase to the renderer if it does not exist.
+    /// Added to the end of the current phase-order.
+    int64_t ensurePhase(bfc::StringView const & name);
 
     /// Get the order that the phases are rendered in.
     bfc::Span<bfc::String> getPhaseOrder() const;
@@ -179,7 +181,7 @@ namespace engine {
     }
 
     /// Get the available resource names
-    bfc::Span<bfc::StringView> listResources() const;
+    bfc::Vector<bfc::String> listResources() const;
 
     /// Get the renderers graphics device.
     bfc::GraphicsDevice * getGraphicsDevice() const;

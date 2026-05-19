@@ -20,14 +20,14 @@ void gbuffer_SetAmbient(vec4 color)
   gbuffer_output[GBUFFER_AMBIENT] = color;
 }
 
-void gbuffer_SetPosition(vec4 position)
+void gbuffer_SetPosition(vec3 position)
 {
-  gbuffer_output[GBUFFER_POSITION] = position;
+  gbuffer_output[GBUFFER_POSITION] = vec4(position, 1);
 }
 
-void gbuffer_SetNormal(vec4 nrm)
+void gbuffer_SetNormal(vec3 nrm)
 {
-  gbuffer_output[GBUFFER_NORMAL] = nrm;
+  gbuffer_output[GBUFFER_NORMAL] = vec4(nrm / 2 + vec3(0.5), 1);
 }
 
 void gbuffer_SetRMAO(vec4 rmao)

@@ -504,10 +504,10 @@ namespace engine {
   public:
     Feature_SSR(AssetManager * pAssets, PostProcessingStack * pPPS)
       : m_pPPS(pPPS) {
-      programs.calculateReflections.assign(pAssets, URI::File("engine:shaders/ssr/calculate"));
-      programs.blendReflections.assign(pAssets, URI::File("engine:shaders/ssr/blend"));
-      programs.upsampler.assign(pAssets, URI::File("engine:shaders/bloom/upsample"));
-      programs.downsampler.assign(pAssets, URI::File("engine:shaders/bloom/downsample"));
+      programs.calculateReflections.assign(pAssets, URI::File("engine:shaders/ssr/calculate.shader"));
+      programs.blendReflections.assign(pAssets, URI::File("engine:shaders/ssr/blend.shader"));
+      programs.upsampler.assign(pAssets, URI::File("engine:shaders/bloom/upsample.shader"));
+      programs.downsampler.assign(pAssets, URI::File("engine:shaders/bloom/downsample.shader"));
     }
 
     virtual void onAdded(graphics::CommandList * pCmdList, Renderer * pRenderer) override {
@@ -613,10 +613,10 @@ namespace engine {
   public:
     Feature_Bloom(AssetManager * pAssets, PostProcessingStack * pPPS, int64_t mipChainSize = 5)
       : m_pPPS(pPPS)
-      , m_upsampler(pAssets, URI::File("engine:shaders/bloom/upsample"))
-      , m_downsampler(pAssets, URI::File("engine:shaders/bloom/downsample"))
-      , m_blendBloom(pAssets, URI::File("engine:shaders/bloom/mix"))
-      , m_prefilter(pAssets, URI::File("engine:shaders/bloom/prefilter")) {
+      , m_upsampler(pAssets, URI::File("engine:shaders/bloom/upsample.shader"))
+      , m_downsampler(pAssets, URI::File("engine:shaders/bloom/downsample.shader"))
+      , m_blendBloom(pAssets, URI::File("engine:shaders/bloom/mix.shader"))
+      , m_prefilter(pAssets, URI::File("engine:shaders/bloom/prefilter.shader")) {
       m_mipChain.resize(mipChainSize);
       m_mipChainSize = mipChainSize;
     }
@@ -836,16 +836,21 @@ namespace engine {
     setResource(Resources::gbuffer,          &m_gbuffer);
     setResource(Resources::gbuffer,          m_gbuffer.getRenderTarget());
     setResource(Resources::postProcessStack, &m_postProc);
+    setResource(Resources::defaultMaterial,  &m_defaultMaterial);
 
     // Add renderer features
-    addFeature<Feature_MeshBasePass>(Phase::Base::mesh, pAssets, &m_gbuffer, &m_modelData);
+    addFeature<Feature_MeshBasePass>(Phase::Base::Mesh::opaque, pAssets, &m_gbuffer, &m_modelData);
+    ensurePhase(Phase::Base::Mesh::transparent);
+
     addFeature<Feature_LightingPass>(Phase::lighting, pCmdList, pAssets, &m_gbuffer, &m_finalTarget, &m_modelData);
     addFeature<Feature_Skybox>(Phase::skybox, pAssets, &m_finalTarget);
+    ensurePhase(Phase::prePostProcess);
     addFeature<Feature_SSAO>(Phase::postProcess, pAssets, &m_postProc);
     addFeature<Feature_SSR>(Phase::postProcess, pAssets, &m_postProc);
     addFeature<Feature_Bloom>(Phase::postProcess, pAssets, &m_postProc);
     addFeature<Feature_Exposure>(Phase::postProcess, pAssets, &m_postProc);
     addFeature<Feature_PostProcess>(Phase::postProcess, pAssets, &m_postProc, &m_gbuffer, &m_finalColourTarget);
+    ensurePhase(Phase::postPostProcess);
   }
 
   graphics::RenderTargetRef DeferredRenderer::getFinalTarget() const {
@@ -870,6 +875,11 @@ namespace engine {
   void DeferredRenderer::render(graphics::CommandList * pCmdList, Vector<RenderView> const & views) {
     pCmdList->bindUniformBuffer(m_cameraData, renderer::BufferBinding_CameraBuffer);
     pCmdList->bindUniformBuffer(m_modelData, renderer::BufferBinding_ModelBuffer);
+    pCmdList->bindUniformBuffer(m_defaultMaterial, renderer::BufferBinding_PBRMaterial);
+    for (auto & [i, texture] : enumerate(m_defaultMaterialTextures)) {
+      pCmdList->bindTexture(texture, Material::TextureBindPointBase + i);
+    }
+
     m_postProc.reset();
 
     Renderer::render(pCmdList, views);

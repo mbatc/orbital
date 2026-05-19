@@ -270,6 +270,28 @@ namespace bfc {
       return String::format("%.*s.%.*s", prefix.length(), prefix.data(), nm.length(), nm.data());
   }
 
+  Filename Filename::relativeTo(Filename const & base) const {
+    if (base.drive() != drive())
+      return *this;
+
+    Filename           baseDirect = base.getDirect();
+    Filename           pathDirect = getDirect();
+    Vector<StringView> baseNames  = baseDirect.path().split("/", true);
+    Vector<StringView> pathNames  = pathDirect.path().split("/", true);
+
+    while (!(baseNames.empty() || pathNames.empty()) && baseNames.front() == pathNames.front()) {
+      baseNames.popFront();
+      pathNames.popFront();
+    }
+
+    Filename result;
+    for (auto & name : baseNames)
+      result /= "..";
+    for (auto & name : pathNames)
+      result /= name;
+    return result;
+  }
+
   Filename Filename::addSuffix(StringView const & suffix) const {
     StringView base = path(false);
     StringView ext  = extension();

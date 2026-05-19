@@ -41,6 +41,9 @@ namespace engine {
     /// Resolve any virtual drives in a URI to the full target path.
     bfc::URI resolveUri(bfc::URI const & uri) const;
 
+    /// Convert the URI to a virtual path, if it is contained in one of the mounted drives.
+    bfc::URI toVirtualUri(bfc::URI const & uri) const;
+
     /// Read a binary file.
     bool read(bfc::URI const & resource, bfc::Vector<uint8_t> * pContent, bool binary = true) const;
 

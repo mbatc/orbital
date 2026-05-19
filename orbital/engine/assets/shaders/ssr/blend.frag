@@ -1,11 +1,14 @@
 #version 430
 
-#include "../common.h.glsl"
-#include "../postprocessinput.h.glsl"
-#include "../lighting-pbr.h.glsl"
+#include "../common.glsl"
+#include "../postprocessinput.glsl"
+#include "../lighting-pbr.glsl"
 
 in vec2 vsout_uv0;
 in vec3 vsout_position0;
+
+layout (binding=7) uniform sampler2D reflectionUV;
+layout (binding=8) uniform sampler2D blurredSceneColourTex;
 
 out vec4 fragColour;
 
@@ -29,7 +32,7 @@ void main() {
   vec3 F0 = vec3(0.04); 
   F0 = mix(F0, base, metalness);
 
-  vec3 F   = FresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
+  vec3 F   = FresnelSchlick(max(dot(N, V), 0.0), F0);
   // vec2 brdf  = texture(BRDFLut, vec2(max(dot(N, V), 0.0), roughness)).rg;
   vec2 brdf = vec2(1, 0);
 

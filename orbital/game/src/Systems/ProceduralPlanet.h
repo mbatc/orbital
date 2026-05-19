@@ -29,6 +29,15 @@ namespace components {
     float    persistance = 0.5f;
     float    lacurnarity = 2.0f;
   };
+
+  // struct PlanetWater {
+  //   double radius = 1;
+  //   bfc::Colour<bfc::RGBu8> tint;
+  // };
+  // 
+  // struct PlanetAtmosphere {
+  // 
+  // };
 } // namespace components
 
 class ProceduralTerrainSystem

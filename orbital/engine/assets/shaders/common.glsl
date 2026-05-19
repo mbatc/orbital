@@ -31,4 +31,12 @@ layout(std140, binding=BND_UBO_Model) uniform Model {
   mat4 mvpMatrix;
 };
 
+vec3 rotateAxis(vec3 p, vec3 axis, float angle) {
+  return mix(dot(axis, p) * axis, p, cos(angle)) + cross(axis, p) * sin(angle);
+}
+
+vec3 getCameraPosition() {
+  return invViewMatrix[3].xyz;
+}
+
 #endif // COMMON_GLSL

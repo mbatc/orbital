@@ -15,7 +15,7 @@ namespace bfc {
     graphics::loadTexture2D<RGBAu8>(pCmdList, &m_target[GBufferTarget_BaseColour], size);
     graphics::loadTexture2D(pCmdList, &m_target[GBufferTarget_AmbientColour], size, PixelFormat_RGBAf16);
     graphics::loadTexture2D<RGBAf32>(pCmdList, &m_target[GBufferTarget_Position], size);
-    graphics::loadTexture2D<RGBAu8>(pCmdList, &m_target[GBufferTarget_Normal], size);
+    graphics::loadTexture2D<RGBAf32>(pCmdList, &m_target[GBufferTarget_Normal], size);
     graphics::loadTexture2D<RGBAu8>(pCmdList, &m_target[GBufferTarget_RMA], size);
     graphics::loadTexture2D(pCmdList, &m_depthTarget, size, DepthStencilFormat_D24S8);
     m_resolution = size;

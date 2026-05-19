@@ -22,16 +22,22 @@ namespace engine {
   public:
     struct Phase {
       struct Base {
-        inline static const bfc::StringView mesh = "base.mesh";
+        struct Mesh {
+          inline static const bfc::StringView opaque      = "base.mesh.opaque";
+          inline static const bfc::StringView transparent = "base.mesh.transparent";
+        };
       };
-      inline static const bfc::StringView lighting = "lighting";
-      inline static const bfc::StringView skybox = "skybox";
-      inline static const bfc::StringView postProcess = "post-process";
+      inline static const bfc::StringView lighting        = "lighting";
+      inline static const bfc::StringView skybox          = "skybox";
+      inline static const bfc::StringView prePostProcess  = "pre-post-process";
+      inline static const bfc::StringView postProcess     = "post-process";
+      inline static const bfc::StringView postPostProcess = "post-post-process";
     };
 
     struct Resources {
-      inline static bfc::StringView gbuffer = "gbuffer";
-      inline static bfc::StringView postProcessStack = "post-process-stack";
+      inline static const bfc::StringView defaultMaterial  = "default-material";
+      inline static const bfc::StringView gbuffer          = "gbuffer";
+      inline static const bfc::StringView postProcessStack = "post-process-stack";
     };
 
     DeferredRenderer(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets);

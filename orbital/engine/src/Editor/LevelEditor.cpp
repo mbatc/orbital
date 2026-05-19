@@ -26,9 +26,10 @@ namespace engine {
     : Subsystem(TypeID<LevelEditor>(), "LevelEditor") {}
 
   bool LevelEditor::init(Application * pApp) {
-    auto pAssets    = pApp->findSubsystem<AssetManager>();
-    auto pRendering = pApp->findSubsystem<Rendering>();
-    auto pLevels    = pApp->findSubsystem<LevelManager>();
+    auto pAssets     = pApp->findSubsystem<AssetManager>();
+    auto pRendering  = pApp->findSubsystem<Rendering>();
+    auto pLevels     = pApp->findSubsystem<LevelManager>();
+    auto pFileSystem = pApp->findSubsystem<VirtualFileSystem>();
 
     Ref<Input> pInputs = pApp->findSubsystem<Input>();
 
@@ -56,10 +57,11 @@ namespace engine {
       sun.colour              = {0.7f, 0.7f, 0.7f};
       sun.castShadows         = true;
 
+      pLevels->setActiveLevel(pNewLevel);
       pLevels->save(levelPath, *pNewLevel);
+    } else {
+      pLevels->setActiveLevel(pLevels->load(settings.startupLevel.get()));
     }
-
-    pLevels->setActiveLevel(pLevels->load(settings.startupLevel.get()));
     
     // Create an editor viewport and render the active level.
     {
@@ -77,16 +79,18 @@ namespace engine {
     m_pViewportListener = m_pEditorViewport->getEvents()->addListener();
     m_pViewportListener->on([=](bfc::events::DroppedFiles const & e) {
       for (Filename const & file : e.files) {
-        BFC_LOG_INFO("LevelEditor", "File dropped. Path=%s", file);
+        bfc::URI const virtualUri = pFileSystem->toVirtualUri(URI::File(file));
+
+        BFC_LOG_INFO("LevelEditor", "File dropped. URI=%s", virtualUri);
 
         if (file.extension().equals("level", true)) {
-          pLevels->setActiveLevel(pLevels->load(URI::File(file)));
+          pLevels->setActiveLevel(pLevels->load(virtualUri));
 
           if (pLevels->getSimulateState() == SimulateState_Stopped) {
-            settings.startupLevel.set(URI::File(file));
+            settings.startupLevel.set(virtualUri);
           }
         } else {
-          pLevels->Import(pLevels->getActiveLevel().get(), URI::File(file));
+          pLevels->Import(pLevels->getActiveLevel().get(), virtualUri);
         }
       }
     });

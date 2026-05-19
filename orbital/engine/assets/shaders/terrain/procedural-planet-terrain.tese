@@ -29,21 +29,26 @@ void main()
     tcsout_uv0[1] * gl_TessCoord.y +
     tcsout_uv0[2] * gl_TessCoord.z;
     
-  vec3 samplePosition = normalize(vec3(terrain.sampleTransform * vec4(position, 1)));
-  vec3 up = samplePosition;
+  vec3 samplePosition = normalize(vec3(terrainTile.sampleTransform * vec4(position, 1)));
+  vec3 up     = samplePosition;
+  vec3 right  = cross(up, vec3(0, 1, 0));
+  vec3 fwd    = cross(up, right);
 
   float h = sampleTerrainHeight(samplePosition);
-  vec3 displaced = samplePosition + samplePosition * h;
+  float d = 0.001 * terrainTile.tileSize;
+  vec3 rightSamplePosition = normalize(samplePosition + right * d);
+  vec3 fwdSamplePosition   = normalize(samplePosition + fwd * d);
+  float dx = sampleTerrainHeight(rightSamplePosition);
+  float dy = sampleTerrainHeight(fwdSamplePosition);
 
-  float d = 1.0 / gl_TessLevelOuter[0];
-  float dx = sampleTerrainHeight(vsout_uv0 + vec2(d, 0));
-  float dy = sampleTerrainHeight(vsout_uv0 + vec2(0, d));
+  vec3 displaced = samplePosition + up * h;
+
   vec3 normal = up;
-  // normalize(
-  //   cross(
-  //     displaced - (position + vec3(0, 0, d) + up * dy),
-  //     displaced - (position + vec3(d, 0, 0) + up * dx)
-  //   ));
+  normal = normalize(
+    cross(
+      displaced - (rightSamplePosition + rightSamplePosition * dx),
+      displaced - (fwdSamplePosition + fwdSamplePosition * dy)
+    ));
 
   vec3 tangent = normalize(
     tcsout_tangent0[0] * gl_TessCoord.x +

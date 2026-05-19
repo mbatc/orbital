@@ -2,5 +2,5 @@
 src:
   - key: vert
     value: ../general/fullscreen.vert
-  - key:
+  - key: frag
     value: mix.frag

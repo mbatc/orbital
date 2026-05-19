@@ -241,7 +241,7 @@ namespace bfc {
     Vector<uint8_t> data;
     if (!readUntilEof(openURI(uri, FileMode_Read).get(), &data))
       return false;
-    if (data.back() != 0)
+    if (data.size() == 0 || data.back() != 0)
       data.pushBack(0);
     *pContent = String(std::move((Vector<char>&)data));
     return true;

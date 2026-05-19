@@ -12,9 +12,9 @@ void main() {
   // Sample GBuffers
   vec3 base     = texture2D(G_BaseColour, vsout_uv0).xyz;
   vec3 position = texture2D(G_Position, vsout_uv0).xyz;
+  vec3 emissive = texture2D(G_Ambient, vsout_uv0).xyz;
   vec3 rma      = texture2D(G_RMA, vsout_uv0).xyz;
-  vec3 normal   = normalize(2 * (texture2D(G_Normal, vsout_uv0).xyz - vec3(0.5)));
-
+  vec3 normal   = 2 * (texture2D(G_Normal, vsout_uv0).xyz - vec3(0.5));
   float roughness = rma.x;
   float metalness = rma.y;
   float ao        = rma.z;
@@ -92,7 +92,7 @@ void main() {
     Lo += lighting * shadowing;
   }
 
-  vec3 ambient = ambientLight * base * ao;
+  vec3 ambient = ambientLight * base * ao + emissive;
   vec3 color   = ambient + Lo;
   fragColour = vec4(color, 1);
 }

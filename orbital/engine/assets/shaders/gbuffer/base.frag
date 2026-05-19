@@ -16,8 +16,8 @@ void main()
 
   gbuffer_SetColour(texture2D(baseColourMap, vsout_uv0) * albedo);
   gbuffer_SetAmbient(texture2D(ambientMap, vsout_uv0) * ambient);
-  gbuffer_SetPosition(vec4(vsout_position0, 1));
-  gbuffer_SetNormal(vec4(normal / 2 + vec3(0.5), 1));
+  gbuffer_SetPosition(vsout_position0);
+  gbuffer_SetNormal(normal);
   gbuffer_SetRMAO(vec4(
     roughness * texture2D(roughnessMap, vsout_uv0).x,
     metalness * texture2D(metalnessMap, vsout_uv0).x,

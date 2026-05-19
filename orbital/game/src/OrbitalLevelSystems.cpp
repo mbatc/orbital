@@ -1,6 +1,6 @@
 #include "OrbitalLevelSystems.h"
 #include "Systems/PlayerControl.h"
-#include "Systems/ProceduralTerrain.h"
+#include "Systems/ProceduralPlanet.h"
 #include "Rendering/Rendering.h"
 #include "Application.h"
 #include "Input.h"

@@ -309,6 +309,13 @@ namespace bfc {
     transformed.path     = newPath;
     return transformed.toString();
   }
+
+  URI URI::relativeTo(URI const & base) const {
+    if (base.scheme() != scheme())
+      return *this;
+
+    return withPath(path().relativeTo(base.path()));
+  }
   
   URI URI::replacePartPrefixed(StringView const & section, StringView const & replace, StringView const & prefixOnEmpty) const {
     if (section.empty()) {

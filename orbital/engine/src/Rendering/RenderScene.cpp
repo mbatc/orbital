@@ -141,9 +141,9 @@ namespace engine {
         if (!volume.infinite && !volume.extents.contains(pReviewView->getCameraPosition())) {
           continue;
         }
-      
+
         // volume.target;
-      
+
         EntityID id = pLevel->toEntity(&volume);
       
         if (auto * pBloom = pLevel->tryGet<components::PostProcess_Bloom>(id)) {
