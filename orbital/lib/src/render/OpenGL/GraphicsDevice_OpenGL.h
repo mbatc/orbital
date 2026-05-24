@@ -243,22 +243,21 @@ namespace bfc {
       virtual Vec2i            getSize() const override;
       virtual bool             attachWindow(platform::Window * pWindow, DepthStencilFormat depthStencilFormat) override;
       virtual void             attachColour(TextureRef textureID, int64_t slot, int64_t mipLevel, int64_t layer) override;
+      virtual void             attachColour(TextureAttachment attachment, int64_t slot) override;
       virtual void             setReadAttachment(int64_t slot) override;
       virtual void             attachDepth(TextureRef textureID, int64_t mipLevel, int64_t layer) override;
+      virtual void             attachDepth(TextureAttachment attachment) override;
 
-      struct Attachment {
-        int64_t    layer    = 0; // Level/Face for 3D textures
-        int64_t    mipLevel = 0;
-        TextureRef texture  = InvalidGraphicsResource;
-      };
+      virtual TextureAttachment getColour(int64_t slot) const override;
+      virtual TextureAttachment getDepth() const override;
 
       RenderTargetType type = RenderTargetType_Unknown;
 
       struct Texture {
         bool       rebind = false;
         uint32_t   glID   = 0;
-        Attachment depth;
-        Attachment colour[MaxColourAttachments];
+        TextureAttachment depth;
+        TextureAttachment colour[MaxColourAttachments];
         int64_t    colourReadAttachment = 0;
       } textures;
 

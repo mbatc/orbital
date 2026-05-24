@@ -538,25 +538,45 @@ namespace bfc {
     }
 
     void GLRenderTarget::attachColour(TextureRef textureID, int64_t slot, int64_t mipLevel, int64_t layer) {
+      TextureAttachment desc;
+      desc.texture = textureID;
+      desc.mipLevel = mipLevel;
+      desc.layer    = layer;
+      return attachColour(desc, slot);
+    }
+
+    void GLRenderTarget::attachColour(TextureAttachment attachment, int64_t slot) {
       bool changed = false;
-      changed |= textures.colour[slot].texture != textureID;
-      changed |= textures.colour[slot].mipLevel != mipLevel;
-      changed |= textures.colour[slot].layer != layer;
-      textures.colour[slot].texture  = textureID;
-      textures.colour[slot].mipLevel = mipLevel;
-      textures.colour[slot].layer    = layer;
+      changed |= textures.colour[slot].texture != attachment.texture;
+      changed |= textures.colour[slot].mipLevel != attachment.mipLevel;
+      changed |= textures.colour[slot].layer != attachment.layer;
+      textures.colour[slot] = attachment;
       textures.rebind |= changed;
     }
 
     void GLRenderTarget::attachDepth(TextureRef textureID, int64_t mipLevel, int64_t layer) {
+      TextureAttachment desc;
+      desc.texture  = textureID;
+      desc.mipLevel = mipLevel;
+      desc.layer    = layer;
+      return attachDepth(desc);
+    }
+
+    void GLRenderTarget::attachDepth(TextureAttachment attachment) {
       bool changed = false;
-      changed |= textures.depth.texture != textureID;
-      changed |= textures.depth.mipLevel != mipLevel;
-      changed |= textures.depth.layer != layer;
-      textures.depth.texture  = textureID;
-      textures.depth.mipLevel = mipLevel;
-      textures.depth.layer    = layer;
+      changed |= textures.depth.texture != attachment.texture;
+      changed |= textures.depth.mipLevel != attachment.mipLevel;
+      changed |= textures.depth.layer != attachment.layer;
+      textures.depth          = attachment;
       textures.rebind |= changed;
+    }
+
+    GLRenderTarget::TextureAttachment GLRenderTarget::getColour(int64_t slot) const {
+      return textures.colour[slot];
+    }
+
+    GLRenderTarget::TextureAttachment GLRenderTarget::getDepth() const {
+      return textures.depth;
     }
 
     void GLRenderTarget::setReadAttachment(int64_t slot) {
@@ -1226,7 +1246,7 @@ namespace bfc {
 
   GraphicsDevice_OpenGL::GraphicsDevice_OpenGL() {}
 
-  bool GraphicsDevice_OpenGL::init(platform::Window * pWindow) {
+  bool GraphicsDevice_OpenGL::init(platform::Window *pWindow) {
     auto initComplete = NewRef<std::promise<void>>();
     auto initResult   = initComplete->get_future();
     m_renderThread    = std::thread(&GraphicsDevice_OpenGL::RenderThread, this, pWindow, initComplete);

@@ -833,10 +833,11 @@ namespace engine {
     m_defaultMaterial.upload(pCmdList);
 
     // Set resources
-    setResource(Resources::gbuffer,          &m_gbuffer);
-    setResource(Resources::gbuffer,          m_gbuffer.getRenderTarget());
+    setResource(Resources::gbuffer, &m_gbuffer);
+    setResource(Resources::gbuffer, m_gbuffer.getRenderTarget());
     setResource(Resources::postProcessStack, &m_postProc);
-    setResource(Resources::defaultMaterial,  &m_defaultMaterial);
+    setResource(Resources::defaultMaterial, &m_defaultMaterial);
+    setResource(Resources::finalColour, m_finalTarget);
 
     // Add renderer features
     addFeature<Feature_MeshBasePass>(Phase::Base::Mesh::opaque, pAssets, &m_gbuffer, &m_modelData);

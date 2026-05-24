@@ -384,6 +384,12 @@ namespace bfc {
 
     class BFC_API RenderTarget {
     public:
+      struct TextureAttachment {
+        TextureRef texture;
+        int64_t    mipLevel = 0;
+        int64_t    layer = 0;
+      };
+
       virtual ~RenderTarget() = default;
 
       virtual RenderTargetType getType() const = 0;
@@ -393,10 +399,16 @@ namespace bfc {
       virtual bool attachWindow(platform::Window * pWindow, DepthStencilFormat depthStencilFormat) = 0;
 
       virtual void attachColour(TextureRef textureID, int64_t slot = 0, int64_t mipLevel = 0, int64_t layer = 0) = 0;
+      virtual void attachColour(TextureAttachment attachment, int64_t slot = 0)                                  = 0;
 
       virtual void setReadAttachment(int64_t slot) = 0;
 
       virtual void attachDepth(TextureRef textureID, int64_t mipLevel = 0, int64_t layer = 0) = 0;
+      virtual void attachDepth(TextureAttachment attachment)                                  = 0;
+
+      virtual TextureAttachment getColour(int64_t slot) const = 0;
+
+      virtual TextureAttachment getDepth() const = 0;
     };
     using RenderTargetRef = Ref<RenderTarget>;
 

@@ -10,16 +10,17 @@ out vec4 fragColour;
 
 void main() {
   // Sample GBuffers
-  vec3 base     = texture2D(G_BaseColour, vsout_uv0).xyz;
-  vec3 position = texture2D(G_Position, vsout_uv0).xyz;
-  vec3 emissive = texture2D(G_Ambient, vsout_uv0).xyz;
-  vec3 rma      = texture2D(G_RMA, vsout_uv0).xyz;
-  vec3 normal   = 2 * (texture2D(G_Normal, vsout_uv0).xyz - vec3(0.5));
+  vec3 base     = gbuffer_ReadColour(vsout_uv0).xyz;
+  vec3 position = gbuffer_ReadPosition(vsout_uv0);
+  vec3 emissive = gbuffer_ReadAmbient(vsout_uv0);
+  vec3 rma      = gbuffer_ReadRMA(vsout_uv0);
+  vec3 normal   = gbuffer_ReadNormal(vsout_uv0);
+
   float roughness = rma.x;
   float metalness = rma.y;
   float ao        = rma.z;
 
-  vec3 camPos = invViewMatrix[3].xyz;
+  vec3 camPos = getCameraPosition();
 
   vec3 N = normal;
   vec3 V = normalize(camPos - position);

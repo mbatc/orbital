@@ -15,4 +15,29 @@ layout(binding = BND_TEX_G_Position)   uniform sampler2D G_Position;
 layout(binding = BND_TEX_G_Normal)     uniform sampler2D G_Normal;
 layout(binding = BND_TEX_G_RMA)        uniform sampler2D G_RMA;
 
+vec4 gbuffer_ReadColour(vec2 uv)
+{
+  return texture2D(G_BaseColour, uv);
+}
+
+vec3 gbuffer_ReadPosition(vec2 uv)
+{
+  return texture2D(G_Position, uv).xyz;
+}
+
+vec3 gbuffer_ReadAmbient(vec2 uv)
+{
+  return texture2D(G_Ambient, uv).xyz;
+}
+
+vec3 gbuffer_ReadRMA(vec2 uv)
+{
+  return texture2D(G_RMA, uv).xyz;
+}
+
+vec3 gbuffer_ReadNormal(vec2 uv)
+{
+  return 2 * (texture2D(G_Normal, uv).xyz - vec3(0.5));
+}
+
 #endif // GBUFFER_GLSL

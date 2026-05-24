@@ -39,4 +39,10 @@ vec3 getCameraPosition() {
   return invViewMatrix[3].xyz;
 }
 
+vec2 getScreenUV(vec3 worldPosition) {
+  vec4 position = (viewProjMatrix * vec4(worldPosition, 1));
+  position /= position.w;
+  return (position.xy + vec2(1)) / 2;
+}
+
 #endif // COMMON_GLSL

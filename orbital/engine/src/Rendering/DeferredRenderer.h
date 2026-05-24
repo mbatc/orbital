@@ -38,6 +38,7 @@ namespace engine {
       inline static const bfc::StringView defaultMaterial  = "default-material";
       inline static const bfc::StringView gbuffer          = "gbuffer";
       inline static const bfc::StringView postProcessStack = "post-process-stack";
+      inline static const bfc::StringView finalColour      = "final-colour";
     };
 
     DeferredRenderer(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets);

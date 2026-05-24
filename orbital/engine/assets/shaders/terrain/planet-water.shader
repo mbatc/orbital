@@ -1,9 +1,9 @@
 
 src:
 - key: vert
-  value: planet-water.vert
+  value: procedural-planet-terrain.vert
 - key: frag
-  value: planet-water.frag
+  value: ../water/water.frag
 - key: tess-eval
   value: planet-water.tese
 - key: tess-control

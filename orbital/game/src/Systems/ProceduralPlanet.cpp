@@ -217,17 +217,11 @@ namespace {
       : m_terrainShader(pAssetManager, bfc::URI::File("engine:shaders/terrain/procedural-planet-terrain.shader"))
       , m_quad(pAssetManager, bfc::URI::File("engine:models/primitives/plane.obj")) {}
 
-    virtual void onResize(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, bfc::Vec2i const & size) {
+    virtual void onResize(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, bfc::Vec2i const & size) {}
 
-    }
+    virtual void beginFrame(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, bfc::Vector<engine::RenderView> const & views) {}
 
-    virtual void beginFrame(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, bfc::Vector<engine::RenderView> const & views) {
-
-    }
-
-    virtual void beginView(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) override {
-
-    }
+    virtual void beginView(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) override {}
 
     virtual void renderView(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) override {
       auto pGBuffer = pRenderer->getResource<bfc::graphics::RenderTarget>(engine::DeferredRenderer::Resources::gbuffer);
@@ -325,30 +319,32 @@ namespace {
   public:
     PlanetWaterFeatureRenderer(engine::AssetManager * pAssetManager) 
       : m_waterShader(pAssetManager, bfc::URI::File("engine:shaders/terrain/planet-water.shader"))
+      , m_transmittanceShader(pAssetManager, bfc::URI::File("engine:shaders/terrain/planet-water-transmittance.shader"))
       , m_quad(pAssetManager, bfc::URI::File("engine:models/primitives/plane.obj")) 
     {}
 
     virtual void renderView(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) override {
-      auto pGBuffer = pRenderer->getResource<bfc::graphics::RenderTarget>(engine::DeferredRenderer::Resources::gbuffer);
-      bfc::GBufferTarget_BaseColour;
-      bfc::GBufferTarget_AmbientColour;
-      bfc::GBufferTarget_RMA;
-      bfc::GBufferTarget_Normal;
-      bfc::GBufferTarget_Position;
+      auto pGBuffer     = pRenderer->getResource<bfc::graphics::RenderTarget>(engine::DeferredRenderer::Resources::gbuffer);
+      auto pFinalTarget = pRenderer->getResource<bfc::graphics::RenderTarget>(engine::DeferredRenderer::Resources::finalColour);
+
+      bfc::Vec2i targetSize = pGBuffer->getSize();
+      auto target = pCmdList->createRenderTarget(bfc::RenderTargetType_Texture);
+      bfc::graphics::TextureRef transmittance;
+      bfc::graphics::loadTexture2D<bfc::RGBu8>(pCmdList, &transmittance, targetSize);
+      target->attachColour(transmittance);
+      target->attachDepth(pGBuffer->getDepth());
 
       bfc::graphics::StateManager * pState = pRenderer->getGraphicsDevice()->getStateManager();
       pCmdList->pushState(
         bfc::graphics::State::EnableDepthRead{true},
-        bfc::graphics::State::EnableDepthWrite{true},
-        bfc::graphics::State::EnableBlend{true},
+        bfc::graphics::State::EnableDepthWrite{false},
+        bfc::graphics::State::EnableBlend{false},
         bfc::graphics::State::BlendEq{bfc::BlendEquation_Add},
         bfc::graphics::State::BlendFunc{bfc::BlendFunction_One, bfc::BlendFunction_Zero},
         bfc::graphics::State::BlendFunc{bfc::BlendFunction_SourceAlpha, bfc::BlendFunction_OneMinusSourceAlpha, 0}
       );
 
       auto const & terrains = view.pRenderData->renderables<ProceduralPlanetRenderable>();
-      pCmdList->bindRenderTarget(pGBuffer);
-      pCmdList->bindProgram(m_waterShader);
       pCmdList->bindVertexArray(m_quad->getVertexArray());
       pCmdList->bindUniformBuffer(m_terrainTileUBO, TerrainTileBufferBindPoint);
       pCmdList->bindUniformBuffer(m_terrainUBO, TerrainBufferBindPoint);
@@ -399,6 +395,12 @@ namespace {
             },
             0, true);
 
+          pCmdList->bindRenderTarget(target);
+          pCmdList->bindTexture(nullptr, bfc::Material::TextureSlot_Count);
+          for (int i = 0; i < bfc::GBufferTarget_Count; ++i) {
+            pCmdList->bindTexture(pGBuffer->getColour(i).texture, i);
+          }
+          pCmdList->bindProgram(m_transmittanceShader);
           tree.forLeaves([&](QuadTree::Node const & node) {
             const double     size            = node.size();
             const bfc::Vec3d tileCoord       = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
@@ -412,16 +414,35 @@ namespace {
             pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
           });
 
-          tree.forLeaves([&](QuadTree::Node const & node) {});
+          pCmdList->bindTexture(transmittance, bfc::Material::TextureSlot_Count);
+          for (int i = 0; i < bfc::GBufferTarget_Count; ++i) {
+            pCmdList->bindTexture(nullptr, i);
+          }
+          pCmdList->bindRenderTarget(pFinalTarget);
+          pCmdList->bindProgram(m_waterShader);
+          pCmdList->pushState(bfc::graphics::State::EnableBlend{true});
+          tree.forLeaves([&](QuadTree::Node const & node) {
+            const double     size            = node.size();
+            const bfc::Vec3d tileCoord       = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
+            const bfc::Mat4d sampleTransform = side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)) * glm::translate(tileCoord) *
+                                               glm::scale(bfc::Vec3d(size, 1, size)) * glm::translate(bfc::Vec3d(0.5, 0, 0.5));
+
+            m_terrainTileUBO.data.tileSize        = (float)size;
+            m_terrainTileUBO.data.sampleTransform = sampleTransform;
+            m_terrainTileUBO.upload(pCmdList);
+
+            pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
+          });
+          pCmdList->popState();
         }
       }
 
-      pCmdList->bindRenderTarget(view.renderTarget);
       pCmdList->popState();
     }
 
   private:
     engine::Asset<bfc::graphics::Program> m_waterShader;
+    engine::Asset<bfc::graphics::Program> m_transmittanceShader;
 
     engine::Asset<bfc::Mesh>                                    m_quad;
     bfc::graphics::StructuredBuffer<PlanetTerrainUBO>           m_terrainUBO;

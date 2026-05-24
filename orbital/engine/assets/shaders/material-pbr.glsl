@@ -13,6 +13,7 @@
 #define BND_TEX_AoMap          5
 #define BND_TEX_AlphaMap       6
 #define BND_TEX_NormalMap      7
+#define BND_TEX_MaterialEnd    7
 
 layout(std140, binding=BND_UBO_Material) uniform Material {
   vec4 albedo;
