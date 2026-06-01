@@ -6,6 +6,7 @@
 #include "math/MathTypes.h"
 #include "render/GraphicsDevice.h"
 #include "core/typeindex.h"
+#include <any>
 
 namespace bfc {
   class ShaderPool;
@@ -98,6 +99,8 @@ namespace engine {
     virtual void beginView(bfc::graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view);
     virtual void renderView(bfc::graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view);
     virtual void endView(bfc::graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view);
+
+    virtual void onRenderRequest(std::any const & request, bfc::graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view);
   };
 
   /// Core renderer implementation.
@@ -159,6 +162,16 @@ namespace engine {
     void setPhaseOrder(bfc::Vector<bfc::String> const & phases);
 
     template<typename T>
+    void request(T const & request, bfc::graphics::CommandList * pCmdList, RenderView const & view) {
+      const std::any data = request;
+      for (auto const & [phase, features] : m_phases) {
+        for (FeatureRenderer * pFeature : features) {
+          pFeature->onRenderRequest(data, pCmdList, this, view);
+        }
+      }
+    }
+
+    template<typename T>
     void setResource(bfc::StringView const & name, bfc::Ref<T> const & pResource) {
       auto &registered = m_resources.getOrAdd(name);
       registered.addOrSet(bfc::TypeID<T>(), pResource);
@@ -192,8 +205,7 @@ namespace engine {
 
   private:
     bfc::GraphicsDevice * m_pDevice = nullptr;
-
-    bfc::Vector<bfc::String>                              m_phaseOrder;
+    bfc::Vector<bfc::String>                            m_phaseOrder;
     bfc::Map<bfc::String, bfc::Vector<FeatureRenderer *>> m_phases;
 
     bfc::Map<bfc::String, bfc::Map<bfc::type_index, bfc::Ref<void>>> m_resources;

@@ -8,11 +8,11 @@
 namespace engine {
   /// Mesh render data.
   /// Stores geometry and material information.
-  struct MeshRenderable {
-    MeshRenderable() = default;
-    MeshRenderable(bfc::Mat4d const & modelMatrix, bfc::Mesh const & mesh, int64_t subMeshIndex, bfc::Ref<bfc::Material> pMaterial = nullptr,
+  struct StaticMeshRenderable {
+    StaticMeshRenderable() = default;
+    StaticMeshRenderable(bfc::Mat4d const & modelMatrix, bfc::Mesh const & mesh, int64_t subMeshIndex, bfc::Ref<bfc::Material> pMaterial = nullptr,
                    bfc::Ref<bfc::graphics::Program> pProgram = nullptr);
-    MeshRenderable(bfc::Mat4d const & modelMatrix, bfc::Mat4d const & normalMatrix, bfc::Mesh const & mesh, int64_t subMeshIndex,
+    StaticMeshRenderable(bfc::Mat4d const & modelMatrix, bfc::Mat4d const & normalMatrix, bfc::Mesh const & mesh, int64_t subMeshIndex,
                    bfc::Ref<bfc::Material> pMaterial = nullptr,
                    bfc::Ref<bfc::graphics::Program> pProgram = nullptr);
     static bfc::Mat4d calcNormalMatrix(bfc::Mat4d const & modelMatrix);
@@ -30,8 +30,7 @@ namespace engine {
     bfc::geometry::Box<float> bounds;
   };
 
-  /// Exposure fore tone-mapping post process
-  struct MeshShadowCasterRenderable {
+  struct StaticMeshShadowCasterRenderable {
     int64_t    elementOffset;
     int64_t    elementCount;
     bfc::Mat4d modelMatrix;
@@ -106,19 +105,19 @@ namespace engine {
 } // namespace engine
 
 namespace bfc {
-  inline bfc::geometry::Sphere<float> calcBoundingSphere(engine::MeshShadowCasterRenderable const & o) {
+  inline bfc::geometry::Sphere<float> calcBoundingSphere(engine::StaticMeshShadowCasterRenderable const & o) {
     return calcBoundingSphere(o.bounds);
   }
 
-  inline bfc::geometry::Sphere<float> calcBoundingSphere(engine::MeshRenderable const & o) {
+  inline bfc::geometry::Sphere<float> calcBoundingSphere(engine::StaticMeshRenderable const & o) {
     return calcBoundingSphere(o.bounds);
   }
 
-  inline bfc::geometry::Box<float> calcBoundingBox(engine::MeshShadowCasterRenderable const & o) {
+  inline bfc::geometry::Box<float> calcBoundingBox(engine::StaticMeshShadowCasterRenderable const & o) {
     return o.bounds;
   }
 
-  inline bfc::geometry::Box<float> calcBoundingBox(engine::MeshRenderable const & o) {
+  inline bfc::geometry::Box<float> calcBoundingBox(engine::StaticMeshRenderable const & o) {
     return o.bounds;
   }
 } // namespace bfc

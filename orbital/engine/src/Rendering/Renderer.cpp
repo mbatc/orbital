@@ -50,6 +50,10 @@ namespace engine {
     BFC_UNUSED(pCmdList, pRenderer, view);
   }
 
+  void FeatureRenderer::onRenderRequest(std::any const & request, bfc::graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) {
+    BFC_UNUSED(request, pCmdList, pRenderer, view);
+  }
+
   Renderer::Renderer(GraphicsDevice * pDevice)
     : m_pDevice(pDevice) {}
 

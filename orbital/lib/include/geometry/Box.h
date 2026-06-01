@@ -126,7 +126,7 @@ namespace bfc {
       }
 
       bool invalid() const {
-        return !math::isFinite(min) || !math::isFinite(max);
+        return !math::isFinite(min) || !math::isFinite(max) || min.x > max.x || min.y > max.y || min.z > max.y;
       }
 
       union {

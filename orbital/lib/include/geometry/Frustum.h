@@ -48,5 +48,8 @@ namespace bfc {
         Plane<T> planes[6];
       };
     };
+
+    using Frustumf = Frustum<float>;
+    using Frustumd = Frustum<double>;
   }
 }

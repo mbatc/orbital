@@ -11,93 +11,33 @@
 using namespace bfc;
 
 namespace engine {
-  class Feature_MeshBasePass : public FeatureRenderer {
+  class Feature_BasePass : public FeatureRenderer {
   public:
-    Feature_MeshBasePass(AssetManager * pAssets, GBuffer * pGBuffer, graphics::StructuredBuffer<renderer::ModelBuffer> * pModelBuffer)
-      : m_pGBuffer(pGBuffer)
-      , m_pModelData(pModelBuffer)
-      , m_shader(pAssets, URI::File("engine:shaders/gbuffer/base.shader")) {}
+    Feature_BasePass(AssetManager * pAssets, GBuffer * pGBuffer, graphics::StructuredBuffer<renderer::ModelBuffer> * pModelBuffer)
+      : m_pGBuffer(pGBuffer){}
 
     virtual void onAdded(graphics::CommandList * pCmdList, Renderer * pRenderer) override {}
 
     virtual void renderView(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) override {
-      DeferredRenderer * pDeferred = (DeferredRenderer *)pRenderer;
-      Mat4d              vp        = view.projectionMatrix * view.viewMatrix;
-
-      graphics::StateManager * pState = pRenderer->getGraphicsDevice()->getStateManager();
-      pCmdList->pushState(graphics::State::EnableDepthRead{true}, graphics::State::EnableDepthWrite{true}, graphics::State::EnableBlend{false});
-
       GraphicsDevice * pDevice = pRenderer->getGraphicsDevice();
+      pCmdList->pushState(graphics::State::EnableDepthRead{true}, graphics::State::EnableDepthWrite{true}, graphics::State::EnableBlend{false});
       pCmdList->bindRenderTarget(m_pGBuffer->getRenderTarget());
       pCmdList->clear({0, 0, 0, 0});
-      pCmdList->bindProgram(m_shader);
-      pCmdList->bindUniformBuffer(*m_pModelData, renderer::BufferBinding_ModelBuffer);
 
-      graphics::BufferRef defaultMaterial = pDeferred->getDefaultMaterial();
-
-      geometry::Frustum<float> camFrustum = view.projectionMatrix * view.viewMatrix;
-
-      for (auto & renderable : view.pRenderData->renderables<MeshRenderable>()) {
-        if (!geometry::intersects(camFrustum, renderable.bounds)) {
-          continue;
-        }
-
-        if (renderable.shader != InvalidGraphicsResource) {
-          pCmdList->bindProgram(renderable.shader);
-        } else {
-          pCmdList->bindProgram(m_shader);
-        }
-
-        m_pModelData->data.modelMatrix  = renderable.modelMatrix;
-        m_pModelData->data.normalMatrix = renderable.normalMatrix;
-        m_pModelData->data.mvpMatrix    = vp * renderable.modelMatrix;
-        m_pModelData->upload(pCmdList);
-
-        for (auto & [i, texture] : enumerate(renderable.materialTextures)) {
-          if (texture != InvalidGraphicsResource) {
-            pCmdList->bindTexture(texture, Material::TextureBindPointBase + i);
-          } else {
-            pCmdList->bindTexture(pDeferred->getDefaultTexture((Material::TextureSlot)i), Material::TextureBindPointBase + i);
-          }
-        }
-
-        if (renderable.materialBuffer != InvalidGraphicsResource) {
-          pCmdList->bindUniformBuffer(renderable.materialBuffer, renderer::BufferBinding_PBRMaterial);
-        } else {
-          pCmdList->bindUniformBuffer(defaultMaterial, renderer::BufferBinding_PBRMaterial);
-        }
-
-        pCmdList->bindVertexArray(renderable.vertexArray);
-        pCmdList->drawIndexed(renderable.elementCount, renderable.elementOffset, renderable.primitiveType);
-      }
+      DeferredRenderer::Stages::BasePassRequest request;
+      request.pGBuffer = m_pGBuffer;
+      pRenderer->request(request, pCmdList, view);
 
       pCmdList->bindRenderTarget(view.renderTarget);
       pCmdList->popState();
     }
 
-    GBuffer *     m_pGBuffer = nullptr;
-    Asset<graphics::Program> m_shader;
-
-    graphics::StructuredBuffer<renderer::ModelBuffer> * m_pModelData = nullptr;
+    GBuffer * m_pGBuffer = nullptr;
   };
 
   class Feature_LightingPass : public FeatureRenderer {
   public:
     // Data needed to render a shadow map
-    struct ShadowMapData {
-      Mat4                     lightVP;
-      geometry::Frustum<float> lightFrustum;
-
-      int64_t     lightIndex = 0;
-      CubeMapFace cubeFace   = CubeMapFace_None; // Cube map face for point lights
-      int64_t     atlasIndex = -1;
-
-      LightRenderable light;
-      float           maxDistance = 0.0f; // max distance the light will influence geometry from
-
-      Vector<MeshShadowCasterRenderable> meshCasters;
-    };
-
     Feature_LightingPass(graphics::CommandList * pCmdList, AssetManager * pAssets, GBuffer * pGBuffer, graphics::RenderTargetRef * pColourTarget,
                          graphics::StructuredBuffer<renderer::ModelBuffer> * pModelBuffer)
       : m_pGBuffer(pGBuffer)
@@ -177,24 +117,21 @@ namespace engine {
 
       if (m_shadowMapData.size() > 0) {
         geometry::Boxf receiverBounds;
-        for (auto & receiver : view.pRenderData->renderables<MeshRenderable>()) {
-          if (receiver.bounds.invalid()) {
-            continue;
-          }
-
-          if (geometry::intersects(camFrustum, receiver.bounds)) {
-            receiverBounds.growToContain(receiver.bounds);
-          }
+        {
+          engine::DeferredRenderer::Stages::ShadowReceiverBounds receiverBoundsRequest;
+          receiverBoundsRequest.pBounds       = &receiverBounds;
+          receiverBoundsRequest.cameraFrustum = camFrustum;
+          pRenderer->request(receiverBoundsRequest, pCmdList, view);
         }
 
         // Calculate vp and renderables to draw
         for (auto & [i, shadowMapData] : enumerate(m_shadowMapData)) {
-          calcShadowMapData(view.pRenderData, receiverBounds, &shadowMapData);
+          calcShadowMapData(pCmdList, pRenderer, view, receiverBounds, &shadowMapData);
         }
 
         // Allocate space in the shadow texture
         for (ShadowMapData & shadowMapData : m_shadowMapData) {
-          if (shadowMapData.meshCasters.size() > 0) {
+          if (!shadowMapData.casterBounds.invalid()) {
             shadowMapData.atlasIndex = m_shadowAtlas.allocate(1.0f);
           }
         }
@@ -244,25 +181,18 @@ namespace engine {
         pCmdList->pushState(graphics::State::EnableDepthRead{true}, graphics::State::EnableDepthWrite{true}, graphics::State::ColourWrite{false});
 
         for (ShadowMapData const & shadowMapData : m_shadowMapData) {
-          if (shadowMapData.meshCasters.size() == 0) {
+          if (shadowMapData.casterBounds.invalid()) {
             continue;
           }
 
           ShadowAtlas::Slot slot = m_shadowAtlas.getSlot(shadowMapData.atlasIndex);
           m_shadowMapTarget->attachDepth(m_shadowAtlas, slot.level, slot.layer);
+
           pCmdList->bindRenderTarget(m_shadowMapTarget);
           pCmdList->clear(0);
           pCmdList->pushState(graphics::State::Viewport{{0, 0}, m_shadowAtlas.resolution(shadowMapData.atlasIndex)});
 
-          for (MeshShadowCasterRenderable const & caster : view.pRenderData->renderables<MeshShadowCasterRenderable>()) {
-            if (geometry::intersects(shadowMapData.lightFrustum, caster.bounds)) {
-              m_pModelData->data.mvpMatrix = (Mat4d)shadowMapData.lightVP * caster.modelMatrix;
-              m_pModelData->upload(pCmdList);
-
-              pCmdList->bindVertexArray(caster.vertexArray);
-              pCmdList->drawIndexed(caster.elementCount, caster.elementOffset);
-            }
-          }
+          pRenderer->request(DeferredRenderer::Stages::ShadowDepth{&shadowMapData}, pCmdList, view);
 
           pCmdList->popState();
         }
@@ -293,17 +223,18 @@ namespace engine {
       pCmdList->bindRenderTarget(view.renderTarget); // TODO: Maybe a "push render target" function?
     }
 
-    static void calcShadowMapData(RenderData * pRenderData, geometry::Boxf const & receiverBounds, ShadowMapData * pData) {
+    static void calcShadowMapData(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view, geometry::Boxf const & receiverBounds,
+                                  ShadowMapData * pData) {
       switch (pData->light.type) {
-      case components::LightType_Sun: calcShadowMapDataForSun(pRenderData, receiverBounds, pData); break;
-      case components::LightType_Point: calcShadowMapDataForPointLight(pRenderData, pData); break;
-      case components::LightType_Spot: calcShadowMapDataForSpotLight(pRenderData, pData); break;
+      case components::LightType_Sun: calcShadowMapDataForSun(pCmdList, pRenderer, view, receiverBounds, pData); break;
+      case components::LightType_Point: calcShadowMapDataForPointLight(pCmdList, pRenderer, view, pData); break;
+      case components::LightType_Spot: calcShadowMapDataForSpotLight(pCmdList, pRenderer, view, pData); break;
       default: break;
       }
     }
 
-    static void calcShadowMapDataForSun(RenderData * pRenderData, geometry::Boxf const & receiverBounds, ShadowMapData * pData) {
-      auto &                  allCasters = pRenderData->renderables<MeshShadowCasterRenderable>();
+    static void calcShadowMapDataForSun(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view, geometry::Boxf const & receiverBounds,
+                                        ShadowMapData * pData) {
       LightRenderable const & light      = pData->light;
 
       // Calculate light axis
@@ -315,28 +246,31 @@ namespace engine {
       lsReceiverBounds.min.z          = -std::numeric_limits<float>::max();
 
       // Clear old data
-      pData->meshCasters.clear();
+      pData->casterBounds = {};
+      {
+        engine::DeferredRenderer::Stages::ShadowCasterBounds casterBoundsRequest;
+        casterBoundsRequest.receiverBounds           = receiverBounds;
+        casterBoundsRequest.receiverBoundsLightSpace = lsReceiverBounds;
+        casterBoundsRequest.pBounds                  = &pData->casterBounds;
+        casterBoundsRequest.up = up;
+        casterBoundsRequest.right = right;
+        casterBoundsRequest.light = light;
+        pRenderer->request(casterBoundsRequest, pCmdList, view);
+      }
 
       // Get casters between the light and the receivers
       geometry::Boxf lsAllCasterBounds;
-      for (auto & caster : allCasters) {
-        geometry::Boxf lsCasterBounds = caster.bounds.projected(right, up, light.direction);
-        if (geometry::intersects(lsReceiverBounds, lsCasterBounds)) {
-          lsAllCasterBounds.growToContain(lsCasterBounds);
-          pData->meshCasters.pushBack(caster);
-        }
-      }
 
       // Calculate orthographic projection that encompasses all casters
-      Mat4 projection = glm::ortho(lsAllCasterBounds.min.x, lsAllCasterBounds.max.x, lsAllCasterBounds.min.y, lsAllCasterBounds.max.y,
-                                   lsAllCasterBounds.min.z * 2, lsAllCasterBounds.max.z * 2);
-      Mat4 view       = glm::lookAt(Vec3(0), light.direction, up);
+      Mat4 projectionMatrix = glm::ortho(pData->casterBounds.min.x, pData->casterBounds.max.x, pData->casterBounds.min.y, pData->casterBounds.max.y,
+                                         pData->casterBounds.min.z * 2, pData->casterBounds.max.z * 2);
+      Mat4 viewMatrix       = glm::lookAt(Vec3(0), light.direction, up);
 
-      pData->lightVP      = projection * view;
+      pData->lightVP      = projectionMatrix * viewMatrix;
       pData->lightFrustum = pData->lightVP;
     }
 
-    static void calcShadowMapDataForPointLight(RenderData * pRenderData, ShadowMapData * pData) {
+    static void calcShadowMapDataForPointLight(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view, ShadowMapData * pData) {
       LightRenderable const & light = pData->light;
 
       Vec3  direction = (Vec3)getCubeMapDirection(pData->cubeFace);
@@ -344,24 +278,24 @@ namespace engine {
       float dist      = pData->maxDistance;
 
       // Calculate view-projection for the target face of the cube map
-      Mat4 projection = glm::perspective(math::radians(90.0f), 1.0f, dist * 0.01f, dist);
-      Mat4 view       = glm::lookAt(light.position, light.position + direction, up);
+      Mat4 projectionMatrix = glm::perspective(math::radians(90.0f), 1.0f, dist * 0.01f, dist);
+      Mat4 viewMatrix       = glm::lookAt(light.position, light.position + direction, up);
 
-      pData->lightVP      = projection * view;
+      pData->lightVP      = projectionMatrix * viewMatrix;
       pData->lightFrustum = pData->lightVP;
 
       // Clear old data
-      pData->meshCasters.clear();
+      // pData->meshCasters.clear();
 
       // Add casters for this light
-      for (MeshShadowCasterRenderable const & caster : pRenderData->renderables<MeshShadowCasterRenderable>()) {
-        if (geometry::intersects(pData->lightFrustum, caster.bounds)) {
-          pData->meshCasters.pushBack(caster);
-        }
-      }
+      // for (StaticMeshShadowCasterRenderable const & caster : pRenderData->renderables<StaticMeshShadowCasterRenderable>()) {
+      //   if (geometry::intersects(pData->lightFrustum, caster.bounds)) {
+      //     pData->meshCasters.pushBack(caster);
+      //   }
+      // }
     }
 
-    static void calcShadowMapDataForSpotLight(RenderData * pRenderData, ShadowMapData * pData) {
+    static void calcShadowMapDataForSpotLight(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view, ShadowMapData * pData) {
       LightRenderable const & light = pData->light;
 
       // Calculate light axis
@@ -370,21 +304,21 @@ namespace engine {
 
       // Calculate view-projection for the spot light
       float dist       = pData->maxDistance;
-      Mat4  projection = glm::perspective(light.outerConeAngle * 2, 1.0f, 0.01f * dist, dist);
-      Mat4  view       = glm::lookAt(light.position, light.position + light.direction, up);
+      Mat4  projectionMatrix = glm::perspective(light.outerConeAngle * 2, 1.0f, 0.01f * dist, dist);
+      Mat4  viewMatrix       = glm::lookAt(light.position, light.position + light.direction, up);
 
-      pData->lightVP      = projection * view;
+      pData->lightVP      = projectionMatrix * viewMatrix;
       pData->lightFrustum = pData->lightVP;
 
       // Clear old data
-      pData->meshCasters.clear();
-
-      // Add casters for this light
-      for (MeshShadowCasterRenderable const & caster : pRenderData->renderables<MeshShadowCasterRenderable>()) {
-        if (geometry::intersects(pData->lightFrustum, caster.bounds)) {
-          pData->meshCasters.pushBack(caster);
-        }
-      }
+      // pData->meshCasters.clear();
+      // 
+      // // Add casters for this light
+      // for (StaticMeshShadowCasterRenderable const & caster : pRenderData->renderables<StaticMeshShadowCasterRenderable>()) {
+      //   if (geometry::intersects(pData->lightFrustum, caster.bounds)) {
+      //     pData->meshCasters.pushBack(caster);
+      //   }
+      // }
     }
 
     // Shadow mapping
@@ -797,6 +731,114 @@ namespace engine {
     graphics::TextureRef * m_pFinalColour = nullptr;
   };
 
+  class StaticMeshRenderer : public FeatureRenderer {
+  public:
+    StaticMeshRenderer(AssetManager * pAssets, graphics::StructuredBuffer<renderer::ModelBuffer> * pModelBuffer,
+                       graphics::StructuredBuffer<renderer::PBRMaterial> * pDefaultMaterial)
+      : m_pModelData(pModelBuffer)
+      , m_pDefaultMaterial(pDefaultMaterial)
+      , m_shader(pAssets, URI::File("engine:shaders/gbuffer/base.shader")) {}
+
+    virtual void onRenderRequest(std::any const & request, bfc::graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) override {
+      if (auto * pPass = std::any_cast<DeferredRenderer::Stages::BasePassRequest>(&request))
+        onBasePass(pPass, pCmdList, pRenderer, view);
+      if (auto * pPass = std::any_cast<DeferredRenderer::Stages::ShadowReceiverBounds>(&request))
+        onShadowRecieverBounds(pPass, pCmdList, pRenderer, view);
+      if (auto * pPass = std::any_cast<DeferredRenderer::Stages::ShadowCasterBounds>(&request))
+        onShadowCasterBounds(pPass, pCmdList, pRenderer, view);
+      if (auto * pPass = std::any_cast<DeferredRenderer::Stages::ShadowDepth>(&request))
+        onShadowDepth(pPass, pCmdList, pRenderer, view);
+    }
+
+    void onBasePass(DeferredRenderer::Stages::BasePassRequest const * pBasePass, bfc::graphics::CommandList * pCmdList, Renderer * pRenderer,
+                    RenderView const & view) {
+      DeferredRenderer * pDeferred = (DeferredRenderer *)pRenderer;
+
+      Mat4d vp = view.projectionMatrix * view.viewMatrix;
+
+      pCmdList->bindProgram(m_shader);
+      pCmdList->bindUniformBuffer(*m_pModelData, renderer::BufferBinding_ModelBuffer);
+
+      geometry::Frustum<float> camFrustum = view.projectionMatrix * view.viewMatrix;
+
+      for (auto & renderable : view.pRenderData->renderables<StaticMeshRenderable>()) {
+        if (!geometry::intersects(camFrustum, renderable.bounds)) {
+          continue;
+        }
+
+        if (renderable.shader != InvalidGraphicsResource) {
+          pCmdList->bindProgram(renderable.shader);
+        } else {
+          pCmdList->bindProgram(m_shader);
+        }
+
+        m_pModelData->data.modelMatrix  = renderable.modelMatrix;
+        m_pModelData->data.normalMatrix = renderable.normalMatrix;
+        m_pModelData->data.mvpMatrix    = vp * renderable.modelMatrix;
+        m_pModelData->upload(pCmdList);
+
+        for (auto & [i, texture] : enumerate(renderable.materialTextures)) {
+          if (texture != InvalidGraphicsResource) {
+            pCmdList->bindTexture(texture, Material::TextureBindPointBase + i);
+          } else {
+            pCmdList->bindTexture(pDeferred->getDefaultTexture((Material::TextureSlot)i), Material::TextureBindPointBase + i);
+          }
+        }
+
+        if (renderable.materialBuffer != InvalidGraphicsResource) {
+          pCmdList->bindUniformBuffer(renderable.materialBuffer, renderer::BufferBinding_PBRMaterial);
+        } else {
+          pCmdList->bindUniformBuffer(*m_pDefaultMaterial, renderer::BufferBinding_PBRMaterial);
+        }
+
+        pCmdList->bindVertexArray(renderable.vertexArray);
+        pCmdList->drawIndexed(renderable.elementCount, renderable.elementOffset, renderable.primitiveType);
+      }
+    }
+
+    void onShadowRecieverBounds(DeferredRenderer::Stages::ShadowReceiverBounds const * pShadow, bfc::graphics::CommandList * pCmdList, Renderer * pRenderer,
+                                RenderView const & view) {
+      for (auto & receiver : view.pRenderData->renderables<StaticMeshRenderable>()) {
+        if (receiver.bounds.invalid()) {
+          continue;
+        }
+
+        if (geometry::intersects(pShadow->cameraFrustum, receiver.bounds)) {
+          pShadow->pBounds->growToContain(receiver.bounds);
+        }
+      }
+    }
+
+    void onShadowCasterBounds(DeferredRenderer::Stages::ShadowCasterBounds const * pShadow, bfc::graphics::CommandList * pCmdList, Renderer * pRenderer,
+                              RenderView const & view) {
+      auto & allCasters = view.pRenderData->renderables<StaticMeshShadowCasterRenderable>();
+      for (auto & caster : allCasters) {
+        geometry::Boxf lsCasterBounds = caster.bounds.projected(pShadow->right, pShadow->up, pShadow->light.direction);
+        if (geometry::intersects(pShadow->receiverBoundsLightSpace, lsCasterBounds)) {
+          pShadow->pBounds->growToContain(lsCasterBounds);
+        }
+      }
+    }
+
+    void onShadowDepth(DeferredRenderer::Stages::ShadowDepth const * pPass, bfc::graphics::CommandList * pCmdList, Renderer * pRenderer,
+                       RenderView const & view) {
+      for (StaticMeshShadowCasterRenderable const & caster : view.pRenderData->renderables<StaticMeshShadowCasterRenderable>()) {
+        if (geometry::intersects(pPass->pShadowData->lightFrustum, caster.bounds)) {
+          m_pModelData->data.mvpMatrix = (Mat4d)pPass->pShadowData->lightVP * caster.modelMatrix;
+          m_pModelData->upload(pCmdList);
+
+          pCmdList->bindVertexArray(caster.vertexArray);
+          pCmdList->drawIndexed(caster.elementCount, caster.elementOffset);
+        }
+      }
+    }
+
+  private:
+    graphics::StructuredBuffer<renderer::PBRMaterial> * m_pDefaultMaterial = nullptr;
+    graphics::StructuredBuffer<renderer::ModelBuffer> * m_pModelData       = nullptr;
+    Asset<graphics::Program>                            m_shader;
+  };
+
   DeferredRenderer::DeferredRenderer(graphics::CommandList * pCmdList, AssetManager * pAssets)
     : Renderer(pCmdList->getDevice())
     , m_gbuffer(pCmdList, {1920, 1080})
@@ -840,17 +882,21 @@ namespace engine {
     setResource(Resources::finalColour, m_finalTarget);
 
     // Add renderer features
-    addFeature<Feature_MeshBasePass>(Phase::Base::Mesh::opaque, pAssets, &m_gbuffer, &m_modelData);
+    addFeature<Feature_BasePass>(Phase::Base::Mesh::opaque, pAssets, &m_gbuffer, &m_modelData);
     ensurePhase(Phase::Base::Mesh::transparent);
 
+    addFeature<StaticMeshRenderer>(Phase::undefined, pAssets, &m_modelData, &m_defaultMaterial);
     addFeature<Feature_LightingPass>(Phase::lighting, pCmdList, pAssets, &m_gbuffer, &m_finalTarget, &m_modelData);
     addFeature<Feature_Skybox>(Phase::skybox, pAssets, &m_finalTarget);
+
     ensurePhase(Phase::prePostProcess);
+
     addFeature<Feature_SSAO>(Phase::postProcess, pAssets, &m_postProc);
     addFeature<Feature_SSR>(Phase::postProcess, pAssets, &m_postProc);
     addFeature<Feature_Bloom>(Phase::postProcess, pAssets, &m_postProc);
     addFeature<Feature_Exposure>(Phase::postProcess, pAssets, &m_postProc);
     addFeature<Feature_PostProcess>(Phase::postProcess, pAssets, &m_postProc, &m_gbuffer, &m_finalColourTarget);
+
     ensurePhase(Phase::postPostProcess);
   }
 

@@ -12,8 +12,8 @@ entities:
           - 0
         ypr:
           - -45.000000000000028
-          - 45.000000000000028
-          - 4.4979835663949474e-15
+          - 45.000000000000036
+          - 0
         scale:
           - 1
           - 1
@@ -22,9 +22,9 @@ entities:
       light:
         type: sun
         colour:
-          - 0.97015571594238281
           - 1
-          - 0.66176474094390869
+          - 1
+          - 1
         ambient:
           - 0
           - 0
@@ -33,7 +33,7 @@ entities:
           - 0
           - 0
           - 1
-        strength: 5
+        strength: 2
         innerConeAngle: 30.000001907348633
         outerConeAngle: 35
         castShadows: 1
@@ -81,13 +81,57 @@ entities:
         effects: 0
       post-process-bloom:
         filterRadius: 0.004999999888241291
-        strength: 0.039999999105930328
+        strength: 0.019999999552965164
         threshold: 0.25
         dirtIntensity: 1
         dirt:
           uri: file:engine:/textures/terrain/rough_stone_tiles.jpg
       post-process-ssr:
-        maxDistance: 1
+        maxDistance: 0.10000000149011612
         resolution: 0.30000001192092896
         steps: 10
         thickness: 0.5
+  - uuid: ceaaf5f5-6393-404f-b49d-9f885cca5c46
+    components:
+      transform:
+        translation:
+          - 0
+          - 0
+          - 0
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 10
+          - 0.10000000000000001
+          - 10
+        parent: ~
+      static-mesh:
+        castShadows: 1
+        useTesselation: 0
+        materials: ~
+        mesh:
+          uri: file:engine:/models/primitives/cube.obj
+  - uuid: 29bd3a2c-7ca3-4de3-bd24-b1185028a9ee
+    components:
+      transform:
+        translation:
+          - 1
+          - 2
+          - 0
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 1
+          - 1
+          - 1
+        parent: ~
+      static-mesh:
+        castShadows: 1
+        useTesselation: 0
+        materials: ~
+        mesh:
+          uri: file:game:/models/donut/dohey.obj

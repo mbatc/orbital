@@ -2,11 +2,11 @@
 #include "mesh/Mesh.h"
 
 namespace engine {
-  MeshRenderable::MeshRenderable(bfc::Mat4d const & modelMatrix, bfc::Mesh const & mesh, int64_t subMeshIndex, bfc::Ref<bfc::Material> pMaterial,
+  StaticMeshRenderable::StaticMeshRenderable(bfc::Mat4d const & modelMatrix, bfc::Mesh const & mesh, int64_t subMeshIndex, bfc::Ref<bfc::Material> pMaterial,
                                          bfc::Ref<bfc::graphics::Program> pProgram)
-    : MeshRenderable(modelMatrix, MeshRenderable::calcNormalMatrix(modelMatrix), mesh, subMeshIndex, pMaterial, pProgram) {}
+    : StaticMeshRenderable(modelMatrix, StaticMeshRenderable::calcNormalMatrix(modelMatrix), mesh, subMeshIndex, pMaterial, pProgram) {}
 
-  MeshRenderable::MeshRenderable(bfc::Mat4d const & _modelMatrix, bfc::Mat4d const & _normalMatrix, bfc::Mesh const & mesh, int64_t subMeshIndex,
+  StaticMeshRenderable::StaticMeshRenderable(bfc::Mat4d const & _modelMatrix, bfc::Mat4d const & _normalMatrix, bfc::Mesh const & mesh, int64_t subMeshIndex,
                                          bfc::Ref<bfc::Material> pMaterial, bfc::Ref<bfc::graphics::Program> pProgram) {
     auto const & sm = mesh.getSubMesh(subMeshIndex);
 
@@ -37,7 +37,7 @@ namespace engine {
     }
   }
 
-  bfc::Mat4d MeshRenderable::calcNormalMatrix(bfc::Mat4d const & modelMatrix) {
+  bfc::Mat4d StaticMeshRenderable::calcNormalMatrix(bfc::Mat4d const & modelMatrix) {
     return bfc::renderer::calcNormalMatrix(glm::inverse(modelMatrix));
   }
 } // namespace engine

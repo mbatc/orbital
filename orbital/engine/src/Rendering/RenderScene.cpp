@@ -13,8 +13,8 @@ namespace engine {
   public:
     virtual void collectRenderData(RenderView * pReviewView, Level const * pLevel) override {
       RenderData *                                    pRenderData = pReviewView->pRenderData;
-      RenderableStorage<MeshRenderable> &             meshes      = pRenderData->renderables<MeshRenderable>();
-      RenderableStorage<MeshShadowCasterRenderable> & shadows     = pRenderData->renderables<MeshShadowCasterRenderable>();
+      RenderableStorage<StaticMeshRenderable> &             meshes      = pRenderData->renderables<StaticMeshRenderable>();
+      RenderableStorage<StaticMeshShadowCasterRenderable> & shadows     = pRenderData->renderables<StaticMeshShadowCasterRenderable>();
 
       auto val = pLevel->getView<components::Transform, components::StaticMesh>();
       LevelView<components::Transform, components::StaticMesh> test(
@@ -40,7 +40,7 @@ namespace engine {
 
           Material *     pMaterial = i < meshComponent.materials.size() ? meshComponent.materials[i].pMaterial.instance().get() : nullptr;
 
-          MeshRenderable renderable;
+          StaticMeshRenderable renderable;
           renderable.elementOffset = sm.elmOffset;
           renderable.elementCount  = sm.elmCount;
           renderable.modelMatrix   = modelMat;
@@ -66,7 +66,7 @@ namespace engine {
           meshes.pushBack(renderable);
 
           if (castShadows) {
-            MeshShadowCasterRenderable shadowCaster;
+            StaticMeshShadowCasterRenderable shadowCaster;
             shadowCaster.vertexArray   = pMesh->getVertexArray();
             shadowCaster.elementCount  = sm.elmCount;
             shadowCaster.elementOffset = sm.elmOffset;

@@ -221,38 +221,13 @@ namespace {
 
     virtual void beginFrame(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, bfc::Vector<engine::RenderView> const & views) {}
 
-    virtual void beginView(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) override {}
-
-    virtual void renderView(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) override {
-      auto pGBuffer = pRenderer->getResource<bfc::graphics::RenderTarget>(engine::DeferredRenderer::Resources::gbuffer);
-
-      bfc::graphics::StateManager * pState = pRenderer->getGraphicsDevice()->getStateManager();
-      pCmdList->pushState(bfc::graphics::State::EnableDepthRead{true}, bfc::graphics::State::EnableDepthWrite{true}, bfc::graphics::State::EnableBlend{false});
-
+    virtual void beginView(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) override {
       auto const & terrains = view.pRenderData->renderables<ProceduralPlanetRenderable>();
-      pCmdList->bindRenderTarget(pGBuffer);
-      pCmdList->bindProgram(m_terrainShader);
-      pCmdList->bindVertexArray(m_quad->getVertexArray());
-      pCmdList->bindUniformBuffer(m_terrainTileUBO, TerrainTileBufferBindPoint);
-      pCmdList->bindUniformBuffer(m_terrainUBO, TerrainBufferBindPoint);
-      pCmdList->bindUniformBuffer(m_modelUBO, bfc::renderer::BufferBinding_ModelBuffer);
+
+      m_trees.clear();
+      m_trees.reserve(terrains.size() * 6);
 
       for (auto const & terrain : terrains) {
-        m_modelUBO.data.modelMatrix  = terrain.transform;
-        m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(terrain.transform);
-        m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(terrain.transform, view.getViewProjectionMatrix());
-        m_modelUBO.upload(pCmdList);
-
-        m_terrainUBO.data.seed        = terrain.seed;
-        m_terrainUBO.data.scale       = terrain.scale;
-        m_terrainUBO.data.maxHeight   = terrain.maxHeight;
-        m_terrainUBO.data.minHeight   = terrain.minHeight;
-        m_terrainUBO.data.frequency   = 1.0f;
-        m_terrainUBO.data.octaves     = terrain.octaves;
-        m_terrainUBO.data.persistance = terrain.persistance;
-        m_terrainUBO.data.lacurnarity = terrain.lacurnarity;
-        m_terrainUBO.upload(pCmdList);
-
         const auto   terrainInverseTransform = glm::inverse(terrain.transform);
         const auto   camPosTerrainSpace      = bfc::Vec3d(terrainInverseTransform * bfc::Vec4d(view.getCameraPosition(), 1));
         const double terrainHeight           = glm::length(camPosTerrainSpace) - 1;
@@ -269,8 +244,8 @@ namespace {
           if (cameraTerrainSpace.z > 0)
             cameraTerrainSpace.z = terrainHeight;
 
-          QuadTree tree;
-          tree.trySplit(
+          m_trees.pushBack(QuadTree{});
+          m_trees.back().trySplit(
             [&](QuadTree::Node const & node) {
               if (node.coord.z >= 20)
                 return false;
@@ -281,10 +256,51 @@ namespace {
               return dist2 < sz * sz * 1.5 * 1.5;
             },
             0, true);
+        }
+      }
+    }
 
-          tree.forLeaves([&](QuadTree::Node const & node) {
-            const double     size      = node.size();
-            const bfc::Vec3d tileCoord = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
+    virtual void onRenderRequest(std::any const & request, bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer,
+                                 engine::RenderView const & view) {
+      if (auto * pBasePassRequest = std::any_cast<engine::DeferredRenderer::Stages::BasePassRequest>(&request))
+        onBasePass(*pBasePassRequest, pCmdList, pRenderer, view);
+    }
+
+    void onBasePass(engine::DeferredRenderer::Stages::BasePassRequest const & request, bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer,
+                    engine::RenderView const & view) {
+      auto pGBuffer = pRenderer->getResource<bfc::graphics::RenderTarget>(engine::DeferredRenderer::Resources::gbuffer);
+
+      bfc::graphics::StateManager * pState = pRenderer->getGraphicsDevice()->getStateManager();
+      pCmdList->pushState(bfc::graphics::State::EnableDepthRead{true}, bfc::graphics::State::EnableDepthWrite{true}, bfc::graphics::State::EnableBlend{false});
+
+      auto const & terrains = view.pRenderData->renderables<ProceduralPlanetRenderable>();
+      pCmdList->bindProgram(m_terrainShader);
+      pCmdList->bindVertexArray(m_quad->getVertexArray());
+      pCmdList->bindUniformBuffer(m_terrainTileUBO, TerrainTileBufferBindPoint);
+      pCmdList->bindUniformBuffer(m_terrainUBO, TerrainBufferBindPoint);
+      pCmdList->bindUniformBuffer(m_modelUBO, bfc::renderer::BufferBinding_ModelBuffer);
+
+      int64_t tree = 0;
+      for (auto const & terrain : terrains) {
+        m_modelUBO.data.modelMatrix  = terrain.transform;
+        m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(terrain.transform);
+        m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(terrain.transform, view.getViewProjectionMatrix());
+        m_modelUBO.upload(pCmdList);
+
+        m_terrainUBO.data.seed        = terrain.seed;
+        m_terrainUBO.data.scale       = terrain.scale;
+        m_terrainUBO.data.maxHeight   = terrain.maxHeight;
+        m_terrainUBO.data.minHeight   = terrain.minHeight;
+        m_terrainUBO.data.frequency   = 1.0f;
+        m_terrainUBO.data.octaves     = terrain.octaves;
+        m_terrainUBO.data.persistance = terrain.persistance;
+        m_terrainUBO.data.lacurnarity = terrain.lacurnarity;
+        m_terrainUBO.upload(pCmdList);
+
+        for (bfc::Mat4d const & side : faceTransforms) {
+          m_trees[tree].forLeaves([&](QuadTree::Node const & node) {
+            const double     size            = node.size();
+            const bfc::Vec3d tileCoord       = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
             const bfc::Mat4d sampleTransform = side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)) * glm::translate(tileCoord) *
                                                glm::scale(bfc::Vec3d(size, 1, size)) * glm::translate(bfc::Vec3d(0.5, 0, 0.5));
 
@@ -294,14 +310,58 @@ namespace {
 
             pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
           });
-
-          tree.forLeaves([&](QuadTree::Node const & node) {
-          });
+          ++tree;
         }
       }
+    }
 
-      pCmdList->bindRenderTarget(view.renderTarget);
-      pCmdList->popState();
+    void onTransparency(engine::DeferredRenderer::Stages::BasePassRequest const & request, bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer,
+                    engine::RenderView const & view) {
+      auto pGBuffer = pRenderer->getResource<bfc::graphics::RenderTarget>(engine::DeferredRenderer::Resources::gbuffer);
+
+      bfc::graphics::StateManager * pState = pRenderer->getGraphicsDevice()->getStateManager();
+      pCmdList->pushState(bfc::graphics::State::EnableDepthRead{true}, bfc::graphics::State::EnableDepthWrite{true}, bfc::graphics::State::EnableBlend{false});
+
+      auto const & terrains = view.pRenderData->renderables<ProceduralPlanetRenderable>();
+      pCmdList->bindProgram(m_terrainShader);
+      pCmdList->bindVertexArray(m_quad->getVertexArray());
+      pCmdList->bindUniformBuffer(m_terrainTileUBO, TerrainTileBufferBindPoint);
+      pCmdList->bindUniformBuffer(m_terrainUBO, TerrainBufferBindPoint);
+      pCmdList->bindUniformBuffer(m_modelUBO, bfc::renderer::BufferBinding_ModelBuffer);
+
+      int64_t tree = 0;
+      for (auto const & terrain : terrains) {
+        m_modelUBO.data.modelMatrix  = terrain.transform;
+        m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(terrain.transform);
+        m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(terrain.transform, view.getViewProjectionMatrix());
+        m_modelUBO.upload(pCmdList);
+
+        m_terrainUBO.data.seed        = terrain.seed;
+        m_terrainUBO.data.scale       = terrain.scale;
+        m_terrainUBO.data.maxHeight   = terrain.maxHeight;
+        m_terrainUBO.data.minHeight   = terrain.minHeight;
+        m_terrainUBO.data.frequency   = 1.0f;
+        m_terrainUBO.data.octaves     = terrain.octaves;
+        m_terrainUBO.data.persistance = terrain.persistance;
+        m_terrainUBO.data.lacurnarity = terrain.lacurnarity;
+        m_terrainUBO.upload(pCmdList);
+
+        for (bfc::Mat4d const & side : faceTransforms) {
+          m_trees[tree].forLeaves([&](QuadTree::Node const & node) {
+            const double     size            = node.size();
+            const bfc::Vec3d tileCoord       = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
+            const bfc::Mat4d sampleTransform = side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)) * glm::translate(tileCoord) *
+                                               glm::scale(bfc::Vec3d(size, 1, size)) * glm::translate(bfc::Vec3d(0.5, 0, 0.5));
+
+            m_terrainTileUBO.data.tileSize        = (float)size;
+            m_terrainTileUBO.data.sampleTransform = sampleTransform;
+            m_terrainTileUBO.upload(pCmdList);
+
+            pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
+          });
+          ++tree;
+        }
+      }
     }
 
     virtual void endView(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) override {}
@@ -309,7 +369,9 @@ namespace {
   private:
     engine::Asset<bfc::graphics::Program>                       m_terrainShader;
 
-    engine::Asset<bfc::Mesh>                    m_quad;
+    engine::Asset<bfc::Mesh> m_quad;
+    bfc::Vector<QuadTree>    m_trees;
+
     bfc::graphics::StructuredBuffer<PlanetTerrainTileUBO>       m_terrainTileUBO;
     bfc::graphics::StructuredBuffer<PlanetTerrainUBO>           m_terrainUBO;
     bfc::graphics::StructuredBuffer<bfc::renderer::ModelBuffer> m_modelUBO;

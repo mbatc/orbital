@@ -1,12 +1,13 @@
 #pragma once
 
 #include "Renderer.h"
+#include "rendering/Renderables.h"
 
 #include "mesh/Mesh.h"
-#include "render/GraphicsDevice.h"
-#include "render/RendererCommon.h"
 #include "render/GBuffer.h"
+#include "render/GraphicsDevice.h"
 #include "render/PostProcessingStack.h"
+#include "render/RendererCommon.h"
 
 namespace bfc {
   class Mesh;
@@ -18,9 +19,49 @@ namespace engine {
   class Scene;
   class AssetManager;
 
+  struct ShadowMapData {
+    bfc::Mat4                     lightVP;
+    bfc::geometry::Frustum<float> lightFrustum;
+
+    int64_t          lightIndex = 0;
+    bfc::CubeMapFace cubeFace   = bfc::CubeMapFace_None; // Cube map face for point lights
+    int64_t          atlasIndex = -1;
+
+    LightRenderable light;
+    float           maxDistance = 0.0f; // max distance the light will influence geometry from
+
+    bfc::geometry::Boxf casterBounds;
+  };
+
   class DeferredRenderer : public Renderer {
   public:
+    struct Stages {
+      struct BasePassRequest {
+        bfc::GBuffer * pGBuffer = nullptr;
+      };
+
+      struct ShadowDepth {
+        ShadowMapData const * pShadowData = nullptr;
+      };
+
+      struct ShadowReceiverBounds {
+        bfc::geometry::Frustum<float> cameraFrustum;
+        bfc::geometry::Boxf *         pBounds = nullptr;
+      };
+
+      struct ShadowCasterBounds {
+        bfc::geometry::Boxf   receiverBounds;
+        bfc::geometry::Boxf   receiverBoundsLightSpace;
+        bfc::geometry::Boxf * pBounds = nullptr;
+        bfc::Vec3        right, up;
+        LightRenderable  light;
+      };
+
+      struct ShadowMesh {};
+    };
+
     struct Phase {
+      inline static const bfc::StringView undefined = "undefined";
       struct Base {
         struct Mesh {
           inline static const bfc::StringView opaque      = "base.mesh.opaque";
@@ -47,7 +88,8 @@ namespace engine {
     static constexpr int64_t FinalColourTargetBindPoint = ColourTargetBindPointBase + bfc::GBufferTarget_Count;
     static constexpr int64_t DepthTargetBindPoint       = FinalColourTargetBindPoint + 1;
 
-    virtual void onResize(bfc::graphics::CommandList *pCmdList, bfc::Vec2i size) override;
+    virtual void onResize(bfc::graphics::CommandList * pCmdList, bfc::Vec2i size) override;
+
     virtual void render(bfc::graphics::CommandList * pCmdList, bfc::Vector<RenderView> const & views) override;
 
     /// Get the GBuffer render target.
