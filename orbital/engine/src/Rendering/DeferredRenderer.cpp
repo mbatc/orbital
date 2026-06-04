@@ -248,7 +248,7 @@ namespace engine {
       // Clear old data
       pData->casterBounds = {};
       {
-        engine::DeferredRenderer::Stages::ShadowCasterBounds casterBoundsRequest;
+        engine::DeferredRenderer::Stages::ShadowCasterOrthoBounds casterBoundsRequest;
         casterBoundsRequest.receiverBounds           = receiverBounds;
         casterBoundsRequest.receiverBoundsLightSpace = lsReceiverBounds;
         casterBoundsRequest.pBounds                  = &pData->casterBounds;
@@ -262,8 +262,9 @@ namespace engine {
       geometry::Boxf lsAllCasterBounds;
 
       // Calculate orthographic projection that encompasses all casters
+      float depthOffset = pData->casterBounds.halfSize().z;
       Mat4 projectionMatrix = glm::ortho(pData->casterBounds.min.x, pData->casterBounds.max.x, pData->casterBounds.min.y, pData->casterBounds.max.y,
-                                         pData->casterBounds.min.z * 2, pData->casterBounds.max.z * 2);
+                                          pData->casterBounds.min.z - depthOffset, pData->casterBounds.max.z + depthOffset);
       Mat4 viewMatrix       = glm::lookAt(Vec3(0), light.direction, up);
 
       pData->lightVP      = projectionMatrix * viewMatrix;
@@ -283,16 +284,15 @@ namespace engine {
 
       pData->lightVP      = projectionMatrix * viewMatrix;
       pData->lightFrustum = pData->lightVP;
-
       // Clear old data
-      // pData->meshCasters.clear();
-
-      // Add casters for this light
-      // for (StaticMeshShadowCasterRenderable const & caster : pRenderData->renderables<StaticMeshShadowCasterRenderable>()) {
-      //   if (geometry::intersects(pData->lightFrustum, caster.bounds)) {
-      //     pData->meshCasters.pushBack(caster);
-      //   }
-      // }
+      pData->casterBounds = {};
+      {
+        engine::DeferredRenderer::Stages::ShadowCasterBounds casterBoundsRequest;
+        casterBoundsRequest.lightFrustum = pData->lightFrustum;
+        casterBoundsRequest.pBounds      = &pData->casterBounds;
+        casterBoundsRequest.light        = light;
+        pRenderer->request(casterBoundsRequest, pCmdList, view);
+      }
     }
 
     static void calcShadowMapDataForSpotLight(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view, ShadowMapData * pData) {
@@ -311,14 +311,14 @@ namespace engine {
       pData->lightFrustum = pData->lightVP;
 
       // Clear old data
-      // pData->meshCasters.clear();
-      // 
-      // // Add casters for this light
-      // for (StaticMeshShadowCasterRenderable const & caster : pRenderData->renderables<StaticMeshShadowCasterRenderable>()) {
-      //   if (geometry::intersects(pData->lightFrustum, caster.bounds)) {
-      //     pData->meshCasters.pushBack(caster);
-      //   }
-      // }
+      pData->casterBounds = {};
+      {
+        engine::DeferredRenderer::Stages::ShadowCasterBounds casterBoundsRequest;
+        casterBoundsRequest.lightFrustum = pData->lightFrustum;
+        casterBoundsRequest.pBounds      = &pData->casterBounds;
+        casterBoundsRequest.light        = light;
+        pRenderer->request(casterBoundsRequest, pCmdList, view);
+      }
     }
 
     // Shadow mapping
@@ -744,6 +744,8 @@ namespace engine {
         onBasePass(pPass, pCmdList, pRenderer, view);
       if (auto * pPass = std::any_cast<DeferredRenderer::Stages::ShadowReceiverBounds>(&request))
         onShadowRecieverBounds(pPass, pCmdList, pRenderer, view);
+      if (auto * pPass = std::any_cast<DeferredRenderer::Stages::ShadowCasterOrthoBounds>(&request))
+        onShadowCasterLightSpaceBounds(pPass, pCmdList, pRenderer, view);
       if (auto * pPass = std::any_cast<DeferredRenderer::Stages::ShadowCasterBounds>(&request))
         onShadowCasterBounds(pPass, pCmdList, pRenderer, view);
       if (auto * pPass = std::any_cast<DeferredRenderer::Stages::ShadowDepth>(&request))
@@ -809,13 +811,23 @@ namespace engine {
       }
     }
 
-    void onShadowCasterBounds(DeferredRenderer::Stages::ShadowCasterBounds const * pShadow, bfc::graphics::CommandList * pCmdList, Renderer * pRenderer,
+    void onShadowCasterLightSpaceBounds(DeferredRenderer::Stages::ShadowCasterOrthoBounds const * pShadow, bfc::graphics::CommandList * pCmdList, Renderer * pRenderer,
                               RenderView const & view) {
       auto & allCasters = view.pRenderData->renderables<StaticMeshShadowCasterRenderable>();
       for (auto & caster : allCasters) {
-        geometry::Boxf lsCasterBounds = caster.bounds.projected(pShadow->right, pShadow->up, pShadow->light.direction);
-        if (geometry::intersects(pShadow->receiverBoundsLightSpace, lsCasterBounds)) {
-          pShadow->pBounds->growToContain(lsCasterBounds);
+        geometry::Boxf casterBoundsLightSpace = caster.bounds.projected(pShadow->right, pShadow->up, pShadow->light.direction);
+        if (geometry::intersects(pShadow->receiverBoundsLightSpace, casterBoundsLightSpace)) {
+          pShadow->pBounds->growToContain(casterBoundsLightSpace);
+        }
+      }
+    }
+
+    void onShadowCasterBounds(DeferredRenderer::Stages::ShadowCasterBounds const * pShadow, bfc::graphics::CommandList * pCmdList,
+                                        Renderer * pRenderer, RenderView const & view) {
+      auto & allCasters = view.pRenderData->renderables<StaticMeshShadowCasterRenderable>();
+      for (auto & caster : allCasters) {
+        if (geometry::intersects(pShadow->lightFrustum, caster.bounds)) {
+          pShadow->pBounds->growToContain(caster.bounds);
         }
       }
     }

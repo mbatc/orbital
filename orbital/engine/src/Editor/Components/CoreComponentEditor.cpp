@@ -42,6 +42,8 @@ namespace engine {
     ImGui::ColorEdit3("Colour", &pComponent->colour.x);
     ImGui::Checkbox("Cast Shadows", &pComponent->castShadows);
 
+    ui::Input("Type", &pComponent->type);
+
     switch (pComponent->type) {
     case components::LightType_Sun:
       ImGui::ColorEdit3("Ambient", &pComponent->ambient.x);

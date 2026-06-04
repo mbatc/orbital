@@ -23,7 +23,7 @@ namespace bfc {
   }
 
   URI URI::File(Filename const & path) {
-    return String("file:///").concat(path);
+    return String("file:").concat(path);
   }
 
   URI::URI(String const & uri)

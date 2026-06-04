@@ -86,6 +86,21 @@ namespace bfc {
     } // namespace detail
 
     template<typename T>
+    bool EnumInput(String const & name, T * pValue, Map<T, String> const & valueMap) {
+      bool changed = false;
+      if (ImGui::BeginCombo(name.c_str(), valueMap.getOr(*pValue, "Unknown").c_str())) {
+        for (auto& [value, key] : valueMap) {
+          if (ImGui::Selectable(key.c_str())) {
+            *pValue = value;
+            changed = true;
+          }
+        }
+        ImGui::EndCombo();
+      }
+      return changed;
+    }
+
+    template<typename T>
     bool Input(String const & name, T * pValue) {
       if constexpr (InputTraits<T>::dataType != ImGuiDataType_COUNT) {
         return Input(name, InputTraits<T>::dataType, pValue, InputTraits<T>::format.c_str(), InputTraits<T>::width);
@@ -96,6 +111,8 @@ namespace bfc {
         reflect<T>().visit(pValue, detail::InputVisitor{&changed});
         ImGui::PopID();
         return changed;
+      } else if constexpr (std::is_enum_v<T> && BFC_HAS_MEMBER(EnumValueMap<T>, mapping)) {
+        return EnumInput(name, pValue, EnumValueMap<T>::mapping);
       } else {
         static_assert(false, "Unable to draw input for type. No input trait or reflection is implemented");
       }

@@ -50,6 +50,12 @@ namespace engine {
       };
 
       struct ShadowCasterBounds {
+        bfc::geometry::Frustum<float> lightFrustum;
+        bfc::geometry::Boxf * pBounds = nullptr;
+        LightRenderable       light;
+      };
+
+      struct ShadowCasterOrthoBounds {
         bfc::geometry::Boxf   receiverBounds;
         bfc::geometry::Boxf   receiverBoundsLightSpace;
         bfc::geometry::Boxf * pBounds = nullptr;
