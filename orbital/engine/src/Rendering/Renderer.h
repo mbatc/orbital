@@ -63,6 +63,10 @@ namespace engine {
       return m_camera.inverseProjectionMatrix;
     }
 
+    inline uint64_t getViewID() const {
+      return bfc::hash(m_camera.viewProjectionMatrix, pRenderData);
+    }
+
   private:
     struct CameraCache {
       bfc::Vec3d position;

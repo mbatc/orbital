@@ -219,14 +219,19 @@ namespace {
 
     virtual void onResize(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, bfc::Vec2i const & size) {}
 
-    virtual void beginFrame(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, bfc::Vector<engine::RenderView> const & views) {}
+    virtual void beginFrame(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, bfc::Vector<engine::RenderView> const & views) {
+      m_viewData.clear();
+    }
 
     virtual void beginView(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) override {
       auto const & terrains = view.pRenderData->renderables<ProceduralPlanetRenderable>();
 
-      m_trees.clear();
-      m_trees.reserve(terrains.size() * 6);
+      const uint64_t viewID = view.getViewID();
+      if (m_viewData.contains(viewID)) {
+        return;
+      }
 
+      ViewData viewData;
       for (auto const & terrain : terrains) {
         const auto   terrainInverseTransform = glm::inverse(terrain.transform);
         const auto   camPosTerrainSpace      = bfc::Vec3d(terrainInverseTransform * bfc::Vec4d(view.getCameraPosition(), 1));
@@ -237,6 +242,11 @@ namespace {
         const auto camPosUnitCube = maxComponent < std::numeric_limits<double>::epsilon() ? bfc::Vec3d(0) : (camPosTerrainSpace / maxComponent);
 
         for (bfc::Mat4d const & side : faceTransforms) {
+          Instance instance;
+          instance.side           = side;
+          instance.modelTransform = terrain.transform;
+          instance.terrain        = terrain;
+
           auto terrainSideInverseTransform = glm::inverse(side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)));
           auto cameraTerrainSpace          = bfc::Vec3d(terrainSideInverseTransform * bfc::Vec4d(camPosUnitCube, 1));
           std::swap(cameraTerrainSpace.y, cameraTerrainSpace.z);
@@ -244,8 +254,7 @@ namespace {
           if (cameraTerrainSpace.z > 0)
             cameraTerrainSpace.z = terrainHeight;
 
-          m_trees.pushBack(QuadTree{});
-          m_trees.back().trySplit(
+          instance.tree.trySplit(
             [&](QuadTree::Node const & node) {
               if (node.coord.z >= 20)
                 return false;
@@ -258,6 +267,8 @@ namespace {
             0, true);
         }
       }
+
+      m_viewData.add(viewID, std::move(viewData));
     }
 
     virtual void onRenderRequest(std::any const & request, bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer,
@@ -280,38 +291,41 @@ namespace {
       pCmdList->bindUniformBuffer(m_terrainUBO, TerrainBufferBindPoint);
       pCmdList->bindUniformBuffer(m_modelUBO, bfc::renderer::BufferBinding_ModelBuffer);
 
+      uint64_t viewID = view.getViewID();
+      if (!m_viewData.contains(viewID)) {
+        return;
+      }
+
       int64_t tree = 0;
-      for (auto const & terrain : terrains) {
-        m_modelUBO.data.modelMatrix  = terrain.transform;
-        m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(terrain.transform);
-        m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(terrain.transform, view.getViewProjectionMatrix());
+      for (auto & instance : m_viewData[viewID].instances) {
+        m_modelUBO.data.modelMatrix  = instance.terrain.transform;
+        m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(instance.terrain.transform);
+        m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(instance.terrain.transform, view.getViewProjectionMatrix());
         m_modelUBO.upload(pCmdList);
 
-        m_terrainUBO.data.seed        = terrain.seed;
-        m_terrainUBO.data.scale       = terrain.scale;
-        m_terrainUBO.data.maxHeight   = terrain.maxHeight;
-        m_terrainUBO.data.minHeight   = terrain.minHeight;
+        m_terrainUBO.data.seed        = instance.terrain.seed;
+        m_terrainUBO.data.scale       = instance.terrain.scale;
+        m_terrainUBO.data.maxHeight   = instance.terrain.maxHeight;
+        m_terrainUBO.data.minHeight   = instance.terrain.minHeight;
         m_terrainUBO.data.frequency   = 1.0f;
-        m_terrainUBO.data.octaves     = terrain.octaves;
-        m_terrainUBO.data.persistance = terrain.persistance;
-        m_terrainUBO.data.lacurnarity = terrain.lacurnarity;
+        m_terrainUBO.data.octaves     = instance.terrain.octaves;
+        m_terrainUBO.data.persistance = instance.terrain.persistance;
+        m_terrainUBO.data.lacurnarity = instance.terrain.lacurnarity;
         m_terrainUBO.upload(pCmdList);
 
-        for (bfc::Mat4d const & side : faceTransforms) {
-          m_trees[tree].forLeaves([&](QuadTree::Node const & node) {
-            const double     size            = node.size();
-            const bfc::Vec3d tileCoord       = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
-            const bfc::Mat4d sampleTransform = side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)) * glm::translate(tileCoord) *
-                                               glm::scale(bfc::Vec3d(size, 1, size)) * glm::translate(bfc::Vec3d(0.5, 0, 0.5));
+        instance.tree.forLeaves([&](QuadTree::Node const & node) {
+          const double     size      = node.size();
+          const bfc::Vec3d tileCoord = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
+          const bfc::Mat4d sampleTransform = instance.side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)) * glm::translate(tileCoord) *
+                                             glm::scale(bfc::Vec3d(size, 1, size)) *
+                                  glm::translate(bfc::Vec3d(0.5, 0, 0.5));
 
-            m_terrainTileUBO.data.tileSize        = (float)size;
-            m_terrainTileUBO.data.sampleTransform = sampleTransform;
-            m_terrainTileUBO.upload(pCmdList);
+          m_terrainTileUBO.data.tileSize        = (float)size;
+          m_terrainTileUBO.data.sampleTransform = sampleTransform;
+          m_terrainTileUBO.upload(pCmdList);
 
-            pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
-          });
-          ++tree;
-        }
+          pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
+        });
       }
     }
 
@@ -329,48 +343,61 @@ namespace {
       pCmdList->bindUniformBuffer(m_terrainUBO, TerrainBufferBindPoint);
       pCmdList->bindUniformBuffer(m_modelUBO, bfc::renderer::BufferBinding_ModelBuffer);
 
-      int64_t tree = 0;
-      for (auto const & terrain : terrains) {
-        m_modelUBO.data.modelMatrix  = terrain.transform;
-        m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(terrain.transform);
-        m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(terrain.transform, view.getViewProjectionMatrix());
+      uint64_t viewID = view.getViewID();
+      if (!m_viewData.contains(viewID)) {
+        return;
+      }
+
+      for (auto & instance : m_viewData[viewID].instances) {
+        m_modelUBO.data.modelMatrix  = instance.terrain.transform;
+        m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(instance.terrain.transform);
+        m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(instance.terrain.transform, view.getViewProjectionMatrix());
         m_modelUBO.upload(pCmdList);
 
-        m_terrainUBO.data.seed        = terrain.seed;
-        m_terrainUBO.data.scale       = terrain.scale;
-        m_terrainUBO.data.maxHeight   = terrain.maxHeight;
-        m_terrainUBO.data.minHeight   = terrain.minHeight;
+        m_terrainUBO.data.seed        = instance.terrain.seed;
+        m_terrainUBO.data.scale       = instance.terrain.scale;
+        m_terrainUBO.data.maxHeight   = instance.terrain.maxHeight;
+        m_terrainUBO.data.minHeight   = instance.terrain.minHeight;
         m_terrainUBO.data.frequency   = 1.0f;
-        m_terrainUBO.data.octaves     = terrain.octaves;
-        m_terrainUBO.data.persistance = terrain.persistance;
-        m_terrainUBO.data.lacurnarity = terrain.lacurnarity;
+        m_terrainUBO.data.octaves     = instance.terrain.octaves;
+        m_terrainUBO.data.persistance = instance.terrain.persistance;
+        m_terrainUBO.data.lacurnarity = instance.terrain.lacurnarity;
         m_terrainUBO.upload(pCmdList);
 
-        for (bfc::Mat4d const & side : faceTransforms) {
-          m_trees[tree].forLeaves([&](QuadTree::Node const & node) {
-            const double     size            = node.size();
-            const bfc::Vec3d tileCoord       = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
-            const bfc::Mat4d sampleTransform = side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)) * glm::translate(tileCoord) *
-                                               glm::scale(bfc::Vec3d(size, 1, size)) * glm::translate(bfc::Vec3d(0.5, 0, 0.5));
+        instance.tree.forLeaves([&](QuadTree::Node const & node) {
+          const double     size      = node.size();
+          const bfc::Vec3d tileCoord = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
+          const bfc::Mat4d sampleTransform = instance.side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)) * glm::translate(tileCoord) *
+                                             glm::scale(bfc::Vec3d(size, 1, size)) *
+                                  glm::translate(bfc::Vec3d(0.5, 0, 0.5));
 
-            m_terrainTileUBO.data.tileSize        = (float)size;
-            m_terrainTileUBO.data.sampleTransform = sampleTransform;
-            m_terrainTileUBO.upload(pCmdList);
+          m_terrainTileUBO.data.tileSize        = (float)size;
+          m_terrainTileUBO.data.sampleTransform = sampleTransform;
+          m_terrainTileUBO.upload(pCmdList);
 
-            pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
-          });
-          ++tree;
-        }
+          pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
+        });
       }
     }
 
     virtual void endView(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) override {}
 
   private:
-    engine::Asset<bfc::graphics::Program>                       m_terrainShader;
+    engine::Asset<bfc::graphics::Program> m_terrainShader;
 
-    engine::Asset<bfc::Mesh> m_quad;
-    bfc::Vector<QuadTree>    m_trees;
+    struct Instance {
+      ProceduralPlanetRenderable terrain;
+      bfc::Mat4d                 modelTransform;
+      bfc::Mat4d                 side;
+      QuadTree                   tree;
+    };
+
+    struct ViewData {
+      bfc::Vector<Instance> instances;
+    };
+
+    engine::Asset<bfc::Mesh>     m_quad;
+    bfc::Map<uint64_t, ViewData> m_viewData;
 
     bfc::graphics::StructuredBuffer<PlanetTerrainTileUBO>       m_terrainTileUBO;
     bfc::graphics::StructuredBuffer<PlanetTerrainUBO>           m_terrainUBO;
@@ -466,11 +493,11 @@ namespace {
           tree.forLeaves([&](QuadTree::Node const & node) {
             const double     size            = node.size();
             const bfc::Vec3d tileCoord       = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
-            const bfc::Mat4d sampleTransform = side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)) * glm::translate(tileCoord) *
+            const bfc::Mat4d side = side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)) * glm::translate(tileCoord) *
                                                glm::scale(bfc::Vec3d(size, 1, size)) * glm::translate(bfc::Vec3d(0.5, 0, 0.5));
 
             m_terrainTileUBO.data.tileSize        = (float)size;
-            m_terrainTileUBO.data.sampleTransform = sampleTransform;
+            m_terrainTileUBO.data.sampleTransform = side;
             m_terrainTileUBO.upload(pCmdList);
 
             pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
@@ -486,11 +513,11 @@ namespace {
           tree.forLeaves([&](QuadTree::Node const & node) {
             const double     size            = node.size();
             const bfc::Vec3d tileCoord       = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
-            const bfc::Mat4d sampleTransform = side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)) * glm::translate(tileCoord) *
+            const bfc::Mat4d side = side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)) * glm::translate(tileCoord) *
                                                glm::scale(bfc::Vec3d(size, 1, size)) * glm::translate(bfc::Vec3d(0.5, 0, 0.5));
 
             m_terrainTileUBO.data.tileSize        = (float)size;
-            m_terrainTileUBO.data.sampleTransform = sampleTransform;
+            m_terrainTileUBO.data.sampleTransform = side;
             m_terrainTileUBO.upload(pCmdList);
 
             pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
