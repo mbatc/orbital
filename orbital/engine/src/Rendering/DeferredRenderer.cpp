@@ -37,8 +37,10 @@ namespace engine {
 
   class Feature_TransparencyPass : public FeatureRenderer {
   public:
-    Feature_TransparencyPass(GBuffer * pGBuffer)
-      : m_pGBuffer(pGBuffer) {}
+    Feature_TransparencyPass(AssetManager *pAssets, GBuffer * pTransparencyBuffer, GBuffer * pOpaqueBuffer)
+      : m_pGBuffer(pTransparencyBuffer)
+      , m_pOpaqueGBuffer(pOpaqueBuffer)
+      , m_blendTransparencyPass(pAssets, URI::File("engine:shaders/gbuffer/blend-transparency.shader")) {}
 
     virtual void onAdded(graphics::CommandList * pCmdList, Renderer * pRenderer) override {}
 
@@ -61,7 +63,8 @@ namespace engine {
 
       {
         DeferredRenderer::Stages::Transparency::Transmittance request;
-        request.pGBuffer = m_pGBuffer;
+        request.pOpaqueGBuffer = m_pOpaqueGBuffer;
+        request.pTargetBuffer = m_pGBuffer;
         pCmdList->pushState(
           graphics::State::ColourWrite{true},
           graphics::State::EnableDepthRead{true},
@@ -75,11 +78,28 @@ namespace engine {
         pCmdList->popState();
       }
 
+      pCmdList->bindRenderTarget(m_pOpaqueGBuffer->getRenderTarget());
+      pCmdList->pushState(
+        graphics::State::ColourWrite{false},
+        graphics::State::ColourWrite{true, 0},
+        graphics::State::EnableBlend{true},
+        graphics::State::EnableDepthRead{false},
+        graphics::State::EnableDepthWrite{false},
+        graphics::State::BlendFunc{bfc::BlendFunction_SourceAlpha, bfc::BlendFunction_OneMinusSourceAlpha, 0});
+      pCmdList->bindProgram(m_blendTransparencyPass);
+      pCmdList->bindTexture(m_pGBuffer->getBaseColour(), 0);
+      pCmdList->bindVertexArray(InvalidGraphicsResource);
+      pCmdList->draw(3);
+      pCmdList->popState();
+
       pCmdList->bindRenderTarget(view.renderTarget);
       pCmdList->popState();
+
     }
 
+    Asset<graphics::Program> m_blendTransparencyPass;
     GBuffer * m_pGBuffer = nullptr;
+    GBuffer * m_pOpaqueGBuffer = nullptr;
   };
 
   class Feature_LightingPass : public FeatureRenderer {
@@ -940,7 +960,7 @@ namespace engine {
 
     // Add renderer features
     addFeature<Feature_BasePass>(Phase::Base::Mesh::opaque, m_pGbuffer.get());
-    addFeature<Feature_TransparencyPass>(Phase::Base::Mesh::transparent, m_pTransparencyGBuffer.get());
+    addFeature<Feature_TransparencyPass>(Phase::Base::Mesh::transparent, pAssets, m_pTransparencyGBuffer.get(), m_pGbuffer.get());
 
     addFeature<StaticMeshRenderer>(Phase::undefined, pAssets, &m_modelData, &m_defaultMaterial);
     addFeature<Feature_LightingPass>(Phase::lighting, pCmdList, pAssets, m_pGbuffer.get(), &m_finalTarget, &m_modelData);

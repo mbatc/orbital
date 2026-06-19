@@ -46,7 +46,8 @@ namespace engine {
         };
 
         struct Transmittance {
-          bfc::GBuffer * pGBuffer = nullptr;
+          bfc::GBuffer * pOpaqueGBuffer = nullptr;
+          bfc::GBuffer * pTargetBuffer = nullptr;
         };
       };
 
@@ -100,7 +101,7 @@ namespace engine {
 
     DeferredRenderer(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets);
 
-    static constexpr int64_t ColourTargetBindPointBase  = 0;
+    static constexpr int64_t ColourTargetBindPointBase  = 8;
     static constexpr int64_t FinalColourTargetBindPoint = ColourTargetBindPointBase + bfc::GBufferTarget_Count;
     static constexpr int64_t DepthTargetBindPoint       = FinalColourTargetBindPoint + 1;
 

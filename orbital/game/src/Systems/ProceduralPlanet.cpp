@@ -209,8 +209,8 @@ namespace {
   public:
     ProceduralPlanetTerrainFeatureRenderer(engine::AssetManager * pAssetManager)
       : m_terrainShader(pAssetManager, bfc::URI::File("engine:shaders/terrain/procedural-planet-terrain.shader"))
-      , m_waterShader(pAssetManager, bfc::URI::File("engine:shaders/terrain/planet-water.shader"))
-      , m_transmittanceShader(pAssetManager, bfc::URI::File("engine:shaders/terrain/planet-water-transmittance.shader"))
+      , m_waterTransmittanceShader(pAssetManager, bfc::URI::File("engine:shaders/terrain/planet-water-transmittance.shader"))
+      // , m_waterTransmittanceShader(pAssetManager, bfc::URI::File("engine:shaders/terrain/planet-water-depth-only.shader"))
       , m_quad(pAssetManager, bfc::URI::File("engine:models/primitives/plane.obj")) {}
 
     virtual void onResize(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, bfc::Vec2i const & size) {}
@@ -336,7 +336,7 @@ namespace {
 
       bfc::graphics::StateManager * pState = pRenderer->getGraphicsDevice()->getStateManager();
       auto const & terrains = view.pRenderData->renderables<ProceduralPlanetRenderable>();
-      pCmdList->bindProgram(m_transmittanceShader);
+      pCmdList->bindProgram(m_waterTransmittanceShader);
       pCmdList->bindVertexArray(m_quad->getVertexArray());
       pCmdList->bindUniformBuffer(m_terrainTileUBO, TerrainTileBufferBindPoint);
       pCmdList->bindUniformBuffer(m_terrainUBO, TerrainBufferBindPoint);
@@ -382,8 +382,13 @@ namespace {
         return;
       }
 
+      pCmdList->bindTexture(nullptr, bfc::Material::TextureSlot_Count);
+      for (int i = 0; i < bfc::GBufferTarget_Count; ++i) {
+        pCmdList->bindTexture((*request.pOpaqueGBuffer)[i], 8 + i);
+      }
+
       auto const & terrains = view.pRenderData->renderables<ProceduralPlanetRenderable>();
-      pCmdList->bindProgram(m_transmittanceShader);
+      pCmdList->bindProgram(m_waterTransmittanceShader);
       pCmdList->bindVertexArray(m_quad->getVertexArray());
       pCmdList->bindUniformBuffer(m_terrainTileUBO, TerrainTileBufferBindPoint);
       pCmdList->bindUniformBuffer(m_terrainUBO, TerrainBufferBindPoint);
@@ -418,14 +423,17 @@ namespace {
           pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
         });
       }
+
+      for (int i = 0; i < bfc::GBufferTarget_Count; ++i) {
+        pCmdList->bindTexture(nullptr, 8 + i);
+      }
     }
 
     virtual void endView(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) override {}
 
   private:
     engine::Asset<bfc::graphics::Program> m_terrainShader;
-    engine::Asset<bfc::graphics::Program> m_waterShader;
-    engine::Asset<bfc::graphics::Program> m_transmittanceShader;
+    engine::Asset<bfc::graphics::Program> m_waterTransmittanceShader;
 
     struct Instance {
       ProceduralPlanetRenderable terrain;
