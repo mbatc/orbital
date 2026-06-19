@@ -13,7 +13,7 @@ using namespace bfc;
 namespace engine {
   class Feature_BasePass : public FeatureRenderer {
   public:
-    Feature_BasePass(AssetManager * pAssets, GBuffer * pGBuffer, graphics::StructuredBuffer<renderer::ModelBuffer> * pModelBuffer)
+    Feature_BasePass(GBuffer * pGBuffer)
       : m_pGBuffer(pGBuffer){}
 
     virtual void onAdded(graphics::CommandList * pCmdList, Renderer * pRenderer) override {}
@@ -27,6 +27,53 @@ namespace engine {
       DeferredRenderer::Stages::BasePassRequest request;
       request.pGBuffer = m_pGBuffer;
       pRenderer->request(request, pCmdList, view);
+
+      pCmdList->bindRenderTarget(view.renderTarget);
+      pCmdList->popState();
+    }
+
+    GBuffer * m_pGBuffer = nullptr;
+  };
+
+  class Feature_TransparencyPass : public FeatureRenderer {
+  public:
+    Feature_TransparencyPass(GBuffer * pGBuffer)
+      : m_pGBuffer(pGBuffer) {}
+
+    virtual void onAdded(graphics::CommandList * pCmdList, Renderer * pRenderer) override {}
+
+    virtual void renderView(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) override {
+      GraphicsDevice * pDevice = pRenderer->getGraphicsDevice();
+      pCmdList->pushState(
+        graphics::State::EnableDepthRead{true},
+        graphics::State::EnableDepthWrite{true});
+      pCmdList->bindRenderTarget(m_pGBuffer->getRenderTarget());
+      pCmdList->clearColour({0, 0, 0, 0});
+      pCmdList->clearColourAttachment<RGBAf32>(0, { 0, 0, 0, 1 });
+
+      {
+        DeferredRenderer::Stages::Transparency::Depth request;
+        request.pTarget = m_pGBuffer->getRenderTarget().get();
+        pCmdList->pushState(graphics::State::ColourWrite{false});
+        pRenderer->request(request, pCmdList, view);
+        pCmdList->popState();
+      }
+
+      {
+        DeferredRenderer::Stages::Transparency::Transmittance request;
+        request.pGBuffer = m_pGBuffer;
+        pCmdList->pushState(
+          graphics::State::ColourWrite{true},
+          graphics::State::EnableDepthRead{true},
+          graphics::State::EnableDepthWrite{false},
+          graphics::State::DepthFunc{ComparisonFunction_Equal},
+          graphics::State::EnableBlend{true},
+          graphics::State::BlendEq{bfc::BlendEquation_Add},
+          graphics::State::BlendFunc{bfc::BlendFunction_One, bfc::BlendFunction_Zero},
+          graphics::State::BlendFunc{bfc::BlendFunction_SourceAlpha, bfc::BlendFunction_OneMinusSourceAlpha, 0});
+        pRenderer->request(request, pCmdList, view);
+        pCmdList->popState();
+      }
 
       pCmdList->bindRenderTarget(view.renderTarget);
       pCmdList->popState();
@@ -853,15 +900,20 @@ namespace engine {
 
   DeferredRenderer::DeferredRenderer(graphics::CommandList * pCmdList, AssetManager * pAssets)
     : Renderer(pCmdList->getDevice())
-    , m_gbuffer(pCmdList, {1920, 1080})
     , m_modelData(BufferUsageHint_Uniform | BufferUsageHint_Dynamic)
     , m_cameraData(BufferUsageHint_Uniform | BufferUsageHint_Dynamic) {
     // Create renderer resources
     graphics::loadTexture2D(pCmdList, &m_finalColourTarget, {1920, 1080}, PixelFormat_RGBAf16);
 
+    m_pGbuffer = bfc::NewRef<GBuffer>(pCmdList, bfc::Vec2i{1920, 1080});
+    GBuffer::Textures transparencyTextures;
+    transparencyTextures.depthTarget = m_pGbuffer->getDepthTarget();
+    transparencyTextures.resolution  = m_pGbuffer->getResolution();
+    m_pTransparencyGBuffer           = bfc::NewRef<GBuffer>(pCmdList, transparencyTextures);
+
     m_finalTarget = pCmdList->createRenderTarget(RenderTargetType_Texture);
     m_finalTarget->attachColour(m_finalColourTarget);
-    m_finalTarget->attachDepth(m_gbuffer.getDepthTarget(), 0, 0);
+    m_finalTarget->attachDepth(m_pGbuffer->getDepthTarget(), 0, 0);
 
     Colour<RGBAu8> white[4] = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF};
     Colour<RGBAu8> black[4] = {0, 0, 0, 0};
@@ -886,19 +938,12 @@ namespace engine {
 
     m_defaultMaterial.upload(pCmdList);
 
-    // Set resources
-    setResource(Resources::gbuffer, &m_gbuffer);
-    setResource(Resources::gbuffer, m_gbuffer.getRenderTarget());
-    setResource(Resources::postProcessStack, &m_postProc);
-    setResource(Resources::defaultMaterial, &m_defaultMaterial);
-    setResource(Resources::finalColour, m_finalTarget);
-
     // Add renderer features
-    addFeature<Feature_BasePass>(Phase::Base::Mesh::opaque, pAssets, &m_gbuffer, &m_modelData);
-    ensurePhase(Phase::Base::Mesh::transparent);
+    addFeature<Feature_BasePass>(Phase::Base::Mesh::opaque, m_pGbuffer.get());
+    addFeature<Feature_TransparencyPass>(Phase::Base::Mesh::transparent, m_pTransparencyGBuffer.get());
 
     addFeature<StaticMeshRenderer>(Phase::undefined, pAssets, &m_modelData, &m_defaultMaterial);
-    addFeature<Feature_LightingPass>(Phase::lighting, pCmdList, pAssets, &m_gbuffer, &m_finalTarget, &m_modelData);
+    addFeature<Feature_LightingPass>(Phase::lighting, pCmdList, pAssets, m_pGbuffer.get(), &m_finalTarget, &m_modelData);
     addFeature<Feature_Skybox>(Phase::skybox, pAssets, &m_finalTarget);
 
     ensurePhase(Phase::prePostProcess);
@@ -907,13 +952,9 @@ namespace engine {
     addFeature<Feature_SSR>(Phase::postProcess, pAssets, &m_postProc);
     addFeature<Feature_Bloom>(Phase::postProcess, pAssets, &m_postProc);
     addFeature<Feature_Exposure>(Phase::postProcess, pAssets, &m_postProc);
-    addFeature<Feature_PostProcess>(Phase::postProcess, pAssets, &m_postProc, &m_gbuffer, &m_finalColourTarget);
+    addFeature<Feature_PostProcess>(Phase::postProcess, pAssets, &m_postProc, m_pGbuffer.get(), &m_finalColourTarget);
 
     ensurePhase(Phase::postPostProcess);
-  }
-
-  graphics::RenderTargetRef DeferredRenderer::getFinalTarget() const {
-    return m_finalTarget;
   }
 
   graphics::TextureRef const & DeferredRenderer::getDefaultTexture(Material::TextureSlot slot) const {
@@ -927,7 +968,8 @@ namespace engine {
   void DeferredRenderer::onResize(graphics::CommandList * pCmdList, Vec2i size) {
     Renderer::onResize(pCmdList, size);
 
-    m_gbuffer.resize(pCmdList, size);
+    m_pGbuffer->resize(pCmdList, size);
+    m_pTransparencyGBuffer->resize(pCmdList, size);
     graphics::loadTexture2D(pCmdList, &m_finalColourTarget, size, PixelFormat_RGBAf16);
   }
 

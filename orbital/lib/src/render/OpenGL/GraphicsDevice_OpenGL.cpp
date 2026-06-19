@@ -615,7 +615,12 @@ namespace bfc {
                                else
                                  glBlendEquationSeparate(glColourEq, glAlphaEq);
                              },
-                             [](State::ColourWrite const & state) { glColorMask(state.r, state.g, state.b, state.a); },
+                             [](State::ColourWrite const & state) {
+                               if (state.colourAttachment.has_value())
+                                 glColorMaski((GLuint)state.colourAttachment.value(), state.r, state.g, state.b, state.a);
+                               else
+                                 glColorMask(state.r, state.g, state.b, state.a);
+                             },
                              [](State::ColourFactor const & state) { glBlendColor(state.r, state.g, state.b, state.a); },
                              [](auto && v) { BFC_FAIL("State is not suported (type: %s)", typeid(v).name()); }));
     }
@@ -921,10 +926,41 @@ namespace bfc {
       }
     }
 
-    void CommandList_OpenGL::clear(RGBAu8 colour) {
+    void CommandList_OpenGL::clear(RGBAu8 colour, float depth, uint8_t stencil) {
+      impl::OpenGL::Clear cmd;
+      cmd.depth  = depth;
+      cmd.colour = colour;
+      cmd.stencil = stencil;
+      cmd.flags  = GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT;
+      add(cmd);
+    }
+
+    void CommandList_OpenGL::clearDepth(float depth) {
+      impl::OpenGL::Clear cmd;
+      cmd.depth  = depth;
+      cmd.flags  = GL_DEPTH_BUFFER_BIT;
+      add(cmd);
+    }
+
+    void CommandList_OpenGL::clearColour(RGBAu8 colour) {
       impl::OpenGL::Clear cmd;
       cmd.colour = colour;
+      cmd.flags  = GL_COLOR_BUFFER_BIT;
+      add(cmd);
+    }
+    
+    void CommandList_OpenGL::clearStencil(uint8_t value) {
+      impl::OpenGL::Clear cmd;
+      cmd.stencil = value;
+      cmd.flags   = GL_STENCIL_BUFFER_BIT;
+      add(cmd);
+    }
 
+    void CommandList_OpenGL::clearColourAttachment(int64_t slot, PixelFormat format, void * rgba) {
+      impl::OpenGL::ClearColourAttachment cmd;
+      std::memcpy(cmd.ptr, rgba, sizeof(cmd.f32));
+      cmd.format = format;
+      cmd.target = GL_DRAW_BUFFER0 + (GLenum)slot;
       add(cmd);
     }
 

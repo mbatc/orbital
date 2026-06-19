@@ -375,7 +375,14 @@ namespace bfc {
       // virtual int64_t getTextureBinding(int64_t bufferIndex) override;
 
       // Rendering commands
-      virtual void clear(RGBAu8 colour) override;
+      virtual void clear(RGBAu8 colour, float depth, uint8_t stencil) override;
+      virtual void clearDepth(float depth) override;
+      virtual void clearColour(RGBAu8 colour) override;
+      virtual void clearStencil(uint8_t value) override;
+
+      // using CommandList::clearColourAttachment; // For template overload
+      virtual void clearColourAttachment(int64_t slot, PixelFormat format, void * rgba) override;
+
       virtual void swap() override;
 
       virtual void draw(int64_t elementCount = std::numeric_limits<int64_t>::max(), int64_t elementOffset = 0, PrimitiveType primType = PrimitiveType_Triangle,

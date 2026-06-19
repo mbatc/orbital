@@ -512,17 +512,20 @@ namespace bfc {
       };
 
       struct ColourWrite {
-        ColourWrite(bool r, bool g, bool b, bool a)
+        ColourWrite(bool r, bool g, bool b, bool a, std::optional<int64_t> attachment = std::nullopt)
           : r(r)
           , g(g)
           , b(b)
-          , a(a) {}
-        ColourWrite(bool rgba)
-          : ColourWrite(rgba, rgba, rgba, rgba) {}
+          , a(a)
+          , colourAttachment(attachment) {}
+        ColourWrite(bool rgba, std::optional<int64_t> attachment = std::nullopt)
+          : ColourWrite(rgba, rgba, rgba, rgba, attachment) {}
         bool r = true;
         bool g = true;
         bool b = true;
         bool a = true;
+
+        std::optional<int64_t> colourAttachment = std::nullopt;
       };
 
       struct ColourFactor {
@@ -762,7 +765,21 @@ namespace bfc {
       // virtual int64_t getTextureBinding(int64_t bufferIndex)                                       = 0;
 
       // Rendering commands
-      virtual void clear(RGBAu8 colour) = 0;
+      virtual void clear(RGBAu8 colour, float depth = 1.0f, uint8_t stencil = 0) = 0;
+      virtual void clearDepth(float depth = 1.0f)                                = 0;
+      virtual void clearColour(RGBAu8 colour)                                    = 0;
+      virtual void clearStencil(uint8_t value)                                   = 0;
+      /// Clear a colour attachment of the currently bound render target.
+      /// @param slot   The index of the colour attachment.
+      /// @param format The format of the color attachment. Must be one of PixelFormat_RGBAf32, PixelFormat_RGBAi32, PixelFormat_RGBAu32.
+      /// @param rgba   Pointer to the rgba values to clear the target to.
+      virtual void clearColourAttachment(int64_t slot, PixelFormat format, void *rgba) = 0;
+
+      template<typename T>
+      void clearColourAttachment(int64_t slot, T const &rgba) {
+        clearColourAttachment(slot, T::FormatID, &rgba);
+      }
+
       virtual void swap()               = 0;
 
       virtual void draw(int64_t elementCount = std::numeric_limits<int64_t>::max(), int64_t elementOffset = 0, PrimitiveType primType = PrimitiveType_Triangle,
@@ -841,7 +858,6 @@ namespace bfc {
     void loadTextureCubeMap(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size, Colour<Format> * pPixels = nullptr) {
       loadTextureCubeMap(pCmdList, pTexture, size, Format::FormatID, pPixels);
     }
-
   } // namespace graphics
 
   class BFC_API GraphicsDevice {

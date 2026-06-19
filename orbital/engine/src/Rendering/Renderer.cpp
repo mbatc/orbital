@@ -158,9 +158,9 @@ namespace engine {
     }
   }
 
-  bfc::Vector<bfc::String> Renderer::listResources() const {
-    return m_resources.getKeys();
-  }
+  // bfc::Vector<bfc::String> Renderer::listResources() const {
+  //   return m_resources.getKeys();
+  // }
 
   GraphicsDevice * Renderer::getGraphicsDevice() const {
     return m_pDevice;

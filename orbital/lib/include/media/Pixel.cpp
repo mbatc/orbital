@@ -9,6 +9,8 @@ namespace bfc {
     case PixelFormat_Lu8: return 1;
     case PixelFormat_LAu8: return 2;
     case PixelFormat_RGBAu16: return 4 * 2;
+    case PixelFormat_RGBAu32: return 4 * 4;
+    case PixelFormat_RGBAi32: return 4 * 4;
     case PixelFormat_RGBAf16: return 4 * 2;
     case PixelFormat_RGBAf32: return 4 * 4;
     case PixelFormat_Rf32: return 4;

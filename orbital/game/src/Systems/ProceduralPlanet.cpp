@@ -1,29 +1,28 @@
 #include "ProceduralPlanet.h"
 #include "Levels/CoreComponents.h"
-#include "Rendering/Rendering.h"
-#include "Rendering/Renderer.h"
 #include "Rendering/DeferredRenderer.h"
 #include "Rendering/RenderData.h"
 #include "Rendering/Renderables.h"
+#include "Rendering/Renderer.h"
+#include "Rendering/Rendering.h"
 
 namespace {
   static bfc::Mat4d faceTransforms[bfc::CubeMapFace_Count] = {
-    bfc::math::translation(bfc::math::right<double> * 0.5)
-      * glm::toMat4(glm::angleAxis(glm::half_pi<double>(), bfc::math::forward<double>)), // CubeMapFace_Right,
-  
-    bfc::math::translation(-bfc::math::right<double> * 0.5)
-      * glm::toMat4(glm::angleAxis(-glm::half_pi<double>(), bfc::math::forward<double>)),  // CubeMapFace_Left,
-  
+    bfc::math::translation(bfc::math::right<double> * 0.5) *
+      glm::toMat4(glm::angleAxis(glm::half_pi<double>(), bfc::math::forward<double>)), // CubeMapFace_Right,
+
+    bfc::math::translation(-bfc::math::right<double> * 0.5) *
+      glm::toMat4(glm::angleAxis(-glm::half_pi<double>(), bfc::math::forward<double>)), // CubeMapFace_Left,
+
     bfc::math::translation(bfc::math::up<double> * 0.5), // CubeMapFace_Top,
-  
-    bfc::math::translation(-bfc::math::up<double> * 0.5)
-      * glm::toMat4(glm::angleAxis(glm::pi<double>(), bfc::math::right<double>)), // CubeMapFace_Bottom,
-  
-    bfc::math::translation(bfc::math::forward<double> * 0.5)
-      * glm::toMat4(glm::angleAxis(-glm::half_pi<double>(), bfc::math::right<double>)), // CubeMapFace_Front
-  
-    bfc::math::translation(-bfc::math::forward<double> * 0.5)
-      * glm::toMat4(glm::angleAxis(glm::half_pi<double>(), bfc::math::right<double>)), // CubeMapFace_Back,
+
+    bfc::math::translation(-bfc::math::up<double> * 0.5) * glm::toMat4(glm::angleAxis(glm::pi<double>(), bfc::math::right<double>)), // CubeMapFace_Bottom,
+
+    bfc::math::translation(bfc::math::forward<double> * 0.5) *
+      glm::toMat4(glm::angleAxis(-glm::half_pi<double>(), bfc::math::right<double>)), // CubeMapFace_Front
+
+    bfc::math::translation(-bfc::math::forward<double> * 0.5) *
+      glm::toMat4(glm::angleAxis(glm::half_pi<double>(), bfc::math::right<double>)), // CubeMapFace_Back,
   };
 
   class QuadTree {
@@ -70,7 +69,7 @@ namespace {
       return 1ull << layer;
     }
 
-    void trySplit(std::function<bool(Node const&)> const & predicate, uint64_t root = 0, bool joinOnFail = false) {
+    void trySplit(std::function<bool(Node const &)> const & predicate, uint64_t root = 0, bool joinOnFail = false) {
       if (!predicate(nodes[root])) {
         if (joinOnFail)
           join(root);
@@ -125,7 +124,7 @@ namespace {
       };
       std::memcpy(nodes[node].children, childNodes, sizeof(childNodes));
       auto & parent = nodes[node];
-      parent.split = true;
+      parent.split  = true;
 
       for (uint8_t i = 0; i < 4; ++i) {
         nodes[parent.children[i]].coord = parent.child(i);
@@ -134,7 +133,7 @@ namespace {
     }
 
     void forLeaves(std::function<void(Node const &)> const & cb) {
-      for (auto& node : nodes) {
+      for (auto & node : nodes) {
         if (!node.split) {
           cb(node);
         }
@@ -173,14 +172,9 @@ namespace {
     float      maxHeight = 5;
     double     radius    = 0;
 
-    uint32_t   octaves   = 6;
-    float      persistance = 0.5f;
-    float      lacurnarity = 2.0f;
-  };
-  
-  struct PlanetWaterRenderable {
-    engine::EntityID planetID = 0;
-    bfc::Colour<bfc::RGBAu8> tint = { 0, 0, 255, 255 };
+    uint32_t octaves     = 6;
+    float    persistance = 0.5f;
+    float    lacurnarity = 2.0f;
   };
 
   struct PlanetAtmosphereRenderable {
@@ -193,7 +187,7 @@ namespace {
     float     tileSize        = 1;
     float     padding0[3];
   };
-  
+
   // Per planet data
   struct PlanetTerrainUBO {
     uint32_t seed      = 0;
@@ -208,13 +202,15 @@ namespace {
     float    lacurnarity;
   };
 
-  static constexpr int64_t TerrainBufferBindPoint = 4; // TODO: Register these with shader compiler. Shader compiler should provide the bind points.
+  static constexpr int64_t TerrainBufferBindPoint     = 4; // TODO: Register these with shader compiler. Shader compiler should provide the bind points.
   static constexpr int64_t TerrainTileBufferBindPoint = 5; // TODO: Register these with shader compiler. Shader compiler should provide the bind points.
 
   class ProceduralPlanetTerrainFeatureRenderer : public engine::FeatureRenderer {
   public:
-    ProceduralPlanetTerrainFeatureRenderer(engine::AssetManager *pAssetManager)
+    ProceduralPlanetTerrainFeatureRenderer(engine::AssetManager * pAssetManager)
       : m_terrainShader(pAssetManager, bfc::URI::File("engine:shaders/terrain/procedural-planet-terrain.shader"))
+      , m_waterShader(pAssetManager, bfc::URI::File("engine:shaders/terrain/planet-water.shader"))
+      , m_transmittanceShader(pAssetManager, bfc::URI::File("engine:shaders/terrain/planet-water-transmittance.shader"))
       , m_quad(pAssetManager, bfc::URI::File("engine:models/primitives/plane.obj")) {}
 
     virtual void onResize(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, bfc::Vec2i const & size) {}
@@ -265,6 +261,8 @@ namespace {
               return dist2 < sz * sz * 1.5 * 1.5;
             },
             0, true);
+
+          viewData.instances.pushBack(std::move(instance));
         }
       }
 
@@ -275,11 +273,18 @@ namespace {
                                  engine::RenderView const & view) {
       if (auto * pBasePassRequest = std::any_cast<engine::DeferredRenderer::Stages::BasePassRequest>(&request))
         onBasePass(*pBasePassRequest, pCmdList, pRenderer, view);
+      if (auto * pTransparencyDepth = std::any_cast<engine::DeferredRenderer::Stages::Transparency::Depth>(&request))
+        onTransparencyDepth(*pTransparencyDepth, pCmdList, pRenderer, view);
+      if (auto * pTransparencyTransmittance = std::any_cast<engine::DeferredRenderer::Stages::Transparency::Transmittance>(&request))
+        onTransparencyTransmittance(*pTransparencyTransmittance, pCmdList, pRenderer, view);
     }
 
     void onBasePass(engine::DeferredRenderer::Stages::BasePassRequest const & request, bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer,
                     engine::RenderView const & view) {
-      auto pGBuffer = pRenderer->getResource<bfc::graphics::RenderTarget>(engine::DeferredRenderer::Resources::gbuffer);
+      uint64_t viewID = view.getViewID();
+      if (!m_viewData.contains(viewID)) {
+        return;
+      }
 
       bfc::graphics::StateManager * pState = pRenderer->getGraphicsDevice()->getStateManager();
       pCmdList->pushState(bfc::graphics::State::EnableDepthRead{true}, bfc::graphics::State::EnableDepthWrite{true}, bfc::graphics::State::EnableBlend{false});
@@ -291,12 +296,6 @@ namespace {
       pCmdList->bindUniformBuffer(m_terrainUBO, TerrainBufferBindPoint);
       pCmdList->bindUniformBuffer(m_modelUBO, bfc::renderer::BufferBinding_ModelBuffer);
 
-      uint64_t viewID = view.getViewID();
-      if (!m_viewData.contains(viewID)) {
-        return;
-      }
-
-      int64_t tree = 0;
       for (auto & instance : m_viewData[viewID].instances) {
         m_modelUBO.data.modelMatrix  = instance.terrain.transform;
         m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(instance.terrain.transform);
@@ -314,11 +313,10 @@ namespace {
         m_terrainUBO.upload(pCmdList);
 
         instance.tree.forLeaves([&](QuadTree::Node const & node) {
-          const double     size      = node.size();
-          const bfc::Vec3d tileCoord = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
+          const double     size            = node.size();
+          const bfc::Vec3d tileCoord       = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
           const bfc::Mat4d sampleTransform = instance.side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)) * glm::translate(tileCoord) *
-                                             glm::scale(bfc::Vec3d(size, 1, size)) *
-                                  glm::translate(bfc::Vec3d(0.5, 0, 0.5));
+                                             glm::scale(bfc::Vec3d(size, 1, size)) * glm::translate(bfc::Vec3d(0.5, 0, 0.5));
 
           m_terrainTileUBO.data.tileSize        = (float)size;
           m_terrainTileUBO.data.sampleTransform = sampleTransform;
@@ -329,24 +327,20 @@ namespace {
       }
     }
 
-    void onTransparency(engine::DeferredRenderer::Stages::BasePassRequest const & request, bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer,
-                    engine::RenderView const & view) {
-      auto pGBuffer = pRenderer->getResource<bfc::graphics::RenderTarget>(engine::DeferredRenderer::Resources::gbuffer);
-
-      bfc::graphics::StateManager * pState = pRenderer->getGraphicsDevice()->getStateManager();
-      pCmdList->pushState(bfc::graphics::State::EnableDepthRead{true}, bfc::graphics::State::EnableDepthWrite{true}, bfc::graphics::State::EnableBlend{false});
-
-      auto const & terrains = view.pRenderData->renderables<ProceduralPlanetRenderable>();
-      pCmdList->bindProgram(m_terrainShader);
-      pCmdList->bindVertexArray(m_quad->getVertexArray());
-      pCmdList->bindUniformBuffer(m_terrainTileUBO, TerrainTileBufferBindPoint);
-      pCmdList->bindUniformBuffer(m_terrainUBO, TerrainBufferBindPoint);
-      pCmdList->bindUniformBuffer(m_modelUBO, bfc::renderer::BufferBinding_ModelBuffer);
-
+    void onTransparencyDepth(engine::DeferredRenderer::Stages::Transparency::Depth const & request, bfc::graphics::CommandList * pCmdList,
+                             engine::Renderer * pRenderer, engine::RenderView const & view) {
       uint64_t viewID = view.getViewID();
       if (!m_viewData.contains(viewID)) {
         return;
       }
+
+      bfc::graphics::StateManager * pState = pRenderer->getGraphicsDevice()->getStateManager();
+      auto const & terrains = view.pRenderData->renderables<ProceduralPlanetRenderable>();
+      pCmdList->bindProgram(m_transmittanceShader);
+      pCmdList->bindVertexArray(m_quad->getVertexArray());
+      pCmdList->bindUniformBuffer(m_terrainTileUBO, TerrainTileBufferBindPoint);
+      pCmdList->bindUniformBuffer(m_terrainUBO, TerrainBufferBindPoint);
+      pCmdList->bindUniformBuffer(m_modelUBO, bfc::renderer::BufferBinding_ModelBuffer);
 
       for (auto & instance : m_viewData[viewID].instances) {
         m_modelUBO.data.modelMatrix  = instance.terrain.transform;
@@ -364,12 +358,58 @@ namespace {
         m_terrainUBO.data.lacurnarity = instance.terrain.lacurnarity;
         m_terrainUBO.upload(pCmdList);
 
-        instance.tree.forLeaves([&](QuadTree::Node const & node) {
-          const double     size      = node.size();
-          const bfc::Vec3d tileCoord = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
+        instance.tree.forLeaves([=](QuadTree::Node const & node) {
+          const double     size            = node.size();
+          const bfc::Vec3d tileCoord       = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
           const bfc::Mat4d sampleTransform = instance.side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)) * glm::translate(tileCoord) *
-                                             glm::scale(bfc::Vec3d(size, 1, size)) *
-                                  glm::translate(bfc::Vec3d(0.5, 0, 0.5));
+                                             glm::scale(bfc::Vec3d(size, 1, size)) * glm::translate(bfc::Vec3d(0.5, 0, 0.5));
+
+          m_terrainTileUBO.data.tileSize        = (float)size;
+          m_terrainTileUBO.data.sampleTransform = sampleTransform;
+          m_terrainTileUBO.upload(pCmdList);
+
+          pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
+        });
+      }
+
+      pCmdList->popState();
+    }
+
+    void onTransparencyTransmittance(engine::DeferredRenderer::Stages::Transparency::Transmittance const & request, bfc::graphics::CommandList * pCmdList,
+                         engine::Renderer * pRenderer, engine::RenderView const & view) {
+      uint64_t viewID = view.getViewID();
+      if (!m_viewData.contains(viewID)) {
+        return;
+      }
+
+      auto const & terrains = view.pRenderData->renderables<ProceduralPlanetRenderable>();
+      pCmdList->bindProgram(m_transmittanceShader);
+      pCmdList->bindVertexArray(m_quad->getVertexArray());
+      pCmdList->bindUniformBuffer(m_terrainTileUBO, TerrainTileBufferBindPoint);
+      pCmdList->bindUniformBuffer(m_terrainUBO, TerrainBufferBindPoint);
+      pCmdList->bindUniformBuffer(m_modelUBO, bfc::renderer::BufferBinding_ModelBuffer);
+
+      for (auto & instance : m_viewData[viewID].instances) {
+        m_modelUBO.data.modelMatrix  = instance.terrain.transform;
+        m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(instance.terrain.transform);
+        m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(instance.terrain.transform, view.getViewProjectionMatrix());
+        m_modelUBO.upload(pCmdList);
+
+        m_terrainUBO.data.seed        = instance.terrain.seed;
+        m_terrainUBO.data.scale       = instance.terrain.scale;
+        m_terrainUBO.data.maxHeight   = instance.terrain.maxHeight;
+        m_terrainUBO.data.minHeight   = instance.terrain.minHeight;
+        m_terrainUBO.data.frequency   = 1.0f;
+        m_terrainUBO.data.octaves     = instance.terrain.octaves;
+        m_terrainUBO.data.persistance = instance.terrain.persistance;
+        m_terrainUBO.data.lacurnarity = instance.terrain.lacurnarity;
+        m_terrainUBO.upload(pCmdList);
+
+        instance.tree.forLeaves([=](QuadTree::Node const & node) {
+          const double     size            = node.size();
+          const bfc::Vec3d tileCoord       = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
+          const bfc::Mat4d sampleTransform = instance.side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)) * glm::translate(tileCoord) *
+                                             glm::scale(bfc::Vec3d(size, 1, size)) * glm::translate(bfc::Vec3d(0.5, 0, 0.5));
 
           m_terrainTileUBO.data.tileSize        = (float)size;
           m_terrainTileUBO.data.sampleTransform = sampleTransform;
@@ -384,6 +424,8 @@ namespace {
 
   private:
     engine::Asset<bfc::graphics::Program> m_terrainShader;
+    engine::Asset<bfc::graphics::Program> m_waterShader;
+    engine::Asset<bfc::graphics::Program> m_transmittanceShader;
 
     struct Instance {
       ProceduralPlanetRenderable terrain;
@@ -404,146 +446,11 @@ namespace {
     bfc::graphics::StructuredBuffer<bfc::renderer::ModelBuffer> m_modelUBO;
   };
 
-  class PlanetWaterFeatureRenderer : public engine::FeatureRenderer {
-  public:
-    PlanetWaterFeatureRenderer(engine::AssetManager * pAssetManager) 
-      : m_waterShader(pAssetManager, bfc::URI::File("engine:shaders/terrain/planet-water.shader"))
-      , m_transmittanceShader(pAssetManager, bfc::URI::File("engine:shaders/terrain/planet-water-transmittance.shader"))
-      , m_quad(pAssetManager, bfc::URI::File("engine:models/primitives/plane.obj")) 
-    {}
-
-    virtual void renderView(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) override {
-      auto pGBuffer     = pRenderer->getResource<bfc::graphics::RenderTarget>(engine::DeferredRenderer::Resources::gbuffer);
-      auto pFinalTarget = pRenderer->getResource<bfc::graphics::RenderTarget>(engine::DeferredRenderer::Resources::finalColour);
-
-      bfc::Vec2i targetSize = pGBuffer->getSize();
-      auto target = pCmdList->createRenderTarget(bfc::RenderTargetType_Texture);
-      bfc::graphics::TextureRef transmittance;
-      bfc::graphics::loadTexture2D<bfc::RGBu8>(pCmdList, &transmittance, targetSize);
-      target->attachColour(transmittance);
-      target->attachDepth(pGBuffer->getDepth());
-
-      bfc::graphics::StateManager * pState = pRenderer->getGraphicsDevice()->getStateManager();
-      pCmdList->pushState(
-        bfc::graphics::State::EnableDepthRead{true},
-        bfc::graphics::State::EnableDepthWrite{false},
-        bfc::graphics::State::EnableBlend{false},
-        bfc::graphics::State::BlendEq{bfc::BlendEquation_Add},
-        bfc::graphics::State::BlendFunc{bfc::BlendFunction_One, bfc::BlendFunction_Zero},
-        bfc::graphics::State::BlendFunc{bfc::BlendFunction_SourceAlpha, bfc::BlendFunction_OneMinusSourceAlpha, 0}
-      );
-
-      auto const & terrains = view.pRenderData->renderables<ProceduralPlanetRenderable>();
-      pCmdList->bindVertexArray(m_quad->getVertexArray());
-      pCmdList->bindUniformBuffer(m_terrainTileUBO, TerrainTileBufferBindPoint);
-      pCmdList->bindUniformBuffer(m_terrainUBO, TerrainBufferBindPoint);
-      pCmdList->bindUniformBuffer(m_modelUBO, bfc::renderer::BufferBinding_ModelBuffer);
-
-      for (auto const & terrain : terrains) {
-        m_modelUBO.data.modelMatrix  = terrain.transform;
-        m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(terrain.transform);
-        m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(terrain.transform, view.getViewProjectionMatrix());
-        m_modelUBO.upload(pCmdList);
-
-        m_terrainUBO.data.seed        = terrain.seed;
-        m_terrainUBO.data.scale       = terrain.scale;
-        m_terrainUBO.data.maxHeight   = terrain.maxHeight;
-        m_terrainUBO.data.minHeight   = terrain.minHeight;
-        m_terrainUBO.data.frequency   = 1.0f;
-        m_terrainUBO.data.octaves     = terrain.octaves;
-        m_terrainUBO.data.persistance = terrain.persistance;
-        m_terrainUBO.data.lacurnarity = terrain.lacurnarity;
-        m_terrainUBO.upload(pCmdList);
-
-        const auto   terrainInverseTransform = glm::inverse(terrain.transform);
-        const auto   camPosTerrainSpace      = bfc::Vec3d(terrainInverseTransform * bfc::Vec4d(view.getCameraPosition(), 1));
-        const double terrainHeight           = glm::length(camPosTerrainSpace) - 1;
-
-        // Project camera position to the unit cube
-        const auto maxComponent   = bfc::math::maxComponent(bfc::math::abs(camPosTerrainSpace));
-        const auto camPosUnitCube = maxComponent < std::numeric_limits<double>::epsilon() ? bfc::Vec3d(0) : (camPosTerrainSpace / maxComponent);
-
-        for (bfc::Mat4d const & side : faceTransforms) {
-          auto terrainSideInverseTransform = glm::inverse(side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)));
-          auto cameraTerrainSpace          = bfc::Vec3d(terrainSideInverseTransform * bfc::Vec4d(camPosUnitCube, 1));
-          std::swap(cameraTerrainSpace.y, cameraTerrainSpace.z);
-
-          if (cameraTerrainSpace.z > 0)
-            cameraTerrainSpace.z = terrainHeight;
-
-          QuadTree tree;
-          tree.trySplit(
-            [&](QuadTree::Node const & node) {
-              if (node.coord.z >= 20)
-                return false;
-              const double sz     = node.size();
-              const double halfSz = sz / 2;
-              const auto   center = bfc::Vec3d(node.coord.x, node.coord.y, 0) * sz + bfc::Vec3d(halfSz, halfSz, 0);
-              const double dist2  = glm::length2(center - cameraTerrainSpace);
-              return dist2 < sz * sz * 1.5 * 1.5;
-            },
-            0, true);
-
-          pCmdList->bindRenderTarget(target);
-          pCmdList->bindTexture(nullptr, bfc::Material::TextureSlot_Count);
-          for (int i = 0; i < bfc::GBufferTarget_Count; ++i) {
-            pCmdList->bindTexture(pGBuffer->getColour(i).texture, i);
-          }
-          pCmdList->bindProgram(m_transmittanceShader);
-          tree.forLeaves([&](QuadTree::Node const & node) {
-            const double     size            = node.size();
-            const bfc::Vec3d tileCoord       = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
-            const bfc::Mat4d side = side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)) * glm::translate(tileCoord) *
-                                               glm::scale(bfc::Vec3d(size, 1, size)) * glm::translate(bfc::Vec3d(0.5, 0, 0.5));
-
-            m_terrainTileUBO.data.tileSize        = (float)size;
-            m_terrainTileUBO.data.sampleTransform = side;
-            m_terrainTileUBO.upload(pCmdList);
-
-            pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
-          });
-
-          pCmdList->bindTexture(transmittance, bfc::Material::TextureSlot_Count);
-          for (int i = 0; i < bfc::GBufferTarget_Count; ++i) {
-            pCmdList->bindTexture(nullptr, i);
-          }
-          pCmdList->bindRenderTarget(pFinalTarget);
-          pCmdList->bindProgram(m_waterShader);
-          pCmdList->pushState(bfc::graphics::State::EnableBlend{true});
-          tree.forLeaves([&](QuadTree::Node const & node) {
-            const double     size            = node.size();
-            const bfc::Vec3d tileCoord       = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
-            const bfc::Mat4d side = side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)) * glm::translate(tileCoord) *
-                                               glm::scale(bfc::Vec3d(size, 1, size)) * glm::translate(bfc::Vec3d(0.5, 0, 0.5));
-
-            m_terrainTileUBO.data.tileSize        = (float)size;
-            m_terrainTileUBO.data.sampleTransform = side;
-            m_terrainTileUBO.upload(pCmdList);
-
-            pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
-          });
-          pCmdList->popState();
-        }
-      }
-
-      pCmdList->popState();
-    }
-
-  private:
-    engine::Asset<bfc::graphics::Program> m_waterShader;
-    engine::Asset<bfc::graphics::Program> m_transmittanceShader;
-
-    engine::Asset<bfc::Mesh>                                    m_quad;
-    bfc::graphics::StructuredBuffer<PlanetTerrainUBO>           m_terrainUBO;
-    bfc::graphics::StructuredBuffer<PlanetTerrainTileUBO>       m_terrainTileUBO;
-    bfc::graphics::StructuredBuffer<bfc::renderer::ModelBuffer> m_modelUBO;
-  };
-
   class PlanetAtmosphereFeatureRenderer : public engine::FeatureRenderer {
   public:
-    PlanetAtmosphereFeatureRenderer(engine::AssetManager * ) {}
+    PlanetAtmosphereFeatureRenderer(engine::AssetManager *) {}
 
-    engine::Asset<bfc::graphics::Program>                       m_atmosphereShader;
+    engine::Asset<bfc::graphics::Program> m_atmosphereShader;
 
     engine::Asset<bfc::Mesh>                                    m_quad;
     bfc::graphics::StructuredBuffer<PlanetTerrainUBO>           m_terrainUBO;
@@ -557,38 +464,27 @@ namespace {
 
     virtual void apply(engine::Renderer * pRenderer) override {
       pRenderer->addFeature<ProceduralPlanetTerrainFeatureRenderer>(engine::DeferredRenderer::Phase::Base::Mesh::opaque, m_pAssets.get());
-      pRenderer->addFeature<PlanetWaterFeatureRenderer>(engine::DeferredRenderer::Phase::prePostProcess, m_pAssets.get());
     }
 
     bfc::Ref<engine::AssetManager> m_pAssets;
   };
-}
+} // namespace
 
 ProceduralTerrainSystem::ProceduralTerrainSystem(bfc::Ref<engine::Rendering> const & pRendering, bfc::Ref<engine::AssetManager> const & pAssets) {
   pRendering->registerExtension(bfc::NewRef<ProceduralTerrainRenderingExtension>(pAssets));
 }
 
-void ProceduralTerrainSystem::update(engine::Level * pLevel, bfc::Timestamp dt) {
+void ProceduralTerrainSystem::update(engine::Level * pLevel, bfc::Timestamp dt) {}
 
-}
+void ProceduralTerrainSystem::play(engine::Level * pLevel) {}
 
-void ProceduralTerrainSystem::play(engine::Level * pLevel) {
+void ProceduralTerrainSystem::pause(engine::Level * pLevel) {}
 
-}
-
-void ProceduralTerrainSystem::pause(engine::Level * pLevel) {
-
-}
-
-void ProceduralTerrainSystem::stop(engine::Level * pLevel) {
-
-}
+void ProceduralTerrainSystem::stop(engine::Level * pLevel) {}
 
 void ProceduralTerrainSystem::collectRenderData(engine::RenderView * pRenderView, engine::Level const * pLevel) {
   engine::RenderData & renderData = *pRenderView->pRenderData;
   auto &               terrains   = renderData.renderables<ProceduralPlanetRenderable>();
-  auto &               waters     = renderData.renderables<PlanetWaterRenderable>();
-
   for (auto const & [transform, planet] : pLevel->getView<components::Transform, components::ProceduralPlanet>()) {
     ProceduralPlanetRenderable renderable;
     renderable.planetID    = pLevel->toEntity(&transform);
@@ -602,13 +498,5 @@ void ProceduralTerrainSystem::collectRenderData(engine::RenderView * pRenderView
     renderable.persistance = planet.persistance;
     renderable.lacurnarity = planet.lacurnarity;
     terrains.pushBack(renderable);
-
-    PlanetWaterRenderable waterRenderable;
-    renderable.planetID = pLevel->toEntity(&transform);
-    // renderable.tint     = water.tint;
-    waters.pushBack(waterRenderable);
   }
-
-  // for (auto const & [transform, water] : pLevel->getView<components::Transform, components::PlanetWater>()) {
-  // }
 }

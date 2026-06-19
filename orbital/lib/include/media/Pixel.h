@@ -26,6 +26,12 @@ namespace bfc {
     // UInt16 formats
     PixelFormat_RGBAu16,
 
+    // UInt32 formats
+    PixelFormat_RGBAu32,
+
+    // Int32 formats
+    PixelFormat_RGBAi32,
+
     // 16-bit floating point formats
     PixelFormat_RGBAf16,
 
@@ -70,6 +76,22 @@ namespace bfc {
     RGBAu16() = default;
 
     uint16_t r, g, b, a;
+  };
+
+  struct RGBAu32 {
+    static constexpr PixelFormat FormatID = PixelFormat_RGBAu32;
+
+    RGBAu32() = default;
+
+    uint32_t r, g, b, a;
+  };
+
+  struct RGBAi32 {
+    static constexpr PixelFormat FormatID = PixelFormat_RGBAi32;
+
+    RGBAi32() = default;
+
+    int32_t r, g, b, a;
   };
 
   struct RGBu8 {
@@ -121,6 +143,12 @@ namespace bfc {
     static constexpr PixelFormat FormatID = PixelFormat_RGBAf32;
 
     RGBAf32() = default;
+
+    constexpr RGBAf32(float r, float g, float b, float a)
+      : r(r)
+      , g(g)
+      , b(b)
+      , a(a) {}
 
     constexpr RGBAf32(Vec4 vec)
       : r(vec.x)
@@ -307,9 +335,20 @@ namespace bfc {
   struct EnumValueMap<PixelFormat> {
     // inline static Vector<any> const mapping;
     inline static Map<PixelFormat, String> const mapping = {
-      {PixelFormat_Unknown, "unknown"},  {PixelFormat_RGBAu8, "rgba-u8"}, {PixelFormat_RGBu8, "rgb-u8"},     {PixelFormat_Ru8, "r-u8"},
-      {PixelFormat_Lu8, "l-u8"},         {PixelFormat_LAu8, "la-u8"},     {PixelFormat_RGBAu16, "rgba-u16"}, {PixelFormat_RGBAf16, "rgba-f16"},
-      {PixelFormat_RGBAf32, "rgba-f32"}, {PixelFormat_RGBf32, "fgb-f32"}, {PixelFormat_Rf32, "r-f32"},       {PixelFormat_RGBAf64, "rgba-f64"},
+       { PixelFormat_Unknown, "unknown" },
+       { PixelFormat_RGBAu8, "rgba-u8" },
+       { PixelFormat_RGBu8, "rgb-u8" },
+       { PixelFormat_Ru8, "r-u8" },
+       { PixelFormat_Lu8, "l-u8" },
+       { PixelFormat_LAu8, "la-u8" },
+       { PixelFormat_RGBAu16, "rgba-u16" },
+       { PixelFormat_RGBAu32, "rgba-u32" },
+       { PixelFormat_RGBAi32, "rgba-i32" },
+       { PixelFormat_RGBAf16, "rgba-f16" },
+       { PixelFormat_RGBAf32, "rgba-f32" },
+       { PixelFormat_RGBf32, "fgb-f32" },
+       { PixelFormat_Rf32, "r-f32" },
+       { PixelFormat_RGBAf64, "rgba-f64" },
     };
   };
 } // namespace bfc

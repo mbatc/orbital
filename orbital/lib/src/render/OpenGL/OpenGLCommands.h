@@ -776,15 +776,35 @@ namespace bfc {
         };
 
         struct Clear {
-          RGBAu8 colour;
+          RGBAu8     colour;
+          float      depth;
+          uint8_t    stencil;
+          GLbitfield flags;
 
           static void execute(Clear const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
             pDevice->getStateManager()->apply();
-
             glClearColor(pCmd->colour.r / 255.0f, pCmd->colour.g / 255.0f, pCmd->colour.b / 255.0f, pCmd->colour.a / 255.0f);
-            glClearDepth(1.0f);
-            glClearStencil(0);
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+            glClearDepth(pCmd->depth);
+            glClearStencil(pCmd->stencil);
+            glClear(pCmd->flags);
+          }
+        };
+
+        struct ClearColourAttachment {
+          GLenum target;
+          PixelFormat format;
+          union {
+            uint8_t ptr[1];
+            RGBAf32 f32;
+            RGBAi32 i32;
+            RGBAu32 u32;
+          };
+          static void execute(ClearColourAttachment const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
+            switch (pCmd->format) {
+            case PixelFormat_RGBAi32: glClearBufferiv(GL_COLOR, pCmd->target, (int32_t const *)&pCmd->i32); break;
+            case PixelFormat_RGBAu32: glClearBufferuiv(GL_COLOR, pCmd->target, (uint32_t  const *)&pCmd->u32); break;
+            case PixelFormat_RGBAf32: glClearBufferfv(GL_COLOR, pCmd->target, (float const *)&pCmd->f32); break;
+            }
           }
         };
 

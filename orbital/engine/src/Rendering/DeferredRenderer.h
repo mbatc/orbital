@@ -40,6 +40,16 @@ namespace engine {
         bfc::GBuffer * pGBuffer = nullptr;
       };
 
+      struct Transparency {
+        struct Depth {
+          bfc::graphics::RenderTarget * pTarget = nullptr;
+        };
+
+        struct Transmittance {
+          bfc::GBuffer * pGBuffer = nullptr;
+        };
+      };
+
       struct ShadowDepth {
         ShadowMapData const * pShadowData = nullptr;
       };
@@ -81,12 +91,12 @@ namespace engine {
       inline static const bfc::StringView postPostProcess = "post-post-process";
     };
 
-    struct Resources {
-      inline static const bfc::StringView defaultMaterial  = "default-material";
-      inline static const bfc::StringView gbuffer          = "gbuffer";
-      inline static const bfc::StringView postProcessStack = "post-process-stack";
-      inline static const bfc::StringView finalColour      = "final-colour";
-    };
+    // struct Resources {
+    //   inline static const bfc::StringView defaultMaterial  = "default-material";
+    //   inline static const bfc::StringView gbuffer          = "gbuffer";
+    //   inline static const bfc::StringView postProcessStack = "post-process-stack";
+    //   inline static const bfc::StringView finalColour      = "final-colour";
+    // };
 
     DeferredRenderer(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets);
 
@@ -99,7 +109,7 @@ namespace engine {
     virtual void render(bfc::graphics::CommandList * pCmdList, bfc::Vector<RenderView> const & views) override;
 
     /// Get the GBuffer render target.
-    bfc::graphics::RenderTargetRef getFinalTarget() const;
+    // bfc::graphics::RenderTargetRef getFinalTarget() const;
 
     /// Get the default texture for a texture slot.
     bfc::graphics::TextureRef const & getDefaultTexture(bfc::Material::TextureSlot slot) const;
@@ -113,7 +123,8 @@ namespace engine {
 
   private:
     bfc::PostProcessingStack  m_postProc;
-    bfc::GBuffer              m_gbuffer;
+    bfc::Ref<bfc::GBuffer> m_pGbuffer;
+    bfc::Ref<bfc::GBuffer> m_pTransparencyGBuffer;
     bfc::graphics::TextureRef m_finalColourTarget; ///< Final scene colour is rendered to this target.
 
     bfc::graphics::RenderTargetRef m_finalTarget = bfc::InvalidGraphicsResource;
