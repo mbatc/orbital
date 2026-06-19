@@ -773,7 +773,7 @@ namespace bfc {
       /// @param slot   The index of the colour attachment.
       /// @param format The format of the color attachment. Must be one of PixelFormat_RGBAf32, PixelFormat_RGBAi32, PixelFormat_RGBAu32.
       /// @param rgba   Pointer to the rgba values to clear the target to.
-      virtual void clearColourAttachment(int64_t slot, PixelFormat format, void *rgba) = 0;
+      virtual void clearColourAttachment(int64_t slot, PixelFormat format, void const * rgba) = 0;
 
       template<typename T>
       void clearColourAttachment(int64_t slot, T const &rgba) {

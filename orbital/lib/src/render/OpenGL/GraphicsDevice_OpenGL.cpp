@@ -956,7 +956,7 @@ namespace bfc {
       add(cmd);
     }
 
-    void CommandList_OpenGL::clearColourAttachment(int64_t slot, PixelFormat format, void * rgba) {
+    void CommandList_OpenGL::clearColourAttachment(int64_t slot, PixelFormat format, void const * rgba) {
       impl::OpenGL::ClearColourAttachment cmd;
       std::memcpy(cmd.ptr, rgba, sizeof(cmd.f32));
       cmd.format = format;

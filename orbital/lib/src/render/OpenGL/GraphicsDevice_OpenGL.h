@@ -381,7 +381,7 @@ namespace bfc {
       virtual void clearStencil(uint8_t value) override;
 
       // using CommandList::clearColourAttachment; // For template overload
-      virtual void clearColourAttachment(int64_t slot, PixelFormat format, void * rgba) override;
+      virtual void clearColourAttachment(int64_t slot, PixelFormat format, void const * rgba) override;
 
       virtual void swap() override;
 
