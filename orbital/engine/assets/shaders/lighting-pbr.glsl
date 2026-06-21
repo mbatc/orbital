@@ -3,7 +3,7 @@
 
 #include "common.glsl"
 
-#define BND_TEX_ShadowAtlas 5
+#define BND_TEX_ShadowAtlas 13
 
 #define MIN_ATTEN 0.0001
 

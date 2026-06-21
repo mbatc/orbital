@@ -39,6 +39,8 @@ namespace bfc {
   static GLenum ToGLComparison(ComparisonFunction function);
   static GLenum ToGLWrapMode(WrapMode mode);
   static GLenum ToGLFilterMode(FilterMode filter, FilterMode mipFilter);
+  static GLenum ToGLStencilOperation(StencilOperation op);
+  static GLenum ToGLFace(Face face);
 
   static int64_t GetSemanticLocation(StringView const & semantic);
   static bool    GetGLTypeDetails(GLenum glType, DataType * pType, DataClass * pClass, int64_t * pWidth, int64_t * pHeight);
@@ -622,6 +624,18 @@ namespace bfc {
                                  glColorMask(state.r, state.g, state.b, state.a);
                              },
                              [](State::ColourFactor const & state) { glBlendColor(state.r, state.g, state.b, state.a); },
+                             [](State::StencilOp const & state) {
+                               const GLenum glFace          = ToGLFace(state.face);
+                               const GLenum glOnStencilFail = ToGLStencilOperation(state.onStencilFail);
+                               const GLenum glOnDepthFail   = ToGLStencilOperation(state.onDepthFail);
+                               const GLenum glOnPass        = ToGLStencilOperation(state.onPass);
+                               glStencilOpSeparate(glFace, glOnStencilFail, glOnDepthFail, glOnPass);
+                             },
+                             [](State::StencilFunc const & state) {
+                               const GLenum glFace = ToGLFace(state.face);
+                               const GLenum glFunc = ToGLComparison(state.func);
+                               glStencilFuncSeparate(glFace, glFunc, state.referenceValue, state.mask);
+                             },
                              [](auto && v) { BFC_FAIL("State is not suported (type: %s)", typeid(v).name()); }));
     }
 
@@ -960,7 +974,7 @@ namespace bfc {
       impl::OpenGL::ClearColourAttachment cmd;
       std::memcpy(cmd.ptr, rgba, sizeof(cmd.f32));
       cmd.format = format;
-      cmd.target = GL_DRAW_BUFFER0 + (GLenum)slot;
+      cmd.target = (GLint)slot;
       add(cmd);
     }
 
@@ -1877,6 +1891,29 @@ namespace bfc {
       case bfc::FilterMode_Nearest: return GL_NEAREST;
       }
       break;
+    }
+    return GL_NONE;
+  }
+
+  GLenum ToGLStencilOperation(StencilOperation op) {
+    switch (op) {
+    case StencilOperation_Keep: return GL_KEEP;
+    case StencilOperation_Zero: return GL_ZERO;
+    case StencilOperation_Replace: return GL_REPLACE;
+    case StencilOperation_Increment: return GL_INCR;
+    case StencilOperation_IncrementWrap: return GL_INCR_WRAP;
+    case StencilOperation_Decrement: return GL_DECR;
+    case StencilOperation_DecrementWrap: return GL_DECR_WRAP;
+    case StencilOperation_Invert: return GL_INVERT;
+    }
+    return GL_NONE;
+  }
+
+  GLenum ToGLFace(Face face) {
+    switch (face) {
+    case Face_Back: return GL_BACK;
+    case Face_Front: return GL_FRONT;
+    case Face_FrontAndBack: return GL_FRONT_AND_BACK;
     }
     return GL_NONE;
   }

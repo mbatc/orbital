@@ -382,7 +382,6 @@ namespace {
         return;
       }
 
-      pCmdList->bindTexture(nullptr, bfc::Material::TextureSlot_Count);
       for (int i = 0; i < bfc::GBufferTarget_Count; ++i) {
         pCmdList->bindTexture((*request.pOpaqueGBuffer)[i], 8 + i);
       }

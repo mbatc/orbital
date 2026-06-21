@@ -14,13 +14,14 @@ namespace engine {
   class Feature_BasePass : public FeatureRenderer {
   public:
     Feature_BasePass(GBuffer * pGBuffer)
-      : m_pGBuffer(pGBuffer){}
+      : m_pGBuffer(pGBuffer) {}
 
     virtual void onAdded(graphics::CommandList * pCmdList, Renderer * pRenderer) override {}
 
     virtual void renderView(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) override {
       GraphicsDevice * pDevice = pRenderer->getGraphicsDevice();
-      pCmdList->pushState(graphics::State::EnableDepthRead{true}, graphics::State::EnableDepthWrite{true}, graphics::State::EnableBlend{false});
+      pCmdList->pushState(graphics::State::EnableDepthRead{true}, graphics::State::EnableDepthWrite{true},
+                          graphics::State::EnableBlend{false});
       pCmdList->bindRenderTarget(m_pGBuffer->getRenderTarget());
       pCmdList->clear({0, 0, 0, 0});
 
@@ -37,7 +38,7 @@ namespace engine {
 
   class Feature_TransparencyPass : public FeatureRenderer {
   public:
-    Feature_TransparencyPass(AssetManager *pAssets, GBuffer * pTransparencyBuffer, GBuffer * pOpaqueBuffer)
+    Feature_TransparencyPass(AssetManager * pAssets, GBuffer * pTransparencyBuffer, GBuffer * pOpaqueBuffer)
       : m_pGBuffer(pTransparencyBuffer)
       , m_pOpaqueGBuffer(pOpaqueBuffer)
       , m_blendTransparencyPass(pAssets, URI::File("engine:shaders/gbuffer/blend-transparency.shader")) {}
@@ -46,12 +47,11 @@ namespace engine {
 
     virtual void renderView(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) override {
       GraphicsDevice * pDevice = pRenderer->getGraphicsDevice();
-      pCmdList->pushState(
-        graphics::State::EnableDepthRead{true},
-        graphics::State::EnableDepthWrite{true});
+      pCmdList->pushState(graphics::State::EnableDepthRead{true}, graphics::State::EnableDepthWrite{true});
       pCmdList->bindRenderTarget(m_pGBuffer->getRenderTarget());
       pCmdList->clearColour({0, 0, 0, 0});
-      pCmdList->clearColourAttachment<RGBAf32>(0, { 0, 0, 0, 1 });
+      pCmdList->clearStencil(0);
+      pCmdList->clearColourAttachment<RGBAf32>(0, {0, 0, 0, 0});
 
       {
         DeferredRenderer::Stages::Transparency::Depth request;
@@ -64,48 +64,51 @@ namespace engine {
       {
         DeferredRenderer::Stages::Transparency::Transmittance request;
         request.pOpaqueGBuffer = m_pOpaqueGBuffer;
-        request.pTargetBuffer = m_pGBuffer;
+        request.pTargetBuffer  = m_pGBuffer;
         pCmdList->pushState(
-          graphics::State::ColourWrite{true},
-          graphics::State::EnableDepthRead{true},
-          graphics::State::EnableDepthWrite{false},
-          graphics::State::DepthFunc{ComparisonFunction_Equal},
-          graphics::State::EnableBlend{true},
+          graphics::State::ColourWrite{true}, graphics::State::EnableDepthRead{true},
+          graphics::State::EnableDepthWrite{false}, graphics::State::EnableStencilTest{true},
+          graphics::State::DepthFunc{ComparisonFunction_Equal}, graphics::State::EnableBlend{true},
           graphics::State::BlendEq{bfc::BlendEquation_Add},
           graphics::State::BlendFunc{bfc::BlendFunction_One, bfc::BlendFunction_Zero},
-          graphics::State::BlendFunc{bfc::BlendFunction_SourceAlpha, bfc::BlendFunction_OneMinusSourceAlpha, 0});
+          graphics::State::BlendFunc{bfc::BlendFunction_SourceAlpha, bfc::BlendFunction_OneMinusSourceAlpha, 0},
+          graphics::State::StencilFunc{bfc::ComparisonFunction_Always, 1, 1},
+          graphics::State::StencilOp{bfc::StencilOperation_Keep, bfc::StencilOperation_Keep, bfc::StencilOperation_Replace});
         pRenderer->request(request, pCmdList, view);
         pCmdList->popState();
       }
 
       pCmdList->bindRenderTarget(m_pOpaqueGBuffer->getRenderTarget());
-      pCmdList->pushState(
-        graphics::State::ColourWrite{false},
-        graphics::State::ColourWrite{true, 0},
-        graphics::State::EnableBlend{true},
-        graphics::State::EnableDepthRead{false},
-        graphics::State::EnableDepthWrite{false},
-        graphics::State::BlendFunc{bfc::BlendFunction_SourceAlpha, bfc::BlendFunction_OneMinusSourceAlpha, 0});
+      pCmdList->pushState(graphics::State::EnableBlend{true}, graphics::State::EnableDepthRead{false},
+                          graphics::State::EnableDepthWrite{false}, graphics::State::EnableStencilTest{true},
+                          graphics::State::BlendFunc{bfc::BlendFunction_One, bfc::BlendFunction_Zero},
+                          graphics::State::BlendFunc{bfc::BlendFunction_DestColour, bfc::BlendFunction_Zero, 0},
+                          graphics::State::StencilFunc{bfc::ComparisonFunction_Equal, 1, 1},
+                          graphics::State::StencilOp{bfc::StencilOperation_Keep});
       pCmdList->bindProgram(m_blendTransparencyPass);
-      pCmdList->bindTexture(m_pGBuffer->getBaseColour(), 0);
+
+      for (auto & [i, tex] : enumerate(*m_pGBuffer)) {
+        pCmdList->bindTexture(tex, DeferredRenderer::ColourTargetBindPointBase + i);
+      }
+
       pCmdList->bindVertexArray(InvalidGraphicsResource);
       pCmdList->draw(3);
       pCmdList->popState();
 
       pCmdList->bindRenderTarget(view.renderTarget);
       pCmdList->popState();
-
     }
 
     Asset<graphics::Program> m_blendTransparencyPass;
-    GBuffer * m_pGBuffer = nullptr;
-    GBuffer * m_pOpaqueGBuffer = nullptr;
+    GBuffer *                m_pGBuffer       = nullptr;
+    GBuffer *                m_pOpaqueGBuffer = nullptr;
   };
 
   class Feature_LightingPass : public FeatureRenderer {
   public:
     // Data needed to render a shadow map
-    Feature_LightingPass(graphics::CommandList * pCmdList, AssetManager * pAssets, GBuffer * pGBuffer, graphics::RenderTargetRef * pColourTarget,
+    Feature_LightingPass(graphics::CommandList * pCmdList, AssetManager * pAssets, GBuffer * pGBuffer,
+                         graphics::RenderTargetRef *                         pColourTarget,
                          graphics::StructuredBuffer<renderer::ModelBuffer> * pModelBuffer)
       : m_pGBuffer(pGBuffer)
       , m_pColourTarget(pColourTarget)
@@ -154,10 +157,10 @@ namespace engine {
         if (light.castShadows) {
           constexpr float limit = 0.01f;
           ShadowMapData   shadowMapData;
-          shadowMapData.light      = light;
-          shadowMapData.lightIndex = m_lightData.data.size();
-          shadowMapData.maxDistance =
-            math::maxComponent(math::solveQuadratic(limit * item.attenuation.z, limit * item.attenuation.y, limit * item.attenuation.x - item.strength));
+          shadowMapData.light       = light;
+          shadowMapData.lightIndex  = m_lightData.data.size();
+          shadowMapData.maxDistance = math::maxComponent(math::solveQuadratic(
+            limit * item.attenuation.z, limit * item.attenuation.y, limit * item.attenuation.x - item.strength));
           if (light.type == components::LightType_Point) {
             // add 6 entries for cube-map shadow texture
             for (int64_t i = 0; i < 6; ++i) {
@@ -245,7 +248,8 @@ namespace engine {
       if (m_shadowMapData.size() > 0) {
         pCmdList->bindProgram(m_depthPass);
 
-        pCmdList->pushState(graphics::State::EnableDepthRead{true}, graphics::State::EnableDepthWrite{true}, graphics::State::ColourWrite{false});
+        pCmdList->pushState(graphics::State::EnableDepthRead{true}, graphics::State::EnableDepthWrite{true},
+                            graphics::State::ColourWrite{false});
 
         for (ShadowMapData const & shadowMapData : m_shadowMapData) {
           if (shadowMapData.casterBounds.invalid()) {
@@ -270,8 +274,9 @@ namespace engine {
       /// Find final scene colour texture.
       /// This target accumulates post-processing effects
       pCmdList->bindRenderTarget(*m_pColourTarget);
-      pCmdList->pushState(graphics::State::Viewport{*m_pColourTarget}, graphics::State::EnableDepthRead{false}, graphics::State::EnableDepthWrite{false},
-                          graphics::State::EnableStencilTest{false}, graphics::State::EnableBlend{false});
+      pCmdList->pushState(graphics::State::Viewport{*m_pColourTarget}, graphics::State::EnableDepthRead{false},
+                          graphics::State::EnableDepthWrite{false}, graphics::State::EnableStencilTest{false},
+                          graphics::State::EnableBlend{false});
 
       // Bind post-process texture inputs.
       // TODO: Generalize this using a PostProcessInputRenderable/GBufferInputRenderable?
@@ -290,8 +295,8 @@ namespace engine {
       pCmdList->bindRenderTarget(view.renderTarget); // TODO: Maybe a "push render target" function?
     }
 
-    static void calcShadowMapData(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view, geometry::Boxf const & receiverBounds,
-                                  ShadowMapData * pData) {
+    static void calcShadowMapData(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view,
+                                  geometry::Boxf const & receiverBounds, ShadowMapData * pData) {
       switch (pData->light.type) {
       case components::LightType_Sun: calcShadowMapDataForSun(pCmdList, pRenderer, view, receiverBounds, pData); break;
       case components::LightType_Point: calcShadowMapDataForPointLight(pCmdList, pRenderer, view, pData); break;
@@ -300,9 +305,9 @@ namespace engine {
       }
     }
 
-    static void calcShadowMapDataForSun(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view, geometry::Boxf const & receiverBounds,
-                                        ShadowMapData * pData) {
-      LightRenderable const & light      = pData->light;
+    static void calcShadowMapDataForSun(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view,
+                                        geometry::Boxf const & receiverBounds, ShadowMapData * pData) {
+      LightRenderable const & light = pData->light;
 
       // Calculate light axis
       Vec3 right, up;
@@ -319,9 +324,9 @@ namespace engine {
         casterBoundsRequest.receiverBounds           = receiverBounds;
         casterBoundsRequest.receiverBoundsLightSpace = lsReceiverBounds;
         casterBoundsRequest.pBounds                  = &pData->casterBounds;
-        casterBoundsRequest.up = up;
-        casterBoundsRequest.right = right;
-        casterBoundsRequest.light = light;
+        casterBoundsRequest.up                       = up;
+        casterBoundsRequest.right                    = right;
+        casterBoundsRequest.light                    = light;
         pRenderer->request(casterBoundsRequest, pCmdList, view);
       }
 
@@ -329,16 +334,18 @@ namespace engine {
       geometry::Boxf lsAllCasterBounds;
 
       // Calculate orthographic projection that encompasses all casters
-      float depthOffset = pData->casterBounds.halfSize().z;
-      Mat4 projectionMatrix = glm::ortho(pData->casterBounds.min.x, pData->casterBounds.max.x, pData->casterBounds.min.y, pData->casterBounds.max.y,
-                                          pData->casterBounds.min.z - depthOffset, pData->casterBounds.max.z + depthOffset);
-      Mat4 viewMatrix       = glm::lookAt(Vec3(0), light.direction, up);
+      float depthOffset      = pData->casterBounds.halfSize().z;
+      Mat4  projectionMatrix = glm::ortho(pData->casterBounds.min.x, pData->casterBounds.max.x, pData->casterBounds.min.y,
+                                          pData->casterBounds.max.y, pData->casterBounds.min.z - depthOffset,
+                                          pData->casterBounds.max.z + depthOffset);
+      Mat4  viewMatrix       = glm::lookAt(Vec3(0), light.direction, up);
 
       pData->lightVP      = projectionMatrix * viewMatrix;
       pData->lightFrustum = pData->lightVP;
     }
 
-    static void calcShadowMapDataForPointLight(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view, ShadowMapData * pData) {
+    static void calcShadowMapDataForPointLight(graphics::CommandList * pCmdList, Renderer * pRenderer,
+                                               RenderView const & view, ShadowMapData * pData) {
       LightRenderable const & light = pData->light;
 
       Vec3  direction = (Vec3)getCubeMapDirection(pData->cubeFace);
@@ -362,7 +369,8 @@ namespace engine {
       }
     }
 
-    static void calcShadowMapDataForSpotLight(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view, ShadowMapData * pData) {
+    static void calcShadowMapDataForSpotLight(graphics::CommandList * pCmdList, Renderer * pRenderer,
+                                              RenderView const & view, ShadowMapData * pData) {
       LightRenderable const & light = pData->light;
 
       // Calculate light axis
@@ -370,7 +378,7 @@ namespace engine {
       math::calculateAxes(light.direction, &up, &right);
 
       // Calculate view-projection for the spot light
-      float dist       = pData->maxDistance;
+      float dist             = pData->maxDistance;
       Mat4  projectionMatrix = glm::perspective(light.outerConeAngle * 2, 1.0f, 0.01f * dist, dist);
       Mat4  viewMatrix       = glm::lookAt(light.position, light.position + light.direction, up);
 
@@ -421,9 +429,10 @@ namespace engine {
       /// Bind final scene colour texture.
       /// This target accumulates post-processing effects
       pCmdList->bindRenderTarget(*m_pColourTarget);
-      pCmdList->pushState(graphics::State::Viewport{{0, 0}, (*m_pColourTarget)->getSize()}, graphics::State::EnableDepthRead{true},
-                          graphics::State::EnableDepthWrite{false}, graphics::State::DepthFunc{ComparisonFunction_Equal},
-                          graphics::State::EnableStencilTest{false}, graphics::State::EnableBlend{false}, graphics::State::DepthRange{1, 1});
+      pCmdList->pushState(graphics::State::Viewport{{0, 0}, (*m_pColourTarget)->getSize()},
+                          graphics::State::EnableDepthRead{true}, graphics::State::EnableDepthWrite{false},
+                          graphics::State::DepthFunc{ComparisonFunction_Equal}, graphics::State::EnableStencilTest{false},
+                          graphics::State::EnableBlend{false}, graphics::State::DepthRange{1, 1});
 
       pCmdList->bindProgram(m_shader);
       pCmdList->bindVertexArray(InvalidGraphicsResource);
@@ -600,11 +609,11 @@ namespace engine {
 
     graphics::TextureRef m_brdfLUT; // TODO: Calculate brdf LUT
 
-    graphics::TextureRef m_reflectionUV;
+    graphics::TextureRef      m_reflectionUV;
     graphics::RenderTargetRef m_reflectionTarget;
 
-    graphics::RenderTargetRef m_mipChainTarget;
-    Vec2i                   m_chainSize;
+    graphics::RenderTargetRef    m_mipChainTarget;
+    Vec2i                        m_chainSize;
     Vector<graphics::TextureRef> m_mipChain;
 
     PostProcessingStack * m_pPPS = nullptr;
@@ -623,9 +632,9 @@ namespace engine {
     }
 
     virtual void onAdded(graphics::CommandList * pCmdList, Renderer * pRenderer) override {
-      m_mipChainTarget                    = pCmdList->createRenderTarget(RenderTargetType_Texture);
+      m_mipChainTarget = pCmdList->createRenderTarget(RenderTargetType_Texture);
       m_filteredTarget = pCmdList->createRenderTarget(RenderTargetType_Texture);
-      m_clampSampler                      = pCmdList->createSampler();
+      m_clampSampler   = pCmdList->createSampler();
       m_clampSampler->setSamplerWrap(WrapMode_ClampToEdge);
     }
 
@@ -650,10 +659,10 @@ namespace engine {
       auto & bloomOpts = view.pRenderData->renderables<PostProcessRenderable_Bloom>();
       if (bloomOpts.size() == 0)
         return;
-      float            filterRadius  = bloomOpts.front().filterRadius;
-      float            strength      = bloomOpts.front().strength;
-      float            threshold     = bloomOpts.front().threshold;
-      float            dirtIntensity = bloomOpts.front().dirtIntensity;
+      float                filterRadius  = bloomOpts.front().filterRadius;
+      float                strength      = bloomOpts.front().strength;
+      float                threshold     = bloomOpts.front().threshold;
+      float                dirtIntensity = bloomOpts.front().dirtIntensity;
       graphics::TextureRef dirtTex       = bloomOpts.front().dirtTex;
 
       m_pPPS->addPass([=](graphics::CommandList * pCmdList, PostProcessParams const & params) {
@@ -734,8 +743,8 @@ namespace engine {
 
     int64_t m_mipChainSize = 5;
 
-    graphics::RenderTargetRef m_mipChainTarget;
-    Vec2i                   m_chainSize;
+    graphics::RenderTargetRef    m_mipChainTarget;
+    Vec2i                        m_chainSize;
     Vector<graphics::TextureRef> m_mipChain;
 
     graphics::RenderTargetRef m_filteredTarget;
@@ -775,7 +784,8 @@ namespace engine {
 
   class Feature_PostProcess : public FeatureRenderer {
   public:
-    Feature_PostProcess(AssetManager * pAssets, PostProcessingStack * pPPS, GBuffer * pGBuffer, graphics::TextureRef * pFinalColour)
+    Feature_PostProcess(AssetManager * pAssets, PostProcessingStack * pPPS, GBuffer * pGBuffer,
+                        graphics::TextureRef * pFinalColour)
       : m_pPPS(pPPS)
       , m_pGBuffer(pGBuffer)
       , m_pFinalColour(pFinalColour) {}
@@ -806,7 +816,8 @@ namespace engine {
       , m_pDefaultMaterial(pDefaultMaterial)
       , m_shader(pAssets, URI::File("engine:shaders/gbuffer/base.shader")) {}
 
-    virtual void onRenderRequest(std::any const & request, bfc::graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) override {
+    virtual void onRenderRequest(std::any const & request, bfc::graphics::CommandList * pCmdList, Renderer * pRenderer,
+                                 RenderView const & view) override {
       if (auto * pPass = std::any_cast<DeferredRenderer::Stages::BasePassRequest>(&request))
         onBasePass(pPass, pCmdList, pRenderer, view);
       if (auto * pPass = std::any_cast<DeferredRenderer::Stages::ShadowReceiverBounds>(&request))
@@ -819,8 +830,8 @@ namespace engine {
         onShadowDepth(pPass, pCmdList, pRenderer, view);
     }
 
-    void onBasePass(DeferredRenderer::Stages::BasePassRequest const * pBasePass, bfc::graphics::CommandList * pCmdList, Renderer * pRenderer,
-                    RenderView const & view) {
+    void onBasePass(DeferredRenderer::Stages::BasePassRequest const * pBasePass, bfc::graphics::CommandList * pCmdList,
+                    Renderer * pRenderer, RenderView const & view) {
       DeferredRenderer * pDeferred = (DeferredRenderer *)pRenderer;
 
       Mat4d vp = view.projectionMatrix * view.viewMatrix;
@@ -850,7 +861,8 @@ namespace engine {
           if (texture != InvalidGraphicsResource) {
             pCmdList->bindTexture(texture, Material::TextureBindPointBase + i);
           } else {
-            pCmdList->bindTexture(pDeferred->getDefaultTexture((Material::TextureSlot)i), Material::TextureBindPointBase + i);
+            pCmdList->bindTexture(pDeferred->getDefaultTexture((Material::TextureSlot)i),
+                                  Material::TextureBindPointBase + i);
           }
         }
 
@@ -865,8 +877,8 @@ namespace engine {
       }
     }
 
-    void onShadowRecieverBounds(DeferredRenderer::Stages::ShadowReceiverBounds const * pShadow, bfc::graphics::CommandList * pCmdList, Renderer * pRenderer,
-                                RenderView const & view) {
+    void onShadowRecieverBounds(DeferredRenderer::Stages::ShadowReceiverBounds const * pShadow,
+                                bfc::graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) {
       for (auto & receiver : view.pRenderData->renderables<StaticMeshRenderable>()) {
         if (receiver.bounds.invalid()) {
           continue;
@@ -878,19 +890,21 @@ namespace engine {
       }
     }
 
-    void onShadowCasterLightSpaceBounds(DeferredRenderer::Stages::ShadowCasterOrthoBounds const * pShadow, bfc::graphics::CommandList * pCmdList, Renderer * pRenderer,
-                              RenderView const & view) {
+    void onShadowCasterLightSpaceBounds(DeferredRenderer::Stages::ShadowCasterOrthoBounds const * pShadow,
+                                        bfc::graphics::CommandList * pCmdList, Renderer * pRenderer,
+                                        RenderView const & view) {
       auto & allCasters = view.pRenderData->renderables<StaticMeshShadowCasterRenderable>();
       for (auto & caster : allCasters) {
-        geometry::Boxf casterBoundsLightSpace = caster.bounds.projected(pShadow->right, pShadow->up, pShadow->light.direction);
+        geometry::Boxf casterBoundsLightSpace =
+          caster.bounds.projected(pShadow->right, pShadow->up, pShadow->light.direction);
         if (geometry::intersects(pShadow->receiverBoundsLightSpace, casterBoundsLightSpace)) {
           pShadow->pBounds->growToContain(casterBoundsLightSpace);
         }
       }
     }
 
-    void onShadowCasterBounds(DeferredRenderer::Stages::ShadowCasterBounds const * pShadow, bfc::graphics::CommandList * pCmdList,
-                                        Renderer * pRenderer, RenderView const & view) {
+    void onShadowCasterBounds(DeferredRenderer::Stages::ShadowCasterBounds const * pShadow,
+                              bfc::graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) {
       auto & allCasters = view.pRenderData->renderables<StaticMeshShadowCasterRenderable>();
       for (auto & caster : allCasters) {
         if (geometry::intersects(pShadow->lightFrustum, caster.bounds)) {
@@ -899,9 +913,10 @@ namespace engine {
       }
     }
 
-    void onShadowDepth(DeferredRenderer::Stages::ShadowDepth const * pPass, bfc::graphics::CommandList * pCmdList, Renderer * pRenderer,
-                       RenderView const & view) {
-      for (StaticMeshShadowCasterRenderable const & caster : view.pRenderData->renderables<StaticMeshShadowCasterRenderable>()) {
+    void onShadowDepth(DeferredRenderer::Stages::ShadowDepth const * pPass, bfc::graphics::CommandList * pCmdList,
+                       Renderer * pRenderer, RenderView const & view) {
+      for (StaticMeshShadowCasterRenderable const & caster :
+           view.pRenderData->renderables<StaticMeshShadowCasterRenderable>()) {
         if (geometry::intersects(pPass->pShadowData->lightFrustum, caster.bounds)) {
           m_pModelData->data.mvpMatrix = (Mat4d)pPass->pShadowData->lightVP * caster.modelMatrix;
           m_pModelData->upload(pCmdList);
@@ -960,7 +975,8 @@ namespace engine {
 
     // Add renderer features
     addFeature<Feature_BasePass>(Phase::Base::Mesh::opaque, m_pGbuffer.get());
-    addFeature<Feature_TransparencyPass>(Phase::Base::Mesh::transparent, pAssets, m_pTransparencyGBuffer.get(), m_pGbuffer.get());
+    addFeature<Feature_TransparencyPass>(Phase::Base::Mesh::transparent, pAssets, m_pTransparencyGBuffer.get(),
+                                         m_pGbuffer.get());
 
     addFeature<StaticMeshRenderer>(Phase::undefined, pAssets, &m_modelData, &m_defaultMaterial);
     addFeature<Feature_LightingPass>(Phase::lighting, pCmdList, pAssets, m_pGbuffer.get(), &m_finalTarget, &m_modelData);

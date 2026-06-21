@@ -20,7 +20,7 @@ AllowShortLoopsOnASingleLine: 'false'
 AlwaysBreakTemplateDeclarations: 'Yes'
 BreakConstructorInitializers: BeforeComma
 BreakInheritanceList: BeforeComma
-ColumnLimit: '160'
+ColumnLimit: '125'
 ConstructorInitializerIndentWidth: '2'
 ContinuationIndentWidth: '2'
 FixNamespaceComments: 'true'

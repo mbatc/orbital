@@ -791,7 +791,7 @@ namespace bfc {
         };
 
         struct ClearColourAttachment {
-          GLenum target;
+          GLint       target;
           PixelFormat format;
           union {
             uint8_t ptr[1];

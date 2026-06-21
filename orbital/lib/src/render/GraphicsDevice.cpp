@@ -9,7 +9,7 @@ namespace bfc {
       set(State::EnableBlend{true}, State::EnableStencilTest{false}, State::EnableScissorTest{false}, State::EnableDepthRead{true},
           State::EnableDepthWrite{true}, State::DepthRange{0.0f, 1.0f}, State::DepthFunc{ComparisonFunction_Less},
           State::BlendFunc{BlendFunction_SourceAlpha, BlendFunction_OneMinusSourceAlpha}, State::BlendEq{BlendEquation_Add}, State::ColourWrite{true},
-          State::ColourFactor{1.0f});
+          State::ColourFactor{1.0f}, State::StencilFunc{ComparisonFunction_Never, 0, 0}, State::StencilOp{StencilOperation_Keep});
     }
 
     bool StateManager::beginGroup() {

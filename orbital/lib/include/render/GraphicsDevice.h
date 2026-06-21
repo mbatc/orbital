@@ -204,6 +204,25 @@ namespace bfc {
     ComparisonFunction_Count,
   };
 
+  enum StencilOperation {
+    StencilOperation_Keep,
+    StencilOperation_Zero,
+    StencilOperation_Replace,
+    StencilOperation_Increment,
+    StencilOperation_IncrementWrap,
+    StencilOperation_Decrement,
+    StencilOperation_DecrementWrap,
+    StencilOperation_Invert,
+    StencilOperation_Count,
+  };
+
+  enum Face {
+    Face_Back,
+    Face_Front,
+    Face_FrontAndBack,
+    Face_Count,
+  };
+
   struct ProgramAttributeDesc {
     StringView name;
     DataClass  cls   = DataClass_Unknown;
@@ -542,8 +561,35 @@ namespace bfc {
         float a = 1.0f;
       };
 
+      struct StencilOp {
+        StencilOp(StencilOperation onStencilFail, StencilOperation onDepthFail, StencilOperation onPass, Face face = Face_FrontAndBack)
+          : onStencilFail(onStencilFail)
+          , onDepthFail(onDepthFail)
+          , onPass(onPass)
+          , face(face) {}
+        StencilOp(StencilOperation onAny, Face face = Face_FrontAndBack)
+          : StencilOp(onAny, onAny, onAny, face) {}
+
+        StencilOperation onStencilFail;
+        StencilOperation onDepthFail;
+        StencilOperation onPass;
+        Face             face;
+      };
+
+      struct StencilFunc {
+        StencilFunc(ComparisonFunction func, int32_t referenceValue, uint32_t mask, Face face = Face_FrontAndBack)
+          : func(func)
+          , referenceValue(referenceValue)
+          , mask(mask)
+          , face(face) {}
+        ComparisonFunction func;
+        int32_t            referenceValue;
+        uint32_t           mask;
+        Face               face;
+      };
+
       using Storage = std::variant<std::monostate, EnableBlend, EnableStencilTest, EnableScissorTest, EnableDepthRead, EnableDepthWrite, Viewport, Scissor,
-                                   DepthRange, DepthFunc, BlendFunc, BlendEq, ColourWrite, ColourFactor>;
+                                   DepthRange, DepthFunc, BlendFunc, BlendEq, ColourWrite, ColourFactor, StencilOp, StencilFunc>;
 
       template<typename T>
       inline static constexpr bool IsState = in_variant_v<T, State::Storage>;
