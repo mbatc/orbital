@@ -17,7 +17,7 @@ void main()
   vec3 surfacePosition = gbuffer_ReadPosition(screenUV);
   vec3 dir = vsout_position0 - surfacePosition;
   float pathLength = length(dir);
-  vec3 transmittance = vec3(exp(-absorption * pathLength * 100));
+  vec3 transmittance = vec3(exp(-absorption * pathLength * 10000));
 
   gbuffer_SetColour(vec4(transmittance, 1));
 

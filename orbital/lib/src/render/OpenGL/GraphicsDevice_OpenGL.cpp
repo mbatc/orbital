@@ -1261,33 +1261,6 @@ namespace bfc {
       add(cmd);
     }
 
-    // void CommandList_OpenGL::getUniform(int64_t uniformIndex, void * pBuffer, ProgramUniformDesc * pDesc) {
-    //   GLProgram &          prog        = *((GLProgram *)m_boundProgram.get());
-    //   GLProgram::Uniform & uniformDesc = prog.uniforms[uniformIndex];
-    //
-    //   if (pDesc != nullptr) {
-    //     prog.getUniformDesc(uniformIndex, pDesc);
-    //   }
-    //
-    //   if (pBuffer != nullptr) {
-    //     switch (uniformDesc.type) {
-    //     case DataType_Float32: glGetUniformfv(prog.glID, uniformDesc.glLoc, (float *)pBuffer); break;
-    //     case DataType_Int32: glGetUniformiv(prog.glID, uniformDesc.glLoc, (int32_t *)pBuffer); break;
-    //     case DataType_UInt32: glGetUniformuiv(prog.glID, uniformDesc.glLoc, (uint32_t *)pBuffer); break;
-    //     }
-    //   }
-    // }
-    //
-    // int64_t CommandList_OpenGL::getBufferBinding(int64_t bufferIndex) {
-    //   GLProgram & prog = *((GLProgram *)m_boundProgram.get());
-    //   return prog.buffers[bufferIndex].bindPoint;
-    // }
-    //
-    // int64_t CommandList_OpenGL::getTextureBinding(int64_t textureIndex) {
-    //   GLProgram & prog = *((GLProgram *)m_boundProgram.get());
-    //   return prog.textures[textureIndex].bindPoint;
-    // }
-
     GraphicsDevice * CommandList_OpenGL::getDevice() const {
       return m_pDevice;
     }

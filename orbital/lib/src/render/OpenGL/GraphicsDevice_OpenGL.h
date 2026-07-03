@@ -370,9 +370,6 @@ namespace bfc {
       virtual void setBufferBinding(StringView const & name, int64_t bindPoint) override;
       virtual void setTextureBinding(int64_t textureIndex, int64_t bindPoint) override;
       virtual void setTextureBinding(StringView const & name, int64_t bindPoint) override;
-      // virtual void    getUniform(int64_t uniformIndex, void * pBuffer, ProgramUniformDesc * pDesc) override;
-      // virtual int64_t getBufferBinding(int64_t bufferIndex) override;
-      // virtual int64_t getTextureBinding(int64_t bufferIndex) override;
 
       // Rendering commands
       virtual void clear(RGBAu8 colour, float depth, uint8_t stencil) override;
