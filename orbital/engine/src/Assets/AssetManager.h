@@ -6,7 +6,9 @@
 #include "core/Map.h"
 #include "core/Set.h"
 #include "core/URI.h"
+#include "util/ThreadPool.h"
 #include "util/UUID.h"
+#include "util/Cache.h"
 
 #include <limits>
 #include <mutex>
@@ -34,14 +36,20 @@ namespace engine {
   class Asset;
 
   class IAssetLoader;
+  class IAssetCache;
   class AssetManager : public Subsystem {
   public:
     AssetManager();
 
     bool init(Application *pApp) override;
 
+    virtual void shutdown() override;
+
     /// Register an asset loader with the asset manager.
     bool registerLoader(bfc::StringView const & name, bfc::Ref<IAssetLoader> const & pLoader);
+
+    /// Register an asset cache with the asset manager.
+    bool registerCache(bfc::type_index const & type, bfc::Ref<IAssetCache> const & pCache);
 
     /// Check if an asset is contained in the asset manager by its handle.
     bool contains(AssetHandle const & handle) const;
@@ -104,6 +112,29 @@ namespace engine {
     /// @retval nullptr `handle` is invalid or the asset type does not match `type`.
     bfc::Ref<void> load(AssetHandle const & handle, std::optional<bfc::type_index> const & type = std::nullopt, uint64_t * pLoadedVersion = nullptr);
 
+    template<typename T>
+    std::future<bfc::Ref<T>> loadAsync(bfc::URI const & uri) {
+      return bfc::async([=]() { return load(uri); });
+    }
+
+    template<typename T>
+    std::future<bfc::Ref<T>> loadAsync(bfc::UUID const & uuid) {
+      return bfc::async([=]() { return load(uuid); });
+    }
+
+    template<typename T>
+    std::future<bfc::Ref<T>> loadAsync(AssetHandle const & handle) {
+      return bfc::async([=]() { return load(handle); });
+    }
+
+    std::future<bfc::Ref<void>> loadAsync(AssetHandle const &                    handle,
+                                        std::optional<bfc::type_index> const & type           = std::nullopt,
+      uint64_t* pLoadedVersion = nullptr) {
+      return bfc::async([=]() {
+        return load(handle, type, pLoadedVersion);
+      });
+    }
+
     /// Get a reference to the asset version.
     bfc::Ref<uint64_t> getVersionReference(AssetHandle const & handle) const;
 
@@ -136,6 +167,7 @@ namespace engine {
 
   private:
     bfc::Ref<IAssetLoader> findLoader_unlocked(bfc::StringView const & loaderID) const;
+    bfc::Ref<IAssetCache>  findCache_unlocked(bfc::type_index const & assetType) const;
     bool                   reload(AssetHandle const & handle, std::unique_lock<std::mutex> &lock);
 
     struct Asset {
@@ -160,6 +192,10 @@ namespace engine {
 
     mutable std::mutex      m_loaderLock;
     bfc::Vector<LoaderInfo> m_loaders;
+
+    bfc::Filename                      m_appDataPath;
+    bfc::Vector<bfc::Ref<IAssetCache>> m_caches;
+    bfc::Ref<bfc::Cache>               m_pCache;
 
     mutable std::mutex              m_assetLock;
     mutable std::condition_variable m_assetNotifier;

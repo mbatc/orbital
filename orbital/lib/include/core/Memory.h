@@ -36,6 +36,15 @@ namespace bfc
     }
 
     template<typename T>
+    constexpr void constructArray(T * dst, int64_t count) {
+      if constexpr (!std::is_trivially_default_constructible_v<T>) {
+        while (count-- > 0) {
+          construct(dst++);
+        }
+      }
+    }
+
+    template<typename T>
     constexpr void copyAssign(T & dst, T const & src) {
       dst = src;
     }

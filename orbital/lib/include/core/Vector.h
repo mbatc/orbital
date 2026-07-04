@@ -292,7 +292,20 @@ namespace bfc {
       m_size = 0;
     }
 
-    void resize(int64_t newSize, T const& value = T{}) {
+    void resize(int64_t newSize) {
+      const int64_t start = m_size;
+      const int64_t count = newSize - start;
+      if (count > 0) {
+        makeSpace(start, count);
+        mem::constructArray(m_pData + start, count);
+      } else {
+        mem::destruct(end() + count, -count);
+      }
+
+      m_size = newSize;
+    }
+
+    void resize(int64_t newSize, T const& value) {
       int64_t start = m_size;
       int64_t count = newSize - start;
       if (count > 0) {

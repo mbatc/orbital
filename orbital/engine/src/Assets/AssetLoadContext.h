@@ -3,6 +3,7 @@
 #include "core/typeindex.h"
 #include "core/URI.h"
 #include "util/UUID.h"
+#include "util/ThreadPool.h"
 
 #include <optional>
 
@@ -27,6 +28,9 @@ namespace engine {
 
     /// Check if an asset is contained in the asset manager by its ID.
     bool contains(bfc::UUID const & uuid) const;
+
+    /// Find the handle of an asset by its uuid.
+    AssetHandle find(bfc::UUID const & uuid) const;
 
     /// Add an asset to the asset manager.
     template<typename T>
@@ -57,10 +61,38 @@ namespace engine {
       return load<T>(add<T>(uri));
     }
 
+    /// Get the asset associated with `uri`.
+    /// Registers the asset if it is not already added to the asset manager.
+    /// @returns The loaded asset.
+    /// @retval nullptr `handle` is invalid or the asset type does not match `type`.
+    template<typename T>
+    bfc::Ref<T> load(bfc::UUID const & uuid, bool isDependency = true) {
+      return load<T>(add<T>(uuid));
+    }
+
     /// Get the asset associated with `handle`.
     /// @returns The loaded asset.
     /// @retval nullptr `handle` is invalid or the asset type does not match `type`.
     bfc::Ref<void> load(AssetHandle const & handle, std::optional<bfc::type_index> const & type = std::nullopt, bool isDependency = true);
+
+    template<typename T>
+    std::future<bfc::Ref<T>> loadAsync(bfc::URI const & uri, bool isDependency = true) {
+      return bfc::async([=]() { return load<T>(uri, isDependency); });
+    }
+
+    template<typename T>
+    std::future<bfc::Ref<T>> loadAsync(bfc::UUID const & uuid, bool isDependency = true) {
+      return bfc::async([=]() { return load<T>(uuid, isDependency); });
+    }
+
+    template<typename T>
+    std::future<bfc::Ref<T>> loadAsync(AssetHandle const & handle, bool isDependency = true) {
+      return bfc::async([=]() { return load<T>(handle, isDependency); });
+    }
+
+    std::future<bfc::Ref<void>> loadAsync(AssetHandle const &                    handle,
+                                          std::optional<bfc::type_index> const & type           = std::nullopt,
+                                          bool                                   isDependency = true);
 
     template<typename T>
     bool canLoad(bfc::URI const & uri) const {
@@ -73,9 +105,8 @@ namespace engine {
     bfc::GraphicsDevice * getGraphicsDevice() const;
 
   private:
+    std::mutex               m_dependencyLock;
     bfc::Vector<AssetHandle> m_dependencies;
-    bfc::Vector<std::unique_ptr<bfc::graphics::CommandList>> m_cmdLists;
-
-    AssetManager * m_pAssetManager = nullptr;
+    AssetManager *           m_pAssetManager = nullptr;
   };
 } // namespace engine

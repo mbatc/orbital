@@ -198,9 +198,7 @@ namespace bfc {
   int64_t read(Stream * pStream, T * pValue, int64_t count) {
     if constexpr (std::is_trivially_copyable_v<T>) {
       if constexpr (std::is_default_constructible_v<T>) {
-        if constexpr (!std::is_trivially_constructible_v<T>) {
-          mem::constructArray(pValue, count);
-        }
+        mem::constructArray(pValue, count);
 
         return pStream->read((void *)pValue, count * sizeof(T)) / sizeof(T);
       } else {

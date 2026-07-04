@@ -27,21 +27,27 @@ namespace engine {
     URI baseUri = uri.withPath(Filename::parent(uri.pathView()));
 
     switch (def->format) {
-    case SkyboxFormat_CubeMap:
+    case SkyboxFormat_CubeMap: {
+      Vector<std::future<void>> jobs;
       for (auto & [face, faceUri] : def->cubeSource) {
         if (face < 0 || face >= CubeMapFace_Count) {
           continue;
         }
+        
+         jobs.pushBack(std::move(bfc::async([=]() {
+          auto pSurface = pContext->load<media::Surface>(baseUri.resolveRelativeReference(faceUri));
+          if (pSurface == nullptr)
+            return;
+          media::Surface dst = sfc.slice(face);
+          media::convertSurface(&dst, *pSurface);
+         })));
+      }
 
-        auto pSurface = pContext->load<media::Surface>(baseUri.resolveRelativeReference(faceUri));
-        if (pSurface == nullptr) {
-          continue;
-        }
-
-        media::Surface dst = sfc.slice(face);
-        media::convertSurface(&dst, *pSurface);
+      for (auto & job : jobs) {
+        job.wait();
       }
       break;
+    }
     case SkyboxFormat_Equirectangular: BFC_FAIL("Not implemented"); return nullptr;
     }
 

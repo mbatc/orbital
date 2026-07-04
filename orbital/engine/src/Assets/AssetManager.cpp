@@ -1,11 +1,13 @@
 #include "AssetManager.h"
 #include "AssetLoadContext.h"
 #include "AssetLoader.h"
+#include "AssetCache.h"
 #include "Assets/MeshLoader.h"
 #include "Assets/ShaderLoader.h"
 #include "Assets/TextureLoader.h"
 #include "Assets/SkyboxLoader.h"
 #include "Assets/MaterialLoader.h"
+#include "core/Serialize.h"
 
 #include "Application.h"
 #include "Rendering/Rendering.h"
@@ -33,7 +35,12 @@ namespace engine {
     registerLoader("core.materialdata", NewRef<engine::MaterialFileLoader>());
     registerLoader("core.material", NewRef<engine::MaterialLoader>(pRendering->getDevice()));
 
+    m_appDataPath = pApp->getAppDataPath() / "AssetManager";
+    m_pCache      = bfc::NewRef<Cache>(m_appDataPath / "Cache");
     return true;
+  }
+
+  void AssetManager::shutdown() {
   }
 
   bool AssetManager::registerLoader(StringView const & name, Ref<IAssetLoader> const & pLoader) {
@@ -44,6 +51,15 @@ namespace engine {
 
     m_loaders.pushBack({name, pLoader});
 
+    return true;
+  }
+
+  bool AssetManager::registerCache(bfc::type_index const & type, bfc::Ref<IAssetCache> const & pCache) {
+    std::scoped_lock guard{m_loaderLock};
+    if (findCache_unlocked(type) != nullptr) {
+      return false;
+    }
+    m_caches.pushBack(pCache);
     return true;
   }
 
@@ -140,6 +156,7 @@ namespace engine {
     uint64_t version = 0;
 
     Ref<IAssetLoader> pLoader = nullptr;
+    Ref<IAssetCache>  pCache = nullptr;
     std::unique_lock  assetGuard{m_assetLock};
     {
       if (!m_assetPool.isUsed(handle)) {
@@ -151,6 +168,7 @@ namespace engine {
       {
         std::scoped_lock guard{m_loaderLock};
         pLoader = findLoader_unlocked(stored.loader);
+        pCache  = findCache_unlocked(pLoader->assetType());
       }
 
       if (pLoader->assetType() != type) {
@@ -193,9 +211,17 @@ namespace engine {
         return nullptr;
       }
 
-      AssetLoadContext context = { this };
+      if (pCache != nullptr) {
+        Cache::Entry entry;
+        if (m_pCache->checkout(assetUri.c_str(), &entry)) {
+          pInstance = pCache->_read(&entry.stream);
+        }
+      }
 
-      pInstance = pLoader->loadUnknown(assetUri, &context);
+      if (pInstance == nullptr) {
+        AssetLoadContext context = {this};
+        pInstance                = pLoader->loadUnknown(assetUri, &context);
+      }
 
       assetGuard.lock();
       Asset & stored           = m_assetPool[handle];
@@ -316,6 +342,15 @@ namespace engine {
     for (int64_t i = 0; i < m_loaders.size(); ++i) {
       if (m_loaders[i].loaderID == loaderID) {
         return m_loaders[i].pLoader;
+      }
+    }
+    return nullptr;
+  }
+
+  bfc::Ref<IAssetCache> AssetManager::findCache_unlocked(bfc::type_index const & assetType) const {
+    for (int64_t i = 0; i < m_loaders.size(); ++i) {
+      if (m_caches[i]->assetType() == assetType) {
+        return m_caches[i];
       }
     }
     return nullptr;

@@ -31,9 +31,18 @@ namespace engine {
       return nullptr;
     }
 
-    m_dependencies.pushBack(handle);
+    {
+      std::scoped_lock guard{m_dependencyLock};
+      m_dependencies.pushBack(handle);
+    }
+
     Ref<void> pAsset = m_pAssetManager->load(handle, type);
     return pAsset;
+  }
+
+  std::future<bfc::Ref<void>> AssetLoadContext::loadAsync(AssetHandle const &                    handle,
+                                                          std::optional<bfc::type_index> const & type, bool isDependency) {
+    return bfc::async([=]() { return load(handle, type, isDependency); });
   }
 
   Span<const AssetHandle> AssetLoadContext::getDependencies() const {
