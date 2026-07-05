@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AssetLoader.h"
+#include "AssetCache.h"
 
 namespace bfc {
   class GraphicsDevice;
@@ -38,5 +39,13 @@ namespace engine {
 
   private:
     bfc::GraphicsDevice * m_pGraphics;
+  };
+
+  class MeshDataCache : public AssetCache<bfc::MeshData> {
+  public:
+    /// Load the asset from the URI provided
+    virtual bfc::Ref<bfc::MeshData> read(bfc::Stream * pStream) const override;
+    /// Write the asset to `pStream`
+    virtual bool store(bfc::Ref<bfc::MeshData> pAsset, bfc::Stream * pStream) const override;
   };
 } // namespace engine

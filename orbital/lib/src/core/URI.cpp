@@ -419,4 +419,35 @@ namespace bfc {
 
     return false;
   }
+
+  BFC_API std::optional<Timestamp> lastModified(URI const & uri) {
+    if (uri.empty()) {
+      return std::nullopt;
+    }
+
+    if (uri.scheme() == "file") {
+      return FileInfo(uri.pathView()).lastModified();
+    } else {
+      BFC_ASSERT(false, "URI scheme (%*.s) is not supported", uri.scheme().length(), uri.scheme().data());
+    }
+
+    return std::nullopt;
+  }
+
+  BFC_API int64_t write(Stream * pStream, URI const * pValue, int64_t count) {
+    for (int64_t i = 0; i < count; ++i) {
+      if (!pStream->write(pValue[i].m_uri))
+        return i;
+    }
+    return count;
+
+  }
+  BFC_API int64_t read(Stream * pStream, URI * pValue, int64_t count) {
+    for (int64_t i = 0; i < count; ++i) {
+      if (!pStream->read(&pValue[i].m_uri))
+        return i;
+    }
+    return count;
+
+  }
 } // namespace bfc

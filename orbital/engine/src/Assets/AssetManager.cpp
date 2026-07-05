@@ -7,6 +7,7 @@
 #include "Assets/TextureLoader.h"
 #include "Assets/SkyboxLoader.h"
 #include "Assets/MaterialLoader.h"
+#include "core/Stream.h"
 #include "core/Serialize.h"
 
 #include "Application.h"
@@ -15,6 +16,54 @@
 #include "util/Log.h"
 
 using namespace bfc;
+
+namespace {
+  struct CacheHeader {
+    struct Dependency {
+      URI       uri;
+      Timestamp lastModified;
+    };
+    int32_t            version = 1;
+    Vector<Dependency> dependencies; ///< URIs this cache entry depends on.
+  };
+} // namespace
+
+namespace bfc {
+  int64_t write(Stream * pStream, ::CacheHeader::Dependency const * pValue, int64_t count) {
+    for (int64_t i = 0; i < count; ++i) {
+      if (!(pStream->write(pValue[i].uri) && pStream->write(pValue[i].lastModified)))
+        return i;
+    }
+    return count;
+  }
+
+  int64_t read(Stream * pStream, ::CacheHeader::Dependency * pValue, int64_t count) {
+    for (int64_t i = 0; i < count; ++i) {
+      if (!(pStream->read(&pValue[i].uri) && pStream->read(&pValue[i].lastModified)))
+        return i;
+    }
+    return count;
+  }
+  int64_t write(Stream * pStream, ::CacheHeader const * pValue, int64_t count) {
+    for (int64_t i = 0; i < count; ++i) {
+      if (!(pStream->write(pValue[i].version)
+        && pStream->write(pValue[i].dependencies)
+        ))
+        return i;
+    }
+    return count;
+  }
+
+  int64_t read(Stream * pStream, ::CacheHeader * pValue, int64_t count) {
+    for (int64_t i = 0; i < count; ++i) {
+      if (!(pStream->read(&pValue[i].version)
+        && pStream->read(&pValue[i].dependencies)
+        ))
+        return i;
+    }
+    return count;
+  }
+}
 
 namespace engine {
   AssetManager::AssetManager()
@@ -34,6 +83,7 @@ namespace engine {
     registerLoader("core.skybox", NewRef<engine::SkyboxLoader>(pRendering->getDevice()));
     registerLoader("core.materialdata", NewRef<engine::MaterialFileLoader>());
     registerLoader("core.material", NewRef<engine::MaterialLoader>(pRendering->getDevice()));
+    registerCache(TypeID<MeshData>(), NewRef<engine::MeshDataCache>());
 
     m_appDataPath = pApp->getAppDataPath() / "AssetManager";
     m_pCache      = bfc::NewRef<Cache>(m_appDataPath / "Cache");
@@ -153,7 +203,7 @@ namespace engine {
   Ref<void> AssetManager::load(AssetHandle const & handle, std::optional<type_index> const & type, uint64_t * pLoadedVersion) {
     bool     load    = false;
     bool     wait    = false;
-    uint64_t version = 0;
+    uint64_t loadingVersion = 0;
 
     Ref<IAssetLoader> pLoader = nullptr;
     Ref<IAssetCache>  pCache = nullptr;
@@ -189,6 +239,7 @@ namespace engine {
       case AssetStatus_Failed:
         // only load if there is a new version of the asset.
         load = stored.lastVersionLoaded != *stored.version;
+        loadingVersion = *stored.version;
         break;
       }
 
@@ -211,25 +262,49 @@ namespace engine {
         return nullptr;
       }
 
-      if (pCache != nullptr) {
-        Cache::Entry entry;
-        if (m_pCache->checkout(assetUri.c_str(), &entry)) {
-          pInstance = pCache->_read(&entry.stream);
+      AssetLoadContext context {this};
+
+      auto lastModified = m_pFileSystem->lastModified(assetUri);
+      if (lastModified.has_value()) {
+        if (pCache != nullptr) {
+          Cache::Entry entry;
+          if (m_pCache->checkout(assetUri.c_str(), &entry)) {
+            BFC_LOG_INFO("AssetManager", "Reading cached asset (handle: %lld, uri: %s, type: %s)",
+                            handle.index, assetUri, pLoader->assetType().name());
+
+            auto header = bfc::read<::CacheHeader>(&entry.stream);
+            if (header.has_value()) {
+              const bool isStale = header->dependencies.find([&](::CacheHeader::Dependency const & dep) {
+                return m_pFileSystem->lastModified(dep.uri) != dep.lastModified;
+              }) != -1;
+
+              if (!isStale) {
+                pInstance = pCache->_read(&entry.stream);
+              } else {
+                entry.stream.close();
+
+                m_pCache->remove(assetUri.c_str());
+              }
+            }
+          }
         }
       }
 
       if (pInstance == nullptr) {
-        AssetLoadContext context = {this};
-        pInstance                = pLoader->loadUnknown(assetUri, &context);
+        pInstance = pLoader->_load(assetUri, &context);
       }
 
       assetGuard.lock();
       Asset & stored           = m_assetPool[handle];
-      stored.lastVersionLoaded = version;
+      stored.lastVersionLoaded = loadingVersion;
       stored.pInstance         = pInstance;
       stored.status            = pInstance == nullptr ? AssetStatus_Failed : AssetStatus_Loaded;
+      stored.lastModified      = lastModified;
+
+      bool canTryCache = lastModified.has_value();
       for (AssetHandle const & dependency : context.getDependencies()) {
         m_assetPool[dependency].dependent.add(handle);
+        canTryCache &= m_assetPool[dependency].lastModified.has_value();
       }
 
       if (pInstance != nullptr) {
@@ -243,22 +318,40 @@ namespace engine {
       }
 
       if (pLoadedVersion != nullptr)
-        *pLoadedVersion = version;
+        *pLoadedVersion = loadingVersion;
 
       for (auto [pVersion, ppInstance] : stored.waiting) {
-        *pVersion   = version;
+        *pVersion   = loadingVersion;
         *ppInstance = pInstance;
       }
 
+      ::CacheHeader cacheHeader;
+      cacheHeader.dependencies.pushBack({ assetUri, lastModified.value() });
+      for (AssetHandle const & dependency : context.getDependencies())
+        cacheHeader.dependencies.pushBack({ m_assetPool[dependency].uri, m_assetPool[dependency].lastModified.value() });
       assetGuard.unlock();
-
       m_assetNotifier.notify_all();
+
+      if (pCache != nullptr && canTryCache) {
+        bfc::async([=, header = std::move(cacheHeader)]() {
+          BFC_LOG_INFO("AssetManager", "Caching asset (handle: %lld, uri: %s, type: %s, loader: %s)", handle.index,
+                          stored.uri, pLoader->assetType().name(), stored.loader);
+          Cache::Entry newCacheEntry = m_pCache->create();
+          newCacheEntry.stream.write(cacheHeader);
+          if (pCache->_store(pInstance, &newCacheEntry.stream))
+            m_pCache->commit(assetUri.c_str(), &newCacheEntry);
+          else
+            BFC_LOG_WARNING("AssetManager", "Failed to write cache (handle: %lld, uri: %s, type: %s, loader: %s)", handle.index,
+                            stored.uri, pLoader->assetType().name(), stored.loader);
+        });
+      }
+
     } else if (wait) {
       // Another thread started loading this asset.
       // Wait for loading to finish.
-      m_assetPool[handle].waiting.pushBack(Pair{&version, &pInstance});
+      m_assetPool[handle].waiting.pushBack(Pair{&loadingVersion, &pInstance});
 
-      m_assetNotifier.wait(assetGuard, [=, &pInstance, &version]() {
+      m_assetNotifier.wait(assetGuard, [=, &pInstance, &loadingVersion]() {
         if (m_assetPool[handle].status == AssetStatus_Loading)
           return false;
 
@@ -348,7 +441,7 @@ namespace engine {
   }
 
   bfc::Ref<IAssetCache> AssetManager::findCache_unlocked(bfc::type_index const & assetType) const {
-    for (int64_t i = 0; i < m_loaders.size(); ++i) {
+    for (int64_t i = 0; i < m_caches.size(); ++i) {
       if (m_caches[i]->assetType() == assetType) {
         return m_caches[i];
       }

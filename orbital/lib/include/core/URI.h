@@ -2,6 +2,8 @@
 
 #include "String.h"
 #include "Filename.h"
+#include "Timestamp.h"
+#include <optional>
 
 namespace bfc {
   class BFC_API URI {
@@ -104,6 +106,9 @@ namespace bfc {
     /// Calculate the path of this uri, relative to `base`
     URI relativeTo(URI const & base) const;
 
+    BFC_API friend int64_t write(Stream * pStream, URI const * pValue, int64_t count);
+    BFC_API friend int64_t read(Stream * pStream, URI * pValue, int64_t count);
+
   private:
     URI replacePartPrefixed(StringView const & section, StringView const & replace, StringView const & prefixOnEmpty) const;
     URI replacePartSuffixed(StringView const & section, StringView const & replace, StringView const & suffixOnEmpty) const;
@@ -118,6 +123,8 @@ namespace bfc {
   BFC_API Vector<URI> walk(URI const & uri, bool recursive);
 
   BFC_API bool isLeaf(URI const & uri);
+
+  BFC_API std::optional<Timestamp> lastModified(URI const & uri);
 } // namespace bfc
 
 namespace std {

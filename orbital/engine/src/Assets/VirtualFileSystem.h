@@ -6,6 +6,7 @@
 #include "core/Stream.h"
 #include "core/Map.h"
 #include "core/Serialize.h"
+#include "core/Timestamp.h"
 #include "util/UUID.h"
 
 #include <optional>
@@ -81,6 +82,9 @@ namespace engine {
 
     /// Walk any subresources of the URI provided.
     bfc::Vector<bfc::URI> walk(bfc::URI const & resource, bool recursive = false) const;
+
+    /// Get the last modified timestamp of the URI provided.
+    std::optional<bfc::Timestamp> lastModified(bfc::URI const & resource) const;
 
     template<typename T>
     bool write(bfc::URI const & resource, T const & o) {

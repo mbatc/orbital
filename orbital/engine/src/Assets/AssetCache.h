@@ -25,11 +25,11 @@ namespace engine {
       return bfc::TypeID<T>();
     }
 
-    virtual bfc::Ref<void> _read(bfc::Stream* pStream) const {
+    virtual bfc::Ref<void> _read(bfc::Stream* pStream) const override {
       return read(pStream);
     }
 
-    virtual bool store(bfc::Ref<void> pAsset, bfc::Stream * pStream) const {
+    virtual bool _store(bfc::Ref<void> pAsset, bfc::Stream * pStream) const override {
       return store(std::static_pointer_cast<T>(pAsset), pStream);
     }
 

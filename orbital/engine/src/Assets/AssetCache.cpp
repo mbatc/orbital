@@ -12,7 +12,7 @@ namespace engine {
     virtual bfc::type_index assetType() const = 0;
 
     /// Load the asset from the URI provided.
-    virtual bfc::Ref<void> loadUnknown(bfc::URI const & uri, AssetLoadContext * pContext) const = 0;
+    virtual bfc::Ref<void> _load(bfc::URI const & uri, AssetLoadContext * pContext) const = 0;
 
     /// Query if this loader can handle the URI provided.
     virtual bool handles(bfc::URI const & uri, AssetManager const * pManager) const = 0;
@@ -25,7 +25,7 @@ namespace engine {
       return bfc::TypeID<T>();
     }
 
-    virtual bfc::Ref<void> loadUnknown(bfc::URI const & uri, AssetLoadContext * pContext) const override final {
+    virtual bfc::Ref<void> _load(bfc::URI const & uri, AssetLoadContext * pContext) const override final {
       return load(uri, pContext);
     }
 

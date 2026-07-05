@@ -236,16 +236,21 @@ namespace bfc {
   }
 
   template<typename T>
-  std::optional<T> readURI(URI const & uri) {
-    Ref<Stream> pStream = openURI(uri, FileMode_ReadBinary);
-    if (pStream == nullptr) {
-      return {};
-    }
+  std::optional<T> read(Stream * pStream) {
     Uninitialized<T> buffer;
     if (pStream->read(buffer.ptr()) != 1) {
       return {};
     }
     return std::move(buffer.get());
+  }
+
+  template<typename T>
+  std::optional<T> readURI(URI const & uri) {
+    Ref<Stream> pStream = openURI(uri, FileMode_ReadBinary);
+    if (pStream == nullptr) {
+      return {};
+    }
+    return read<T>(pStream.get());
   }
 
   BFC_API bool readFile(URI const & uri, Vector<uint8_t> * pContent);

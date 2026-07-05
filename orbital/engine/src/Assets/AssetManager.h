@@ -179,6 +179,7 @@ namespace engine {
       bfc::String     loader;
       bfc::Ref<uint64_t> version = nullptr;
       uint64_t lastVersionLoaded = 0;
+      std::optional<bfc::Timestamp> lastModified;
 
       bfc::Vector<bfc::Pair<uint64_t *, bfc::Ref<void> *>> waiting; ///< Waiting for the load to complete
 

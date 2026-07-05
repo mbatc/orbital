@@ -90,4 +90,11 @@ namespace bfc {
     return length * rhs.length;
   }
 
+  bool Timestamp::operator==(Timestamp const & rhs) const {
+    return length == rhs.length;
+  }
+
+  bool Timestamp::operator!=(Timestamp const & rhs) const {
+    return length != rhs.length;
+  }
 }

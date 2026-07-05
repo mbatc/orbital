@@ -121,4 +121,15 @@ namespace engine {
     StringView fragment = uri.fragment();
     return fragment.startsWith(fragmentPrefix) && pManager->canLoad<MeshData>(uri);
   }
+
+  Ref<MeshData> MeshDataCache::read(bfc::Stream * pStream) const {
+    auto mesh = bfc::read<MeshData>(pStream);
+    if (mesh.has_value())
+      return bfc::NewRef<MeshData>(std::move(mesh.value()));
+    return nullptr;
+  }
+
+  bool MeshDataCache::store(bfc::Ref<MeshData> pAsset, bfc::Stream * pStream) const {
+    return pStream->write(*pAsset.get());
+  }
 } // namespace engine

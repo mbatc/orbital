@@ -159,6 +159,10 @@ namespace engine {
     });
   }
 
+  std::optional<Timestamp> VirtualFileSystem::lastModified(bfc::URI const & resource) const {
+    return bfc::lastModified(resolveUri(resource));
+  }
+
   bool VirtualFileSystem::serialize(bfc::URI const & resource, SerializedObject const & o, bfc::DataFormat format) {
     return bfc::serialize(resolveUri(resource), o, format);
   }
