@@ -1,7 +1,7 @@
-#include "mesh/Mesh.h"
 #include "core/File.h"
-#include "mesh/parsers/OBJParser.h"
+#include "mesh/Mesh.h"
 #include "mesh/parsers/FBXParser.h"
+#include "mesh/parsers/OBJParser.h"
 
 namespace bfc {
   const StringView MeshData::Material::Phong::diffuse       = "baseColour";
@@ -16,24 +16,24 @@ namespace bfc {
   const StringView MeshData::Material::PBR::normal    = "normal";
   const StringView MeshData::Material::PBR::roughness = "roughness";
   const StringView MeshData::Material::PBR::metalness = "metalness";
-  const StringView MeshData::Material::PBR::emissive = "emissive";
-  const StringView MeshData::Material::PBR::alpha = "alpha";
-  const StringView MeshData::Material::PBR::ao = "ao";
+  const StringView MeshData::Material::PBR::emissive  = "emissive";
+  const StringView MeshData::Material::PBR::alpha     = "alpha";
+  const StringView MeshData::Material::PBR::ao        = "ao";
 
   void MeshData::Material::setName(StringView name) {
     m_name = name;
   }
 
   void MeshData::Material::setColour(StringView name, Vec4 colour, int64_t layer) {
-    m_colours.addOrSet({ name, layer }, colour);
+    m_colours.addOrSet({name, layer}, colour);
   }
 
   void MeshData::Material::setValue(StringView name, double value, int64_t layer) {
-    m_values.addOrSet({ name, layer }, value);
+    m_values.addOrSet({name, layer}, value);
   }
 
   void MeshData::Material::setTexture(StringView name, StringView texture, int64_t layer) {
-    m_textures.addOrSet({ name, layer }, texture);
+    m_textures.addOrSet({name, layer}, texture);
   }
 
   StringView MeshData::Material::getName() const {
@@ -49,20 +49,20 @@ namespace bfc {
   }
 
   StringView MeshData::Material::getTexture(StringView name, int64_t layer) const {
-    String const* pTex = m_textures.tryGet({ name, layer });
+    String const * pTex = m_textures.tryGet({name, layer});
     return pTex != nullptr ? pTex->getView() : StringView();
   }
 
   bool MeshData::Material::hasColour(StringView name, int64_t layer) const {
-    return m_textures.contains({ name, layer });
+    return m_textures.contains({name, layer});
   }
 
   bool MeshData::Material::hasValue(StringView name, int64_t layer) const {
-    return m_values.contains({ name, layer });
+    return m_values.contains({name, layer});
   }
 
   bool MeshData::Material::hasTexture(StringView name, int64_t layer) const {
-    return m_textures.contains({ name, layer });
+    return m_textures.contains({name, layer});
   }
 
   Vector<MeshData::Material::PropertyID> MeshData::Material::getTextures() const {
@@ -76,7 +76,7 @@ namespace bfc {
   Vector<MeshData::Material::PropertyID> MeshData::Material::getColours() const {
     return m_colours.getKeys();
   }
-  
+
   bool MeshData::Material::read(URI const & uri) {
     Ref<Stream> pStream = openURI(uri, FileMode_ReadBinary);
     if (pStream == nullptr) {
@@ -111,7 +111,7 @@ namespace bfc {
     *this = MeshData();
 
     bool     success = false;
-    Filename path = uri.path();
+    Filename path    = uri.path();
     if (path.extension().equals("obj", true)) {
       success = OBJParser::read(pStream.get(), this, path.parent());
     } else if (path.extension().equals("fbx", true)) {
@@ -130,18 +130,18 @@ namespace bfc {
   }
 
   void MeshData::validate() {
-    for (MeshData::Triangle& tri : triangles) {
+    for (MeshData::Triangle & tri : triangles) {
       if (tri.material < 0 || tri.material >= materials.size()) {
         tri.material = -1;
       }
-      for (int64_t& vert : tri.vertex) {
+      for (int64_t & vert : tri.vertex) {
         if (vert < 0 || vert >= vertices.size()) {
           vert = -1;
         }
       }
     }
 
-    for (MeshData::Vertex& vert : vertices) {
+    for (MeshData::Vertex & vert : vertices) {
       if (vert.colour < 0 || vert.colour >= colours.size()) {
         vert.colour = -1;
       }
@@ -165,11 +165,11 @@ namespace bfc {
       validate();
 
     int64_t defaultMaterial = -1;
-    int64_t defaultColour = -1;
-    int64_t defaultUV = -1;
+    int64_t defaultColour   = -1;
+    int64_t defaultUV       = -1;
     int64_t defaultPosition = -1;
-    int64_t defaultNormal = -1;
-    int64_t defaultVertex = -1;
+    int64_t defaultNormal   = -1;
+    int64_t defaultVertex   = -1;
 
     auto GetDefaultPosition = [&]() {
       if (defaultPosition == -1) {
@@ -203,7 +203,7 @@ namespace bfc {
       return defaultColour;
     };
 
-    for (Vertex& vert : vertices) {
+    for (Vertex & vert : vertices) {
       if (vert.colour == -1) {
         vert.colour = GetDefaultColour();
       }
@@ -221,7 +221,7 @@ namespace bfc {
       }
     }
 
-    for (Triangle& tri : triangles) {
+    for (Triangle & tri : triangles) {
       if (tri.material == -1) {
         if (defaultMaterial == -1) {
           defaultMaterial = materials.size();
@@ -231,14 +231,14 @@ namespace bfc {
         tri.material = defaultMaterial;
       }
 
-      for (int64_t& index : tri.vertex) {
+      for (int64_t & index : tri.vertex) {
         if (index < 0 || index >= vertices.size()) {
           if (index == -1) {
             index = vertices.size();
             Vertex vert;
-            vert.colour = GetDefaultColour();
-            vert.uv = GetDefaultUV();
-            vert.normal = GetDefaultNormal();
+            vert.colour   = GetDefaultColour();
+            vert.uv       = GetDefaultUV();
+            vert.normal   = GetDefaultNormal();
             vert.position = GetDefaultPosition();
             vertices.pushBack(vert);
           }
@@ -251,11 +251,12 @@ namespace bfc {
 
   void MeshData::findTextures() {
     mapTextures([=](Filename const & file, bfc::String const & /*name*/, int64_t /*layer*/) {
-      return findFile(file, { sourceFile.parent() });
+      return findFile(file, {sourceFile.parent()});
     });
   }
 
-  void MeshData::mapTextures(std::function<Filename(Filename const & file, bfc::String const & name, int64_t layer)> const & func) {
+  void MeshData::mapTextures(
+    std::function<Filename(Filename const & file, bfc::String const & name, int64_t layer)> const & func) {
     for (Material & mat : materials) {
       for (auto & [name, layer] : mat.getTextures()) {
         Filename found = func(mat.getTexture(name, layer), name, layer);
@@ -266,14 +267,14 @@ namespace bfc {
 
   void MeshData::calculateTangents() {
     tangents.clear();
-    for (Vertex& v : vertices) {
+    for (Vertex & v : vertices) {
       v.tangent = -1;
     }
 
-    for (Triangle& tri : triangles) {
-      Vertex &v0 = vertices[tri.vertex[0]];
-      Vertex &v1 = vertices[tri.vertex[1]];
-      Vertex &v2 = vertices[tri.vertex[2]];
+    for (Triangle & tri : triangles) {
+      Vertex & v0 = vertices[tri.vertex[0]];
+      Vertex & v1 = vertices[tri.vertex[1]];
+      Vertex & v2 = vertices[tri.vertex[2]];
 
       Vec3d dP0 = positions[v1.position] - positions[v0.position];
       Vec3d dP1 = positions[v2.position] - positions[v0.position];
@@ -282,10 +283,8 @@ namespace bfc {
       Vec2d dUV1 = uvs[v2.uv] - uvs[v0.uv];
 
       double f = 1.0 / (dUV0.x * dUV1.y - dUV1.x * dUV0.y);
-      Vec3d tangent = f * Vec3d(
-          dUV1.y * dP0.x - dUV0.y * dP1.x,
-          dUV1.y * dP0.y - dUV0.y * dP1.y,
-          dUV1.y * dP0.z - dUV0.y * dP1.z);
+      Vec3d  tangent =
+        f * Vec3d(dUV1.y * dP0.x - dUV0.y * dP1.x, dUV1.y * dP0.y - dUV0.y * dP1.y, dUV1.y * dP0.z - dUV0.y * dP1.z);
 
       v0.tangent = v1.tangent = v2.tangent = tangents.size();
 
@@ -297,9 +296,9 @@ namespace bfc {
     normals.clear();
     Vector<Vertex> newVerts;
     for (Triangle & tri : triangles) {
-      Vertex & v0     = vertices[tri.vertex[0]];
-      Vertex & v1     = vertices[tri.vertex[1]];
-      Vertex & v2     = vertices[tri.vertex[2]];
+      Vertex & v0 = vertices[tri.vertex[0]];
+      Vertex & v1 = vertices[tri.vertex[1]];
+      Vertex & v2 = vertices[tri.vertex[2]];
 
       Vec3d a = positions[v1.position] - positions[v2.position];
       Vec3d b = positions[v1.position] - positions[v0.position];
@@ -307,8 +306,8 @@ namespace bfc {
       int64_t normalIdx = normals.size();
       normals.pushBack(glm::normalize(glm::cross(a, b)));
       for (int64_t i = 0; i < 3; ++i) {
-        Vertex v = vertices[tri.vertex[i]];
-        v.normal = normalIdx;
+        Vertex v      = vertices[tri.vertex[i]];
+        v.normal      = normalIdx;
         tri.vertex[i] = newVerts.size();
         newVerts.pushBack(v);
       }
@@ -370,7 +369,6 @@ namespace bfc {
     }
   }
 
-
   BFC_API int64_t write(Stream * pStream, MeshData::Material const * pValue, int64_t count) {
     for (int64_t i = 0; i < count; ++i) {
       if (!(pStream->write(pValue[i].m_name) && pStream->write(pValue[i].m_colours) && pStream->write(pValue[i].m_values) &&
@@ -391,9 +389,10 @@ namespace bfc {
 
   int64_t write(Stream * pStream, MeshData const * pValue, int64_t count) {
     for (int64_t i = 0; i < count; ++i) {
-      if (!(pStream->write(pValue[i].positions) && pStream->write(pValue[i].uvs) && pStream->write(pValue[i].colours) && pStream->write(pValue[i].normals) &&
-            pStream->write(pValue[i].tangents) && pStream->write(pValue[i].vertices) && pStream->write(pValue[i].triangles) &&
-            pStream->write(pValue[i].materials) && pStream->write(pValue[i].sourceFile)))
+      if (!(pStream->write(pValue[i].positions) && pStream->write(pValue[i].uvs) && pStream->write(pValue[i].colours) &&
+            pStream->write(pValue[i].normals) && pStream->write(pValue[i].tangents) && pStream->write(pValue[i].vertices) &&
+            pStream->write(pValue[i].triangles) && pStream->write(pValue[i].skins) && pStream->write(pValue[i].materials) &&
+            pStream->write(pValue[i].sourceFile)))
         return i;
     }
     return count;
@@ -401,11 +400,40 @@ namespace bfc {
 
   int64_t read(Stream * pStream, MeshData * pValue, int64_t count) {
     for (int64_t i = 0; i < count; ++i) {
-      if (!(pStream->read(&pValue[i].positions) && pStream->read(&pValue[i].uvs) && pStream->read(&pValue[i].colours) && pStream->read(&pValue[i].normals) &&
-            pStream->read(&pValue[i].tangents) && pStream->read(&pValue[i].vertices) && pStream->read(&pValue[i].triangles) &&
-            pStream->read(&pValue[i].materials) && pStream->read(&pValue[i].sourceFile)))
+      if (!(pStream->read(&pValue[i].positions) && pStream->read(&pValue[i].uvs) && pStream->read(&pValue[i].colours) &&
+            pStream->read(&pValue[i].normals) && pStream->read(&pValue[i].tangents) && pStream->read(&pValue[i].vertices) &&
+            pStream->read(&pValue[i].triangles) && pStream->read(&pValue[i].skins) && pStream->read(&pValue[i].materials) &&
+            pStream->read(&pValue[i].sourceFile)))
         return i;
     }
     return count;
   }
-}
+
+  int64_t write(Stream * pStream, MeshData::Skin const * pValue, int64_t count) {
+    for (int64_t i = 0; i < count; ++i)
+      if (!(pStream->write(pValue[i].name) && pStream->write(pValue[i].deformers)))
+        return i;
+    return count;
+  }
+
+  int64_t read(Stream * pStream, MeshData::Skin * pValue, int64_t count) {
+    for (int64_t i = 0; i < count; ++i)
+      if (!(pStream->read(&pValue[i].name) && pStream->read(&pValue[i].deformers)))
+        return i;
+    return count;
+  }
+
+  int64_t write(Stream * pStream, MeshData::Deformer const * pValue, int64_t count) {
+    for (int64_t i = 0; i < count; ++i)
+      if (!(pStream->write(pValue[i].name) && pStream->write(pValue[i].mode) && pStream->write(pValue[i].vertices)))
+        return i;
+    return count;
+  }
+
+  int64_t read(Stream * pStream, MeshData::Deformer * pValue, int64_t count) {
+    for (int64_t i = 0; i < count; ++i)
+      if (!(pStream->read(&pValue[i].name) && pStream->read(&pValue[i].mode) && pStream->read(&pValue[i].vertices)))
+        return i;
+    return count;
+  }
+} // namespace bfc

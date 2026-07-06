@@ -105,17 +105,18 @@ namespace bfc {
     int64_t stepUp = 0;
     char* last = 0;
     char* first = last;
-    for (int64_t i = start; i >= 0;) {
+    for (int64_t i = start; i >= 0 && start != npos;) {
       start = path.findLast('/', i);
       StringView part;
-      if (start == npos)
+      if (start == npos) {
         part = path.substr(0, i + 1);
-      else
-        part = path.substr(start, i - start + 1);
-
-      if (part != "/." || part == ".") // Skip this
-      {
-        if (part == "/.." || part == "..") { // Step up
+        i    = 0;
+      } else {
+        part = path.substr(start + 1, i - start);
+        i    = start - 1;
+      }
+      if (part != ".") { // Skip this
+        if (part == "..") { // Step up
           ++stepUp;
         }
         else {
@@ -127,8 +128,6 @@ namespace bfc {
           }
         }
       }
-
-      i -= part.length();
     }
 
     *pStepUpRemaining = stepUp;
@@ -154,17 +153,22 @@ namespace bfc {
     int64_t stepUps = 0;
     for (int64_t offset = path.length(); offset >= 0;) {
       StringView part = walkUp(path, offset, &stepUps);
-      for (int64_t i = part.length() - 1; i >= 0; --i) {
-        *(--first) = part[i];
+      if (!part.empty()) {
+        if (last - first != 1)
+          *(--first) = '/';
+        for (int64_t i = part.length() - 1; i >= 0; --i) {
+          *(--first) = part[i];
+        }
       }
-      offset = part.begin() - path.begin() - 1;
+      offset = part.begin() - path.begin() - 2;
     }
 
     if (stepUps > 0) {
       ++first;
       while (stepUps-- > 0) {
+        bool isEnd = first == last;
         first -= 3;
-        memcpy(first, "../", 3);
+        memcpy(first, "../", isEnd ? 2 : 3);
       }
     }
 

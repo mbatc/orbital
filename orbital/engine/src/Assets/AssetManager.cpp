@@ -332,20 +332,21 @@ namespace engine {
       assetGuard.unlock();
       m_assetNotifier.notify_all();
 
-      if (pCache != nullptr && canTryCache) {
-        bfc::async([=, header = std::move(cacheHeader)]() {
-          BFC_LOG_INFO("AssetManager", "Caching asset (handle: %lld, uri: %s, type: %s, loader: %s)", handle.index,
-                          stored.uri, pLoader->assetType().name(), stored.loader);
-          Cache::Entry newCacheEntry = m_pCache->create();
-          newCacheEntry.stream.write(cacheHeader);
-          if (pCache->_store(pInstance, &newCacheEntry.stream))
-            m_pCache->commit(assetUri.c_str(), &newCacheEntry);
-          else
-            BFC_LOG_WARNING("AssetManager", "Failed to write cache (handle: %lld, uri: %s, type: %s, loader: %s)", handle.index,
-                            stored.uri, pLoader->assetType().name(), stored.loader);
-        });
+      if (pInstance != nullptr) {
+        if (pCache != nullptr && canTryCache) {
+          bfc::async([=, header = std::move(cacheHeader)]() {
+            BFC_LOG_INFO("AssetManager", "Caching asset (handle: %lld, uri: %s, type: %s, loader: %s)", handle.index,
+                         stored.uri, pLoader->assetType().name(), stored.loader);
+            Cache::Entry newCacheEntry = m_pCache->create();
+            newCacheEntry.stream.write(cacheHeader);
+            if (pCache->_store(pInstance, &newCacheEntry.stream))
+              m_pCache->commit(assetUri.c_str(), &newCacheEntry);
+            else
+              BFC_LOG_WARNING("AssetManager", "Failed to write cache (handle: %lld, uri: %s, type: %s, loader: %s)",
+                              handle.index, stored.uri, pLoader->assetType().name(), stored.loader);
+          });
+        }
       }
-
     } else if (wait) {
       // Another thread started loading this asset.
       // Wait for loading to finish.

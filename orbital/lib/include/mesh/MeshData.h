@@ -157,6 +157,10 @@ namespace bfc {
 
   BFC_API int64_t write(Stream * pStream, MeshData const * pValue, int64_t count);
   BFC_API int64_t read(Stream * pStream, MeshData * pValue, int64_t count);
+  BFC_API int64_t write(Stream * pStream, MeshData::Skin const * pValue, int64_t count);
+  BFC_API int64_t read(Stream * pStream, MeshData::Skin * pValue, int64_t count);
+  BFC_API int64_t write(Stream * pStream, MeshData::Deformer const * pValue, int64_t count);
+  BFC_API int64_t read(Stream * pStream, MeshData::Deformer * pValue, int64_t count);
 
   template<>
   struct Serializer<bfc::MeshData::Material> {

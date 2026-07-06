@@ -38,11 +38,31 @@ BFC_TEST(Filename_Root) {
 
 BFC_TEST(Filename_GetDirect) {
   {
+    bfc::Filename file = "../../../../../Users";
+    BFC_TEST_ASSERT_TRUE(file.getDirect() == "../../../../../Users");
+  }
+  {
+    bfc::Filename file = "..";
+    BFC_TEST_ASSERT_TRUE(file.getDirect() == "..");
+  }
+  {
+    bfc::Filename file = "../..";
+    BFC_TEST_ASSERT_TRUE(file.getDirect() == "../..");
+  }
+  {
     bfc::Filename file = "D:/My/File/Name.exe";
     BFC_TEST_ASSERT_TRUE(file.getDirect() == file);
   }
   {
     bfc::Filename file = "D:/My/../File/Name.exe";
     BFC_TEST_ASSERT_TRUE(file.getDirect() == "D:/File/Name.exe");
+  }
+  {
+    bfc::Filename file = "D:/My/File/../../Name.exe";
+    BFC_TEST_ASSERT_TRUE(file.getDirect() == "D:/Name.exe");
+  }
+  {
+    bfc::Filename file = "D:/My/../File/../Name.exe";
+    BFC_TEST_ASSERT_TRUE(file.getDirect() == "D:/Name.exe");
   }
 }
