@@ -115,6 +115,7 @@ namespace bfc {
       mem::free(pBuffer);
       pBuffer = 0;
     }
+
     Surface Surface::slice(int64_t z) const {
       Surface ret;
       ret.size    = {size.x, size.y, 1 };

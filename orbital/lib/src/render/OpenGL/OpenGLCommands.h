@@ -575,10 +575,36 @@ namespace bfc {
         };
 
         struct DownloadTexture {
-          GLTexture * pTexture;
+          GLTexture *         pTexture;
           GLTextureDownload * pDownload;
+          GLenum              format;
+          GLenum              type;
+          GLenum              target;
+          PixelFormat         downloadPixelFormat;
+
           static void execute(DownloadTexture const * pCmd, GraphicsDevice * pDevice, CommandBuffer const * pBuffer) {
-            
+            pCmd->pDownload->surface.format = pCmd->downloadPixelFormat;
+            pCmd->pDownload->surface.pitch = 0;
+            pCmd->pDownload->surface.size = pCmd->pTexture->size;
+            pCmd->pDownload->storage.resize(calculateSurfaceSize(pCmd->pDownload->surface));
+            pCmd->pDownload->surface.pBuffer = pCmd->pDownload->storage.data();
+
+            auto surface = pCmd->pDownload->surface;
+
+            glBindTexture(pCmd->target, pCmd->pTexture->glID);
+            if (pCmd->target == GL_TEXTURE_CUBE_MAP) {
+              BFC_ASSERT(surface.size.z == 6, "A cubemap must have a depth of 6.");
+              for (int64_t i = 0; i < surface.size.z; ++i) {
+                void * pPixels = getSurfacePixel(surface, {0, 0, i});
+                glGetTexImage(ToGLCubeMapFace((CubeMapFace)i), 0, pCmd->format, pCmd->type, pPixels);
+              }
+            }
+            else {
+              glGetTexImage(pCmd->target, 0, pCmd->format, pCmd->type, pCmd->pDownload->storage.begin());
+            }
+            glBindTexture(pCmd->target, 0);
+
+            pCmd->pDownload->completePromise.set_value();
           }
         };
 

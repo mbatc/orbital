@@ -49,7 +49,7 @@ namespace engine {
     bool registerLoader(bfc::StringView const & name, bfc::Ref<IAssetLoader> const & pLoader);
 
     /// Register an asset cache with the asset manager.
-    bool registerCache(bfc::type_index const & type, bfc::Ref<IAssetCache> const & pCache);
+    bool registerCache(bfc::Ref<IAssetCache> const & pCache);
 
     /// Check if an asset is contained in the asset manager by its handle.
     bool contains(AssetHandle const & handle) const;

@@ -97,6 +97,10 @@ namespace bfc {
       return getDevice()->createTexture(type);
     }
 
+    graphics::TextureDownloadRef CommandList::createTextureDownload() {
+      return getDevice()->createTextureDownload();
+    }
+
     graphics::SamplerRef CommandList::createSampler() {
       return getDevice()->createSampler();
     }
@@ -128,6 +132,14 @@ namespace bfc {
                           });
         else
           setShader(type, std::nullopt);
+      }
+    }
+
+    void CommandList::downloadTexture(TextureRef textureID, TextureDownloadRef pDownload) {
+      if (textureID->isDepthTexture()) {
+        downloadTexture(textureID, pDownload, textureID->getDepthStencilFormat());
+      } else {
+        downloadTexture(textureID, pDownload, textureID->getColourFormat());
       }
     }
 

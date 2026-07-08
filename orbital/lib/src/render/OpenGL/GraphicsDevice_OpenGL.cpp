@@ -107,7 +107,7 @@ namespace bfc {
     }
 
     bool GLTexture::isDepthTexture() const {
-      return depthStencilFmt != DepthStencilFormat_None;
+      return depthStencilFmt != DepthStencilFormat_Unknown;
     }
 
     DepthStencilFormat GLTexture::getDepthStencilFormat() const {
@@ -1163,11 +1163,34 @@ namespace bfc {
       track(textureID);
     }
 
-    void CommandList_OpenGL::downloadTexture(TextureRef textureID, TextureDownloadRef pDownload) {
-      BFC_FAIL("Not implemented");
+    void CommandList_OpenGL::downloadTexture(TextureRef textureID, TextureDownloadRef pDownload, PixelFormat format) {
+      impl::OpenGL::DownloadTexture cmd;
+      cmd.pTexture                   = &ToGL(textureID);
+      cmd.pDownload                  = &ToGL(pDownload);
+      cmd.pDownload->completePromise = {};
+      cmd.pDownload->complete        = cmd.pDownload->completePromise.get_future();
+
+      cmd.target              = ToGLTextureType(cmd.pTexture->type);
+      cmd.format              = ToGLFormat(format);
+      cmd.type                = ToGLType(format);
+      cmd.downloadPixelFormat = format;
+      add(cmd);
+      track(textureID);
+    }
+
+    void CommandList_OpenGL::downloadTexture(TextureRef textureID, TextureDownloadRef pDownload, DepthStencilFormat format) {
+      BFC_ASSERT(format == DepthStencilFormat_D32, "Only DepthStencilFormat_D32  is supported");
 
       impl::OpenGL::DownloadTexture cmd;
-      cmd.pTexture = &ToGL(textureID);
+      cmd.pTexture                   = &ToGL(textureID);
+      cmd.pDownload                  = &ToGL(pDownload);
+      cmd.pDownload->completePromise = {};
+      cmd.pDownload->complete        = cmd.pDownload->completePromise.get_future();
+
+      cmd.target              = ToGLTextureType(cmd.pTexture->type);
+      cmd.format              = ToGLFormat(format);
+      cmd.type                = ToGLType(format);
+      cmd.downloadPixelFormat = PixelFormat_Rf32;
 
       add(cmd);
       track(textureID);
@@ -1346,6 +1369,13 @@ namespace bfc {
 
     newTexture->type = type;
     return newTexture;
+  }
+
+  graphics::TextureDownloadRef GraphicsDevice_OpenGL::createTextureDownload() {
+    Ref<graphics::GLTextureDownload> download(new graphics::GLTextureDownload, [this](graphics::GLTextureDownload * pPtr) {
+      delete pPtr;
+    });
+    return download;
   }
 
   graphics::SamplerRef GraphicsDevice_OpenGL::createSampler() {

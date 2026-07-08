@@ -305,12 +305,18 @@ namespace bfc {
         return true;
       }
 
-      virtual media::Surface view() const override {}
+      virtual media::Surface view() const override {
+        return surface;
+      }
 
-      virtual std::tuple<media::Surface, Vector<uint8_t>> take() override {}
+      virtual std::tuple<media::Surface, Vector<uint8_t>> take() override {
+        return std::make_tuple(std::move(surface), std::move(storage));
+      }
 
-      Vector<uint8_t>   storage;
-      std::future<bool> complete;
+      media::Surface     surface;
+      Vector<uint8_t>    storage;
+      std::future<void>  complete;
+      std::promise<void> completePromise;
     };
 
     class BFC_API CommandList_OpenGL : public CommandList {
@@ -361,7 +367,8 @@ namespace bfc {
       virtual bool uploadTexture(TextureRef textureID, media::Surface const & src) override;
       virtual bool uploadTextureSubData(TextureRef textureID, media::Surface const & src, Vec3i offset) override;
       virtual void generateMipMaps(TextureRef textureID) override;
-      virtual void downloadTexture(TextureRef textureID, TextureDownloadRef pDownload) override;
+      virtual void downloadTexture(TextureRef textureID, TextureDownloadRef pDownload, PixelFormat format) override;
+      virtual void downloadTexture(TextureRef textureID, TextureDownloadRef pDownload, DepthStencilFormat format) override;
 
       // Shaders
       virtual void setUniform(int64_t uniformIndex, void const * pBuffer, int64_t size) override;
@@ -438,6 +445,7 @@ namespace bfc {
     virtual graphics::VertexArrayRef               createVertexArray() override;
     virtual graphics::ProgramRef                   createProgram() override;
     virtual graphics::TextureRef                   createTexture(TextureType type) override;
+    virtual graphics::TextureDownloadRef           createTextureDownload() override;
     virtual graphics::SamplerRef                   createSampler() override;
     virtual graphics::RenderTargetRef              createRenderTarget(RenderTargetType type) override;
     virtual graphics::StateManager *               getStateManager() override;

@@ -95,7 +95,6 @@ namespace bfc {
 
   enum DepthStencilFormat {
     DepthStencilFormat_Unknown = -1,
-    DepthStencilFormat_None,
     DepthStencilFormat_D16,
     DepthStencilFormat_D32,
     DepthStencilFormat_D24S8,
@@ -786,7 +785,9 @@ namespace bfc {
       virtual bool uploadTexture(TextureRef textureID, media::Surface const & src)                      = 0;
       virtual bool uploadTextureSubData(TextureRef textureID, media::Surface const & src, Vec3i offset) = 0;
       virtual void generateMipMaps(TextureRef textureID)                                                = 0;
-      virtual void downloadTexture(TextureRef textureID, TextureDownloadRef pDownload)                  = 0;
+      virtual void downloadTexture(TextureRef textureID, TextureDownloadRef pDownload, PixelFormat format) = 0;
+      virtual void downloadTexture(TextureRef textureID, TextureDownloadRef pDownload, DepthStencilFormat format) = 0;
+      void         downloadTexture(TextureRef textureID, TextureDownloadRef pDownload);
 
       // Shaders
       virtual void setUniform(int64_t uniformIndex, void const * pBuffer, int64_t size)    = 0;
@@ -839,12 +840,13 @@ namespace bfc {
       /// Get the graphics device that created this command list.
       virtual GraphicsDevice * getDevice() const = 0;
 
-      graphics::BufferRef       createBuffer(BufferUsageHint usageHint = BufferUsageHint_Unknown);
-      graphics::VertexArrayRef  createVertexArray();
-      graphics::ProgramRef      createProgram();
-      graphics::TextureRef      createTexture(TextureType type);
-      graphics::SamplerRef      createSampler();
-      graphics::RenderTargetRef createRenderTarget(RenderTargetType type);
+      graphics::BufferRef          createBuffer(BufferUsageHint usageHint = BufferUsageHint_Unknown);
+      graphics::VertexArrayRef     createVertexArray();
+      graphics::ProgramRef         createProgram();
+      graphics::TextureRef         createTexture(TextureType type);
+      graphics::TextureDownloadRef createTextureDownload();
+      graphics::SamplerRef         createSampler();
+      graphics::RenderTargetRef    createRenderTarget(RenderTargetType type);
     };
 
     void loadTexture(CommandList * pCmdList, TextureRef * pTexture, TextureType const & type, media::Surface const & surface);
@@ -932,6 +934,8 @@ namespace bfc {
     /// Create a new texture resource.
     /// @param type The type of texture to create.
     virtual graphics::TextureRef createTexture(TextureType type) = 0;
+    /// Create a new texture download interface.
+    virtual graphics::TextureDownloadRef createTextureDownload() = 0;
     /// Create a new sampler resource.
     virtual graphics::SamplerRef createSampler() = 0;
     /// Create a new render target resource.

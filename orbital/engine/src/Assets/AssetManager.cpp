@@ -83,7 +83,8 @@ namespace engine {
     registerLoader("core.skybox", NewRef<engine::SkyboxLoader>(pRendering->getDevice()));
     registerLoader("core.materialdata", NewRef<engine::MaterialFileLoader>());
     registerLoader("core.material", NewRef<engine::MaterialLoader>(pRendering->getDevice()));
-    registerCache(TypeID<MeshData>(), NewRef<engine::MeshDataCache>());
+    registerCache(NewRef<engine::MeshDataCache>());
+    registerCache(NewRef<engine::TextureCache>(pRendering->getDevice()));
 
     m_appDataPath = pApp->getAppDataPath() / "AssetManager";
     m_pCache      = bfc::NewRef<Cache>(m_appDataPath / "Cache");
@@ -104,9 +105,9 @@ namespace engine {
     return true;
   }
 
-  bool AssetManager::registerCache(bfc::type_index const & type, bfc::Ref<IAssetCache> const & pCache) {
+  bool AssetManager::registerCache(bfc::Ref<IAssetCache> const & pCache) {
     std::scoped_lock guard{m_loaderLock};
-    if (findCache_unlocked(type) != nullptr) {
+    if (findCache_unlocked(pCache->assetType()) != nullptr) {
       return false;
     }
     m_caches.pushBack(pCache);
@@ -262,9 +263,8 @@ namespace engine {
         return nullptr;
       }
 
-      AssetLoadContext context {this};
-
-      auto lastModified = m_pFileSystem->lastModified(assetUri);
+      AssetLoadContext context{this};
+      auto             lastModified    = m_pFileSystem->lastModified(assetUri);
       if (lastModified.has_value()) {
         if (pCache != nullptr) {
           Cache::Entry entry;
@@ -290,7 +290,8 @@ namespace engine {
         }
       }
 
-      if (pInstance == nullptr) {
+      bool loadedFromCache = pInstance != nullptr;
+      if (!loadedFromCache) {
         pInstance = pLoader->_load(assetUri, &context);
       }
 
@@ -301,7 +302,7 @@ namespace engine {
       stored.status            = pInstance == nullptr ? AssetStatus_Failed : AssetStatus_Loaded;
       stored.lastModified      = lastModified;
 
-      bool canTryCache = lastModified.has_value();
+      bool canTryCache = !loadedFromCache && lastModified.has_value();
       for (AssetHandle const & dependency : context.getDependencies()) {
         m_assetPool[dependency].dependent.add(handle);
         canTryCache &= m_assetPool[dependency].lastModified.has_value();
@@ -338,7 +339,7 @@ namespace engine {
             BFC_LOG_INFO("AssetManager", "Caching asset (handle: %lld, uri: %s, type: %s, loader: %s)", handle.index,
                          stored.uri, pLoader->assetType().name(), stored.loader);
             Cache::Entry newCacheEntry = m_pCache->create();
-            newCacheEntry.stream.write(cacheHeader);
+            newCacheEntry.stream.write(header);
             if (pCache->_store(pInstance, &newCacheEntry.stream))
               m_pCache->commit(assetUri.c_str(), &newCacheEntry);
             else

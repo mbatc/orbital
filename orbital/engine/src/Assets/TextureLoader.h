@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AssetLoader.h"
+#include "AssetCache.h"
 #include "render/GraphicsDevice.h"
 
 namespace bfc {
@@ -22,6 +23,17 @@ namespace engine {
 
     virtual bfc::Ref<bfc::graphics::Texture> load(bfc::URI const & uri, AssetLoadContext * pManager) const override;
     virtual bool                 handles(bfc::URI const & uri, AssetManager const * pManager) const override;
+
+  private:
+    bfc::GraphicsDevice * m_pGraphicsDevice = nullptr;
+  };
+
+  class TextureCache : public AssetCache<bfc::graphics::Texture> {
+  public:
+    TextureCache(bfc::GraphicsDevice *pDevice);
+
+    virtual bfc::Ref<bfc::graphics::Texture> read(bfc::Stream * pStream) const override;
+    virtual bool store(bfc::Ref<bfc::graphics::Texture> pAsset, bfc::Stream * pStream) const override;
 
   private:
     bfc::GraphicsDevice * m_pGraphicsDevice = nullptr;
