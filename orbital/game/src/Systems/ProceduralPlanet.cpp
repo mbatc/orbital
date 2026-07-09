@@ -210,7 +210,6 @@ namespace {
     ProceduralPlanetTerrainFeatureRenderer(engine::AssetManager * pAssetManager)
       : m_terrainShader(pAssetManager, bfc::URI::File("engine:shaders/terrain/procedural-planet-terrain.shader"))
       , m_waterTransmittanceShader(pAssetManager, bfc::URI::File("engine:shaders/terrain/planet-water-transmittance.shader"))
-      // , m_waterTransmittanceShader(pAssetManager, bfc::URI::File("engine:shaders/terrain/planet-water-depth-only.shader"))
       , m_quad(pAssetManager, bfc::URI::File("engine:models/primitives/plane.obj")) {}
 
     virtual void onResize(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, bfc::Vec2i const & size) {}
@@ -337,6 +336,8 @@ namespace {
       bfc::graphics::StateManager * pState = pRenderer->getGraphicsDevice()->getStateManager();
       auto const & terrains = view.pRenderData->renderables<ProceduralPlanetRenderable>();
       pCmdList->bindProgram(m_waterTransmittanceShader);
+      bfc::Vec3 sampleOffset = bfc::Vec3(std::sinf((float)bfc::Timestamp::now().secs() / 1020));
+      pCmdList->setUniform("sampleOffset0", sampleOffset);
       pCmdList->bindVertexArray(m_quad->getVertexArray());
       pCmdList->bindUniformBuffer(m_terrainTileUBO, TerrainTileBufferBindPoint);
       pCmdList->bindUniformBuffer(m_terrainUBO, TerrainBufferBindPoint);

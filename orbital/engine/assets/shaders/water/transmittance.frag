@@ -19,19 +19,19 @@ void main()
   float pathLength = length(dir);
   vec3 transmittance = vec3(exp(-absorption * pathLength * 10000));
 
-  gbuffer_SetColour(vec4(transmittance, 1));
+  gbuffer_SetColour(vec4(0, 0, 0.1, 1));
 
   vec3 normal;
   normal = texture(normalMap, vsout_uv0).rgb;
   normal = normal * 2.0 - 1.0;
   normal = normalize(vsout_tbnMat0 * normal);
 
-  gbuffer_SetAmbient(texture2D(ambientMap, vsout_uv0) * ambient);
+  gbuffer_SetAmbient(vec4(transmittance, 1));
   gbuffer_SetPosition(vsout_position0);
   gbuffer_SetNormal(normal);
   gbuffer_SetRMAO(vec4(
-    roughness * texture2D(roughnessMap, vsout_uv0).x,
-    metalness * texture2D(metalnessMap, vsout_uv0).x,
+    dot(normal, normalize(getCameraPosition() - vsout_position0)),
+    0.1,
     texture2D(aoMap, vsout_uv0).x,
     1
   ));

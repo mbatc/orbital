@@ -13,7 +13,7 @@ entities:
         ypr:
           - -45.000000000000028
           - 45.000000000000036
-          - 4.4979835663949474e-15
+          - 0
         scale:
           - 1
           - 1
@@ -47,7 +47,7 @@ entities:
           - 0
         ypr:
           - -0
-          - 0
+          - 57.295779513082323
           - 0
         scale:
           - 1
@@ -86,28 +86,6 @@ entities:
         dirtIntensity: 1
         dirt:
           uri: file:engine:/textures/terrain/rough_stone_tiles.jpg
-  - uuid: ceaaf5f5-6393-404f-b49d-9f885cca5c46
-    components:
-      transform:
-        translation:
-          - 0
-          - 0
-          - 0
-        ypr:
-          - -0
-          - 0
-          - 0
-        scale:
-          - 10
-          - 0.10000000000000001
-          - 10
-        parent: ~
-      static-mesh:
-        castShadows: 1
-        useTesselation: 0
-        materials: ~
-        mesh:
-          uri: file:engine:/models/primitives/cube.obj
   - uuid: 29bd3a2c-7ca3-4de3-bd24-b1185028a9ee
     components:
       transform:
