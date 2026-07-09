@@ -433,7 +433,7 @@ namespace bfc {
 
   class GraphicsDevice_OpenGL : public GraphicsDevice {
   public:
-    GraphicsDevice_OpenGL();
+    ~GraphicsDevice_OpenGL();
 
     virtual bool init(platform::Window * pWindow) override;
     virtual void destroy() override;
@@ -476,15 +476,21 @@ namespace bfc {
     void RenderThread(platform::Window * pWindow, Ref<std::promise<void>> initComplete);
     void cleanupResources();
 
-    std::mutex m_destroyLock;
-    struct DestroyQueues {
-      Vector<uint32_t> textures;
-      Vector<uint32_t> vertexArrays;
-      Vector<uint32_t> programs;
-      Vector<uint32_t> buffers;
-      Vector<uint32_t> framebuffers;
-      Vector<uint32_t> samplers;
-    } m_destroy;
+    struct Destroy {
+      ~Destroy();
+
+      std::mutex       lock;
+
+      struct Queues {
+        Vector<uint32_t> textures;
+        Vector<uint32_t> vertexArrays;
+        Vector<uint32_t> programs;
+        Vector<uint32_t> buffers;
+        Vector<uint32_t> framebuffers;
+        Vector<uint32_t> samplers;
+      } queues;
+    };
+    std::shared_ptr<Destroy> m_pDestroy = bfc::NewRef<Destroy>();
 
     std::thread m_renderThread;
     bool        m_running = true;

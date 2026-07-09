@@ -60,11 +60,11 @@ namespace bfc {
       TextureAtlas *   m_pAtlas         = nullptr;
       bool             m_updateMonitors = true;
 
-      graphics::VertexArrayRef m_vertexArray    = InvalidGraphicsResource;
-      graphics::BufferRef      m_vertexBuffer   = InvalidGraphicsResource;
-      graphics::BufferRef      m_indexBuffer    = InvalidGraphicsResource;
-      graphics::TextureRef     m_fontTexture    = InvalidGraphicsResource;
-      graphics::ProgramRef     m_shader;
+      graphics::VertexArrayRef m_vertexArray     = InvalidGraphicsResource;
+      graphics::BufferRef      m_vertexBuffer    = InvalidGraphicsResource;
+      graphics::BufferRef      m_indexBuffer     = InvalidGraphicsResource;
+      graphics::TextureRef     m_fontTexture     = InvalidGraphicsResource;
+      graphics::ProgramRef     m_shader          = InvalidGraphicsResource;
       graphics::SamplerRef     m_sampler         = InvalidGraphicsResource;
       ImGuiMouseCursor         m_lastMouseCursor = ImGuiMouseCursor_None;
 

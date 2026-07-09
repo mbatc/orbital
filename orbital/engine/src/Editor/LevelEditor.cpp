@@ -161,6 +161,7 @@ namespace engine {
 
   void LevelEditor::shutdown() {
     m_pEditorViewport = nullptr;
+    m_uiContext.deinit();
   }
 
   void LevelEditor::loop(Application * pApp) {

@@ -63,6 +63,7 @@ namespace bfc {
 
     Context::Context()
       : m_events("UI Context") {}
+
     Context::~Context() {}
 
     void Context::init(graphics::CommandList * pCmdList) {
@@ -185,6 +186,8 @@ namespace bfc {
       m_indexBuffer  = InvalidGraphicsResource;
       m_fontTexture  = InvalidGraphicsResource;
       m_shader       = InvalidGraphicsResource;
+      m_sampler      = InvalidGraphicsResource;
+      m_tracked.clear();
     }
 
     void Context::beginFrame(Vec2 size) {

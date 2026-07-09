@@ -1290,7 +1290,13 @@ namespace bfc {
 
   } // namespace graphics
 
-  GraphicsDevice_OpenGL::GraphicsDevice_OpenGL() {}
+  GraphicsDevice_OpenGL::~GraphicsDevice_OpenGL() {
+    m_queueLock.lock();
+    m_running = false;
+    m_queueLock.unlock();
+    m_queueNotifier.notify_one();
+    m_renderThread.join();
+  }
 
   bool GraphicsDevice_OpenGL::init(platform::Window *pWindow) {
     auto initComplete = NewRef<std::promise<void>>();
@@ -1310,10 +1316,10 @@ namespace bfc {
 
   graphics::BufferRef GraphicsDevice_OpenGL::createBuffer(BufferUsageHint usageHint) {
     // TODO: Custom allocator?
-    Ref<graphics::GLBuffer> newBuffer(new graphics::GLBuffer, [this](graphics::GLBuffer * pPtr) {
-      m_destroyLock.lock();
-      m_destroy.buffers.pushBack(pPtr->glID);
-      m_destroyLock.unlock();
+    Ref<graphics::GLBuffer> newBuffer(new graphics::GLBuffer, [pDestroy = m_pDestroy](graphics::GLBuffer * pPtr) {
+      pDestroy->lock.lock();
+      pDestroy->queues.buffers.pushBack(pPtr->glID);
+      pDestroy->lock.unlock();
 
       delete pPtr;
     });
@@ -1336,10 +1342,11 @@ namespace bfc {
   }
 
   graphics::VertexArrayRef GraphicsDevice_OpenGL::createVertexArray() {
-    Ref<graphics::GLVertexArray> va(new graphics::GLVertexArray, [this](graphics::GLVertexArray * pPtr) {
-      m_destroyLock.lock();
-      m_destroy.vertexArrays.pushBack(pPtr->glID);
-      m_destroyLock.unlock();
+    Ref<graphics::GLVertexArray> va(new graphics::GLVertexArray, [pDestroy = m_pDestroy](graphics::GLVertexArray * pPtr) {
+      pDestroy->lock.lock();
+      pDestroy->queues.vertexArrays.pushBack(pPtr->glID);
+      pDestroy->lock.unlock();
+
       delete pPtr;
     });
 
@@ -1347,10 +1354,10 @@ namespace bfc {
   }
 
   graphics::ProgramRef GraphicsDevice_OpenGL::createProgram() {
-    Ref<graphics::GLProgram> newProgram(new graphics::GLProgram, [this](graphics::GLProgram * pPtr) {
-      m_destroyLock.lock();
-      m_destroy.programs.pushBack(pPtr->glID);
-      m_destroyLock.unlock();
+    Ref<graphics::GLProgram> newProgram(new graphics::GLProgram, [pDestroy = m_pDestroy](graphics::GLProgram * pPtr) {
+      pDestroy->lock.lock();
+      pDestroy->queues.programs.pushBack(pPtr->glID);
+      pDestroy->lock.unlock();
 
       delete pPtr;
     });
@@ -1359,10 +1366,10 @@ namespace bfc {
   }
 
   graphics::TextureRef GraphicsDevice_OpenGL::createTexture(TextureType type) {
-    Ref<graphics::GLTexture> newTexture(new graphics::GLTexture, [this](graphics::GLTexture * pPtr) {
-      m_destroyLock.lock();
-      m_destroy.textures.pushBack(pPtr->glID);
-      m_destroyLock.unlock();
+    Ref<graphics::GLTexture> newTexture(new graphics::GLTexture, [pDestroy = m_pDestroy](graphics::GLTexture * pPtr) {
+      pDestroy->lock.lock();
+      pDestroy->queues.textures.pushBack(pPtr->glID);
+      pDestroy->lock.unlock();
 
       delete pPtr;
     });
@@ -1379,10 +1386,10 @@ namespace bfc {
   }
 
   graphics::SamplerRef GraphicsDevice_OpenGL::createSampler() {
-    Ref<graphics::GLSampler> newSampler(new graphics::GLSampler, [this](graphics::GLSampler * pPtr) {
-      m_destroyLock.lock();
-      m_destroy.samplers.pushBack(pPtr->glID);
-      m_destroyLock.unlock();
+    Ref<graphics::GLSampler> newSampler(new graphics::GLSampler, [pDestroy = m_pDestroy](graphics::GLSampler * pPtr) {
+      pDestroy->lock.lock();
+      pDestroy->queues.samplers.pushBack(pPtr->glID);
+      pDestroy->lock.unlock();
 
       delete pPtr;
     });
@@ -1391,15 +1398,16 @@ namespace bfc {
   }
 
   graphics::RenderTargetRef GraphicsDevice_OpenGL::createRenderTarget(RenderTargetType type) {
-    Ref<graphics::GLRenderTarget> target(new graphics::GLRenderTarget, [this](graphics::GLRenderTarget * pPtr) {
-      if (pPtr->type == RenderTargetType_Texture) {
-        m_destroyLock.lock();
-        m_destroy.framebuffers.pushBack(pPtr->textures.glID);
-        m_destroyLock.unlock();
-      }
+    Ref<graphics::GLRenderTarget> target(new graphics::GLRenderTarget,
+                                         [pDestroy = m_pDestroy](graphics::GLRenderTarget * pPtr) {
+                                           if (pPtr->type == RenderTargetType_Texture) {
+                                             pDestroy->lock.lock();
+                                             pDestroy->queues.framebuffers.pushBack(pPtr->textures.glID);
+                                             pDestroy->lock.unlock();
+                                           }
 
-      delete pPtr;
-    });
+                                           delete pPtr;
+                                         });
 
     target->type = type;
 
@@ -1588,26 +1596,26 @@ namespace bfc {
   }
 
   void GraphicsDevice_OpenGL::cleanupResources() {
-    m_destroyLock.lock();
-    DestroyQueues queue = std::move(m_destroy);
-    m_destroyLock.unlock();
+    m_pDestroy->lock.lock();
+    Destroy::Queues queues = std::move(m_pDestroy->queues);
+    m_pDestroy->lock.unlock();
 
-    if (!queue.buffers.empty())
-      glDeleteBuffers((GLsizei)queue.buffers.size(), queue.buffers.begin());
+    if (!queues.buffers.empty())
+      glDeleteBuffers((GLsizei)queues.buffers.size(), queues.buffers.begin());
 
-    if (!queue.samplers.empty())
-      glDeleteSamplers((GLsizei)queue.samplers.size(), queue.samplers.begin());
+    if (!queues.samplers.empty())
+      glDeleteSamplers((GLsizei)queues.samplers.size(), queues.samplers.begin());
 
-    if (!queue.textures.empty())
-      glDeleteTextures((GLsizei)queue.textures.size(), queue.textures.begin());
+    if (!queues.textures.empty())
+      glDeleteTextures((GLsizei)queues.textures.size(), queues.textures.begin());
 
-    if (!queue.framebuffers.empty())
-      glDeleteFramebuffers((GLsizei)queue.framebuffers.size(), queue.framebuffers.begin());
+    if (!queues.framebuffers.empty())
+      glDeleteFramebuffers((GLsizei)queues.framebuffers.size(), queues.framebuffers.begin());
 
-    if (!queue.vertexArrays.empty())
-      glDeleteVertexArrays((GLsizei)queue.vertexArrays.size(), queue.vertexArrays.begin());
+    if (!queues.vertexArrays.empty())
+      glDeleteVertexArrays((GLsizei)queues.vertexArrays.size(), queues.vertexArrays.begin());
 
-    for (const uint32_t & program : queue.programs)
+    for (const uint32_t & program : queues.programs)
       glDeleteProgram(program);
   }
 
@@ -2171,5 +2179,20 @@ namespace bfc {
       glEnable(feature);
     else
       glDisable(feature);
+  }
+
+  GraphicsDevice_OpenGL::Destroy::~Destroy() {
+    if (queues.buffers.size() > 0)
+      BFC_LOG_WARNING("GraphicsDevice", "%lld buffers outlived the graphics context", queues.buffers.size());
+    if (queues.textures.size() > 0)
+      BFC_LOG_WARNING("GraphicsDevice", "%lld textures outlived the graphics context", queues.textures.size());
+    if (queues.samplers.size() > 0)
+      BFC_LOG_WARNING("GraphicsDevice", "%lld samplers outlived the graphics context", queues.samplers.size());
+    if (queues.framebuffers.size() > 0)
+      BFC_LOG_WARNING("GraphicsDevice", "%lld framebuffers outlived the graphics context", queues.framebuffers.size());
+    if (queues.vertexArrays.size() > 0)
+      BFC_LOG_WARNING("GraphicsDevice", "%lld vertex arrays outlived the graphics context", queues.vertexArrays.size());
+    if (queues.programs.size() > 0)
+      BFC_LOG_WARNING("GraphicsDevice", "%lld programs outlived the graphics context", queues.programs.size());
   }
 } // namespace bfc
