@@ -5,6 +5,7 @@
 #include "Rendering/Renderables.h"
 #include "Rendering/Renderer.h"
 #include "Rendering/Rendering.h"
+#include "dsa/QuadTree.h"
 
 namespace {
   static bfc::Mat4d faceTransforms[bfc::CubeMapFace_Count] = {
@@ -23,143 +24,6 @@ namespace {
 
     bfc::math::translation(-bfc::math::forward<double> * 0.5) *
       glm::toMat4(glm::angleAxis(glm::half_pi<double>(), bfc::math::right<double>)), // CubeMapFace_Back,
-  };
-
-  class QuadTree {
-  public:
-    struct Node {
-      bfc::Vec3u64 coord;
-      uint64_t     children[4];
-      bool         split = false;
-
-      int64_t layerDimensions() const {
-        return tilesAtLayer(coord.z);
-      }
-
-      double size() const {
-        return 1.0f / layerDimensions();
-      }
-
-      bfc::Vec3u64 parent() const {
-        bfc::Vec3u64 parent = coord;
-        parent.z -= 1;
-        parent.x = parent.x / 2;
-        parent.y = parent.y / 2;
-        return parent;
-      }
-
-      bfc::Vec3u64 child(uint8_t index) const {
-        bfc::Vec3u64 child = coord;
-        child.z += 1;
-        child.x = child.x * 2 + (index % 2);
-        child.y = child.y * 2 + (index / 2);
-        return child;
-      }
-    };
-
-    QuadTree() {
-      nodes.emplace(Node{{0, 0, 0}});
-    }
-
-    static uint64_t layerFromSize(double sz) {
-      return uint64_t(std::log2(1.0 / sz));
-    }
-
-    static uint64_t tilesAtLayer(uint64_t layer) {
-      return 1ull << layer;
-    }
-
-    void trySplit(std::function<bool(Node const &)> const & predicate, uint64_t root = 0, bool joinOnFail = false) {
-      if (!predicate(nodes[root])) {
-        if (joinOnFail)
-          join(root);
-        return;
-      }
-
-      split(root);
-
-      for (uint8_t i = 0; i < 4; ++i) {
-        trySplit(predicate, nodes[root].children[i]);
-      }
-    }
-
-    bool insert(bfc::Vec3u64 const & coord) {
-      return insert(coord, 0);
-    }
-
-    bool join(uint64_t node) {
-      if (!nodes.isUsed(node)) {
-        return false;
-      }
-
-      if (!nodes[node].split) {
-        return false;
-      }
-
-      for (uint8_t i = 0; i < 4; ++i) {
-        join(nodes[node].children[i]);
-
-        nodes.erase(nodes[node].children[i]);
-        nodes[node].children[i] = -1;
-      }
-
-      nodes[node].split = false;
-      return true;
-    }
-
-    bool split(uint64_t node) {
-      if (!nodes.isUsed(node)) {
-        return false;
-      }
-
-      if (nodes[node].split) {
-        return false;
-      }
-
-      uint64_t childNodes[] = {
-        (uint64_t)nodes.emplace(),
-        (uint64_t)nodes.emplace(),
-        (uint64_t)nodes.emplace(),
-        (uint64_t)nodes.emplace(),
-      };
-      std::memcpy(nodes[node].children, childNodes, sizeof(childNodes));
-      auto & parent = nodes[node];
-      parent.split  = true;
-
-      for (uint8_t i = 0; i < 4; ++i) {
-        nodes[parent.children[i]].coord = parent.child(i);
-      }
-      return true;
-    }
-
-    void forLeaves(std::function<void(Node const &)> const & cb) {
-      for (auto & node : nodes) {
-        if (!node.split) {
-          cb(node);
-        }
-      }
-    }
-
-  private:
-    bool isSplit(uint64_t node) {
-      return nodes[node].split;
-    }
-
-    bool insert(bfc::Vec3u64 const & coord, uint64_t root) {
-      const int64_t diff = coord.z - nodes[root].coord.z;
-      if (diff <= 0)
-        return nodes[root].coord == coord;
-
-      split(root);
-
-      const auto    childCoord = bfc::Vec2u64(coord) / uint64_t(1ull << (diff - 1));
-      const auto    localCoord = childCoord - bfc::Vec2u64(nodes[root].child(0));
-      const int64_t childIndex = localCoord.y * 2 + localCoord.x;
-
-      return insert(coord, nodes[root].children[childIndex]);
-    }
-
-    bfc::Pool<Node> nodes;
   };
 
   struct ProceduralPlanetRenderable {
@@ -290,40 +154,8 @@ namespace {
 
       auto const & terrains = view.pRenderData->renderables<ProceduralPlanetRenderable>();
       pCmdList->bindProgram(m_terrainShader);
-      pCmdList->bindVertexArray(m_quad->getVertexArray());
-      pCmdList->bindUniformBuffer(m_terrainTileUBO, TerrainTileBufferBindPoint);
-      pCmdList->bindUniformBuffer(m_terrainUBO, TerrainBufferBindPoint);
-      pCmdList->bindUniformBuffer(m_modelUBO, bfc::renderer::BufferBinding_ModelBuffer);
 
-      for (auto & instance : m_viewData[viewID].instances) {
-        m_modelUBO.data.modelMatrix  = instance.terrain.transform;
-        m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(instance.terrain.transform);
-        m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(instance.terrain.transform, view.getViewProjectionMatrix());
-        m_modelUBO.upload(pCmdList);
-
-        m_terrainUBO.data.seed        = instance.terrain.seed;
-        m_terrainUBO.data.scale       = instance.terrain.scale;
-        m_terrainUBO.data.maxHeight   = instance.terrain.maxHeight;
-        m_terrainUBO.data.minHeight   = instance.terrain.minHeight;
-        m_terrainUBO.data.frequency   = 1.0f;
-        m_terrainUBO.data.octaves     = instance.terrain.octaves;
-        m_terrainUBO.data.persistance = instance.terrain.persistance;
-        m_terrainUBO.data.lacurnarity = instance.terrain.lacurnarity;
-        m_terrainUBO.upload(pCmdList);
-
-        instance.tree.forLeaves([&](QuadTree::Node const & node) {
-          const double     size            = node.size();
-          const bfc::Vec3d tileCoord       = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
-          const bfc::Mat4d sampleTransform = instance.side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)) * glm::translate(tileCoord) *
-                                             glm::scale(bfc::Vec3d(size, 1, size)) * glm::translate(bfc::Vec3d(0.5, 0, 0.5));
-
-          m_terrainTileUBO.data.tileSize        = (float)size;
-          m_terrainTileUBO.data.sampleTransform = sampleTransform;
-          m_terrainTileUBO.upload(pCmdList);
-
-          pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
-        });
-      }
+      renderTerrainTiles(pCmdList, viewID, view.getViewProjectionMatrix());
     }
 
     void onTransparencyDepth(engine::DeferredRenderer::Stages::Transparency::Depth const & request, bfc::graphics::CommandList * pCmdList,
@@ -335,45 +167,12 @@ namespace {
 
       bfc::graphics::StateManager * pState = pRenderer->getGraphicsDevice()->getStateManager();
       auto const & terrains = view.pRenderData->renderables<ProceduralPlanetRenderable>();
+
       pCmdList->bindProgram(m_waterTransmittanceShader);
       bfc::Vec3 sampleOffset = bfc::Vec3(std::sinf((float)bfc::Timestamp::now().secs() / 1020));
       pCmdList->setUniform("sampleOffset0", sampleOffset);
-      pCmdList->bindVertexArray(m_quad->getVertexArray());
-      pCmdList->bindUniformBuffer(m_terrainTileUBO, TerrainTileBufferBindPoint);
-      pCmdList->bindUniformBuffer(m_terrainUBO, TerrainBufferBindPoint);
-      pCmdList->bindUniformBuffer(m_modelUBO, bfc::renderer::BufferBinding_ModelBuffer);
 
-      for (auto & instance : m_viewData[viewID].instances) {
-        m_modelUBO.data.modelMatrix  = instance.terrain.transform;
-        m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(instance.terrain.transform);
-        m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(instance.terrain.transform, view.getViewProjectionMatrix());
-        m_modelUBO.upload(pCmdList);
-
-        m_terrainUBO.data.seed        = instance.terrain.seed;
-        m_terrainUBO.data.scale       = instance.terrain.scale;
-        m_terrainUBO.data.maxHeight   = instance.terrain.maxHeight;
-        m_terrainUBO.data.minHeight   = instance.terrain.minHeight;
-        m_terrainUBO.data.frequency   = 1.0f;
-        m_terrainUBO.data.octaves     = instance.terrain.octaves;
-        m_terrainUBO.data.persistance = instance.terrain.persistance;
-        m_terrainUBO.data.lacurnarity = instance.terrain.lacurnarity;
-        m_terrainUBO.upload(pCmdList);
-
-        instance.tree.forLeaves([=](QuadTree::Node const & node) {
-          const double     size            = node.size();
-          const bfc::Vec3d tileCoord       = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
-          const bfc::Mat4d sampleTransform = instance.side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)) * glm::translate(tileCoord) *
-                                             glm::scale(bfc::Vec3d(size, 1, size)) * glm::translate(bfc::Vec3d(0.5, 0, 0.5));
-
-          m_terrainTileUBO.data.tileSize        = (float)size;
-          m_terrainTileUBO.data.sampleTransform = sampleTransform;
-          m_terrainTileUBO.upload(pCmdList);
-
-          pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
-        });
-      }
-
-      pCmdList->popState();
+      renderTerrainTiles(pCmdList, viewID, view.getViewProjectionMatrix());
     }
 
     void onTransparencyTransmittance(engine::DeferredRenderer::Stages::Transparency::Transmittance const & request, bfc::graphics::CommandList * pCmdList,
@@ -389,6 +188,19 @@ namespace {
 
       auto const & terrains = view.pRenderData->renderables<ProceduralPlanetRenderable>();
       pCmdList->bindProgram(m_waterTransmittanceShader);
+
+      renderTerrainTiles(pCmdList, viewID, view.getViewProjectionMatrix());
+
+      for (int i = 0; i < bfc::GBufferTarget_Count; ++i) {
+        pCmdList->bindTexture(nullptr, 8 + i);
+      }
+    }
+
+    virtual void endView(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) override {}
+
+  private:
+    void renderTerrainTiles(bfc::graphics::CommandList * pCmdList, uint64_t viewID, bfc::Mat4 viewProjectionMatrix)
+    {
       pCmdList->bindVertexArray(m_quad->getVertexArray());
       pCmdList->bindUniformBuffer(m_terrainTileUBO, TerrainTileBufferBindPoint);
       pCmdList->bindUniformBuffer(m_terrainUBO, TerrainBufferBindPoint);
@@ -397,7 +209,7 @@ namespace {
       for (auto & instance : m_viewData[viewID].instances) {
         m_modelUBO.data.modelMatrix  = instance.terrain.transform;
         m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(instance.terrain.transform);
-        m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(instance.terrain.transform, view.getViewProjectionMatrix());
+        m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(instance.terrain.transform, viewProjectionMatrix);
         m_modelUBO.upload(pCmdList);
 
         m_terrainUBO.data.seed        = instance.terrain.seed;
@@ -413,8 +225,9 @@ namespace {
         instance.tree.forLeaves([=](QuadTree::Node const & node) {
           const double     size            = node.size();
           const bfc::Vec3d tileCoord       = bfc::Vec3d(node.coord.x, 0, node.coord.y) * size;
-          const bfc::Mat4d sampleTransform = instance.side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)) * glm::translate(tileCoord) *
-                                             glm::scale(bfc::Vec3d(size, 1, size)) * glm::translate(bfc::Vec3d(0.5, 0, 0.5));
+          const bfc::Mat4d sampleTransform = instance.side * glm::translate(-bfc::Vec3d(0.5, 0, 0.5)) *
+                                             glm::translate(tileCoord) * glm::scale(bfc::Vec3d(size, 1, size)) *
+                                             glm::translate(bfc::Vec3d(0.5, 0, 0.5));
 
           m_terrainTileUBO.data.tileSize        = (float)size;
           m_terrainTileUBO.data.sampleTransform = sampleTransform;
@@ -423,15 +236,8 @@ namespace {
           pCmdList->drawIndexed(std::numeric_limits<int64_t>::max(), 0, bfc::PrimitiveType_Patches);
         });
       }
-
-      for (int i = 0; i < bfc::GBufferTarget_Count; ++i) {
-        pCmdList->bindTexture(nullptr, 8 + i);
-      }
     }
 
-    virtual void endView(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) override {}
-
-  private:
     engine::Asset<bfc::graphics::Program> m_terrainShader;
     engine::Asset<bfc::graphics::Program> m_waterTransmittanceShader;
 

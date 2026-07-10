@@ -21,6 +21,10 @@ PlayerControlSystem::PlayerControlSystem(bfc::Ref<engine::Input> const & pInput)
     .setRange({-std::numeric_limits<float>::max(), std::numeric_limits<float>::max()})
     .mapAnalog({"mouse", MouseAxis_Y, -1});
 
+  pInput->channel("camera.zoom")
+    .setRange({-std::numeric_limits<float>::max(), std::numeric_limits<float>::max()})
+    .mapAnalog({"mouse", MouseAxis_Scroll, -1});
+
   pInput->channel("vehicle.thrust")
     .mapButton({"keyboard", KeyCode_Space, 1})
     .mapButton({"keyboard", KeyCode_Shift, -1});
