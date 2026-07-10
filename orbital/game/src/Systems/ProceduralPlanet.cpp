@@ -151,8 +151,6 @@ namespace {
 
       bfc::graphics::StateManager * pState = pRenderer->getGraphicsDevice()->getStateManager();
       pCmdList->pushState(bfc::graphics::State::EnableDepthRead{true}, bfc::graphics::State::EnableDepthWrite{true}, bfc::graphics::State::EnableBlend{false});
-
-      auto const & terrains = view.pRenderData->renderables<ProceduralPlanetRenderable>();
       pCmdList->bindProgram(m_terrainShader);
 
       renderTerrainTiles(pCmdList, viewID, view.getViewProjectionMatrix());
@@ -165,11 +163,9 @@ namespace {
         return;
       }
 
-      bfc::graphics::StateManager * pState = pRenderer->getGraphicsDevice()->getStateManager();
-      auto const & terrains = view.pRenderData->renderables<ProceduralPlanetRenderable>();
-
       pCmdList->bindProgram(m_waterTransmittanceShader);
-      bfc::Vec3 sampleOffset = bfc::Vec3(std::sinf((float)bfc::Timestamp::now().secs() / 1020));
+
+      bfc::Vec3 sampleOffset = bfc::Vec3(std::sinf((float)bfc::Timestamp::now().secs() / 1000));
       pCmdList->setUniform("sampleOffset0", sampleOffset);
 
       renderTerrainTiles(pCmdList, viewID, view.getViewProjectionMatrix());
@@ -186,7 +182,6 @@ namespace {
         pCmdList->bindTexture((*request.pOpaqueGBuffer)[i], 8 + i);
       }
 
-      auto const & terrains = view.pRenderData->renderables<ProceduralPlanetRenderable>();
       pCmdList->bindProgram(m_waterTransmittanceShader);
 
       renderTerrainTiles(pCmdList, viewID, view.getViewProjectionMatrix());
