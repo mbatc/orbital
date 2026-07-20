@@ -29,6 +29,15 @@ namespace components {
     float    persistance = 0.5f;
     float    lacurnarity = 2.0f;
   };
+
+  struct PlanetAtmosphere {
+    bfc::Vec3 sunDirection     = bfc::math::normalize(bfc::Vec3(1, 1, 1));
+    float     sunIntensity     = 20;
+    float     innerRadius      = 1;
+    float     outerRadius      = 1.025f;
+    float     rayleighConstant = 0.0025f;
+    float     mieConstant      = 0.0010f;
+  };
 } // namespace components
 
 class ProceduralTerrainSystem
@@ -67,8 +76,6 @@ namespace bfc {
 
     template<typename Context>
     static bool read(SerializedObject const & s, components::ProceduralPlanet & o, Context const &) {
-      mem::construct(&o);
-
       s.get("seed").readOrConstruct(o.seed, 0);
       s.get("scale").readOrConstruct(o.scale, 1.0f);
       s.get("minHeight").readOrConstruct(o.minHeight, 0.0f);
@@ -78,6 +85,32 @@ namespace bfc {
       s.get("octaves").readOrConstruct(o.octaves, 6);
       s.get("persistance").readOrConstruct(o.persistance, 0.5f);
       s.get("lacurnarity").readOrConstruct(o.lacurnarity, 2.0f);
+      return true;
+    }
+  };
+
+  template<>
+  struct Serializer<components::PlanetAtmosphere> {
+    template<typename Context>
+    static SerializedObject write(components::PlanetAtmosphere const & o, Context const &) {
+      return SerializedObject::MakeMap({
+        {"innerRadius", serialize(o.innerRadius)},
+        {"outerRadius", serialize(o.outerRadius)},
+        {"sunDirection", serialize(o.sunDirection)},
+        {"sunIntensity", serialize(o.sunIntensity)},
+        {"rayleighConstant", serialize(o.rayleighConstant)},
+        {"mieConstant", serialize(o.mieConstant)}
+      });
+    }
+
+    template<typename Context>
+    static bool read(SerializedObject const & s, components::PlanetAtmosphere & o, Context const &) {
+      s.get("innerRadius").readOrConstruct(o.innerRadius, 1.0f);
+      s.get("outerRadius").readOrConstruct(o.outerRadius, 1.025f);
+      s.get("sunDirection").readOrConstruct(o.sunDirection, bfc::math::normalize(bfc::Vec3(1)));
+      s.get("sunIntensity").readOrConstruct(o.sunIntensity, 20.0f);
+      s.get("rayleighConstant").readOrConstruct(o.rayleighConstant, 0.0025f);
+      s.get("mieConstant").readOrConstruct(o.mieConstant, 0.0010f);
       return true;
     }
   };

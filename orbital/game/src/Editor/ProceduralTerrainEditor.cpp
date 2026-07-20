@@ -22,3 +22,15 @@ void ProceduralPlanetEditor::draw(engine::LevelEditor * pEditor, bfc::Ref<engine
   ui::Slider<float>   ("Persistance",  &pComponent->persistance, 0, 1);
   ui::Slider<float>   ("Lacurnarity",  &pComponent->lacurnarity, 0, 10);
 }
+
+void PlanetAtmosphereEditor::draw(engine::LevelEditor * pEditor, bfc::Ref<engine::Level> const & pLevel,
+                                  engine::EntityID entityID, components::PlanetAtmosphere * pComponent) {
+  ui::Input("Outer Radius", &pComponent->outerRadius);
+  ui::Input("Inner Radius", &pComponent->innerRadius);
+
+  ui::Input("Sun direction", &pComponent->sunDirection);
+  ui::Input("Sun intensity", &pComponent->sunIntensity);
+
+  ui::Input("Rayleigh Constant", &pComponent->rayleighConstant);
+  ui::Input("Mie Constant", &pComponent->mieConstant);
+}

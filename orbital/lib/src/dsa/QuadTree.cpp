@@ -12,7 +12,7 @@ uint64_t QuadTree::tilesAtLayer(uint64_t layer) {
   return 1ull << layer;
 }
 
-void QuadTree::trySplit(std::function<bool(Node const &)> const & predicate, uint64_t root = 0, bool joinOnFail = false) {
+void QuadTree::trySplit(std::function<bool(Node const &)> const & predicate, uint64_t root, bool joinOnFail) {
   if (!predicate(nodes[root])) {
     if (joinOnFail)
       join(root);

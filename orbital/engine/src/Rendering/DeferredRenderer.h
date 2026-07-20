@@ -75,6 +75,21 @@ namespace engine {
       };
 
       struct ShadowMesh {};
+
+      struct PostProcess {
+        struct Pre {
+          bfc::PostProcessInput          input;
+          bfc::graphics::TextureRef pFinalColour;
+        };
+
+        struct Perform {
+          bfc::PostProcessingStack * pPostProcessing = nullptr;
+        };
+
+        struct Post {
+          bfc::graphics::RenderTargetRef pTarget;
+        };
+      };
     };
 
     struct Phase {
@@ -87,17 +102,8 @@ namespace engine {
       };
       inline static const bfc::StringView lighting        = "lighting";
       inline static const bfc::StringView skybox          = "skybox";
-      inline static const bfc::StringView prePostProcess  = "pre-post-process";
       inline static const bfc::StringView postProcess     = "post-process";
-      inline static const bfc::StringView postPostProcess = "post-post-process";
     };
-
-    // struct Resources {
-    //   inline static const bfc::StringView defaultMaterial  = "default-material";
-    //   inline static const bfc::StringView gbuffer          = "gbuffer";
-    //   inline static const bfc::StringView postProcessStack = "post-process-stack";
-    //   inline static const bfc::StringView finalColour      = "final-colour";
-    // };
 
     DeferredRenderer(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets);
 
@@ -123,7 +129,6 @@ namespace engine {
     virtual void endView(bfc::graphics::CommandList * pCmdList, RenderView const & view) override;
 
   private:
-    bfc::PostProcessingStack  m_postProc;
     bfc::Ref<bfc::GBuffer> m_pGbuffer;
     bfc::Ref<bfc::GBuffer> m_pTransparencyGBuffer;
     bfc::graphics::TextureRef m_finalColourTarget; ///< Final scene colour is rendered to this target.

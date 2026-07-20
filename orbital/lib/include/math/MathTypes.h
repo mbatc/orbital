@@ -136,6 +136,8 @@ namespace bfc {
   }
 
   namespace math {
+    using namespace glm;
+
     template<class T>
     inline constexpr Vector3<T> up = Vector3<T>(0, 1, 0);
     template<class T>

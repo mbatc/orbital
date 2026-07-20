@@ -21,6 +21,7 @@ void OrbitalGameSystems::registerComponents() {
   engine::registerComponentType<VehicleController>("vehicle-controller");
   engine::registerComponentType<VehicleCameraController>("vehicle-camera-controller");
   engine::registerComponentType<components::ProceduralPlanet>("procedural-planet");
+  engine::registerComponentType<components::PlanetAtmosphere>("planet-atmosphere");
 }
 
 void OrbitalGameSystems::registerSystems(engine::Application * pApp) {

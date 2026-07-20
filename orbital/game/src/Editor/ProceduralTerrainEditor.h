@@ -8,3 +8,9 @@ public:
   virtual void draw(engine::LevelEditor * pEditor, bfc::Ref<engine::Level> const & pLevel, engine::EntityID entityID,
                     components::ProceduralPlanet * pComponent) override;
 };
+
+class PlanetAtmosphereEditor : public engine::LevelEditor::ComponentEditor<components::PlanetAtmosphere> {
+public:
+  virtual void draw(engine::LevelEditor * pEditor, bfc::Ref<engine::Level> const & pLevel, engine::EntityID entityID,
+                    components::PlanetAtmosphere * pComponent) override;
+};

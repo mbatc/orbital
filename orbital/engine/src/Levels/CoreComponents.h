@@ -136,6 +136,7 @@ namespace components {
     bfc::Vector<ShadedMaterial> materials;
     bool                        castShadows    = true;
     bool                        useTesselation = false;
+    bfc::Face                   faces          = bfc::Face_FrontAndBack;
   };
 
   /// Defines a area in the scene which post processing effects are applied to.

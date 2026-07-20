@@ -587,8 +587,18 @@ namespace bfc {
         Face               face;
       };
 
-      using Storage = std::variant<std::monostate, EnableBlend, EnableStencilTest, EnableScissorTest, EnableDepthRead, EnableDepthWrite, Viewport, Scissor,
-                                   DepthRange, DepthFunc, BlendFunc, BlendEq, ColourWrite, ColourFactor, StencilOp, StencilFunc>;
+      struct EnableCullFace {
+        bool enabled;
+      };
+
+      struct CullFace {
+        CullFace(Face face)
+          : face(face) {}
+        Face face;
+      };
+
+      using Storage = std::variant<std::monostate, EnableBlend, EnableStencilTest, EnableScissorTest, EnableDepthRead, EnableDepthWrite, Viewport, Scissor, DepthRange, DepthFunc, BlendFunc, BlendEq,
+                                   ColourWrite, ColourFactor, StencilOp, StencilFunc, EnableCullFace, CullFace>;
 
       template<typename T>
       inline static constexpr bool IsState = in_variant_v<T, State::Storage>;

@@ -23,6 +23,7 @@ void main()
 {
   vec3 normal = normalize(2 * (texture(normalTex, vsout_uv0).xyz - vec3(0.5)));
   vec3 position = texture(positionTex, vsout_uv0).rgb;
+  float factor = texture(positionTex, vsout_uv0).a;
   vec3 vsNormal = normalize((transpose(inverse(viewMatrix)) * vec4(normal, 1)).xyz);
   vec3 vsPosition = (viewMatrix * vec4(position, 1)).xyz;
 
@@ -51,11 +52,11 @@ void main()
     {
       float sampleDepth = (viewMatrix * vec4(texture(positionTex, projectedSample.xy).xyz, 1)).z;
       float rangeCheck = smoothstep(0.0, 1.0, radius / abs(vsPosition.z - sampleDepth));
-      occlusion       += (sampleDepth >= samplePosition.z + bias ? 1.0 : 0.0) * rangeCheck; 
+      occlusion       += (sampleDepth != 1 && sampleDepth >= samplePosition.z + bias ? 1.0 : 0.0) * rangeCheck;
     }
   }
 
   occlusion /= KERNEL_SIZE;
-  occlusion *= strength;
+  occlusion *= strength * factor;
   fragColour = vec4(texture(sceneColourTex, vsout_uv0).rgb * (1 - occlusion), 1);
 }

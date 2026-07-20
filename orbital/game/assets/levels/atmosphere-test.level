@@ -55,25 +55,15 @@ entities:
           - 1
         parent: ~
       procedural-planet:
-        seed: 2523052544
+        seed: 0
         scale: 1
-        minHeight: -0.067264996469020844
-        maxHeight: 0.058295998722314835
-        radius: 10
+        minHeight: -0.004999999888241291
+        maxHeight: 0.004999999888241291
+        radius: 1
         frequency: 1
-        octaves: 7
-        persistance: 0.63228702545166016
+        octaves: 6
+        persistance: 0.5
         lacurnarity: 2
-      planet-atmosphere:
-        innerRadius: 1
-        outerRadius: 1.0249999761581421
-        sunDirection:
-          - 0.57735025882720947
-          - 0.57735025882720947
-          - 0.57735025882720947
-        sunIntensity: 20
-        rayleighConstant: 0.0024999999441206455
-        mieConstant: 0.0010000000474974513
   - uuid: 1640f207-607b-4c22-9665-be843b9c299d
     components:
       post-process-volume:
@@ -122,3 +112,30 @@ entities:
         materials: ~
         mesh:
           uri: file:game:/models/donut/dohey.obj
+  - uuid: 37a38950-dcf8-47b1-9e19-b12f6a89e40d
+    components:
+      name: Atmosphere
+      transform:
+        translation:
+          - 0
+          - 0
+          - 0
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 1.0249999999999999
+          - 1.0249999999999999
+          - 1.0249999999999999
+        parent: ~
+      planet-atmosphere:
+        innerRadius: 1
+        outerRadius: 1.0249999761581421
+        sunDirection:
+          - 0.57735025882720947
+          - 0.57735025882720947
+          - 0.57735025882720947
+        sunIntensity: 20
+        rayleighConstant: 0.0024999999441206455
+        mieConstant: 0.0010000000474974513

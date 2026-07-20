@@ -19,5 +19,6 @@ bool OrbitalEditor::init(engine::Application * pApp) {
   pLevelEditor->addComponentEditor<VehicleVelocityEditor>();
 
   pLevelEditor->addComponentEditor<ProceduralPlanetEditor>();
+  pLevelEditor->addComponentEditor<PlanetAtmosphereEditor>();
   return true;
 }

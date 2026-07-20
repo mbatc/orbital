@@ -449,11 +449,56 @@ namespace engine {
     graphics::RenderTargetRef * m_pColourTarget = nullptr;
   };
 
-  class Feature_SSAO : public FeatureRenderer {
+  class Feature_PostProcessing : public FeatureRenderer {
   public:
-    Feature_SSAO(AssetManager * pAssets, PostProcessingStack * pPPS)
-      : m_pPPS(pPPS)
-      , m_ssaoShader(pAssets, URI::File("engine:shaders/ssao/ssao.shader")) {}
+    Feature_PostProcessing(AssetManager * pAssets, GBuffer * pGBuffer,
+                           graphics::TextureRef * pFinalColour)
+      : m_pGBuffer(pGBuffer)
+      , m_pFinalColour(pFinalColour) {}
+
+    virtual void renderView(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) override {
+      m_pps.reset();
+      m_pps.target               = view.renderTarget;
+      m_pps.sceneColour          = *m_pFinalColour;
+      m_pps.inputs.sceneDepth    = m_pGBuffer->getDepthTarget();
+      m_pps.inputs.baseColour    = m_pGBuffer->getBaseColour();
+      m_pps.inputs.ambientColour = m_pGBuffer->getAmbientColour();
+      m_pps.inputs.normal        = m_pGBuffer->getNormal();
+      m_pps.inputs.position      = m_pGBuffer->getPosition();
+      m_pps.inputs.rma           = m_pGBuffer->getRMA();
+
+      {
+        DeferredRenderer::Stages::PostProcess::Pre request;
+        request.input        = m_pps.inputs;
+        request.pFinalColour = *m_pFinalColour;
+        pRenderer->request(request, pCmdList, view);
+      }
+
+      {
+        DeferredRenderer::Stages::PostProcess::Perform request;
+        request.pPostProcessing = &m_pps;
+        pRenderer->request(request, pCmdList, view);
+      }
+
+      m_pps.execute(pCmdList, view.renderTarget->getSize());
+
+      {
+        DeferredRenderer::Stages::PostProcess::Post request;
+        request.pTarget = m_pps.target;
+        pRenderer->request(request, pCmdList, view);
+      }
+    }
+
+    PostProcessingStack    m_pps;
+    GBuffer *              m_pGBuffer     = nullptr;
+    graphics::TextureRef * m_pFinalColour = nullptr;
+  };
+
+
+  class PostProcess_SSAO : public FeatureRenderer {
+  public:
+    PostProcess_SSAO(AssetManager * pAssets)
+      : m_ssaoShader(pAssets, URI::File("engine:shaders/ssao/ssao.shader")) {}
 
     virtual void onAdded(graphics::CommandList * pCmdList, Renderer * pRenderer) override {
       m_sampleKernel.resize(m_kernelSize);
@@ -472,7 +517,14 @@ namespace engine {
       graphics::loadTexture2D(pCmdList, &m_randomTex, {m_randSize, m_randSize}, randData.data());
     }
 
-    virtual void beginView(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) override {
+    virtual void onRenderRequest(std::any const & request, bfc::graphics::CommandList * pCmdList, Renderer * pRenderer,
+                                 RenderView const & view) {
+      if (auto * pPass = std::any_cast<DeferredRenderer::Stages::PostProcess::Perform>(&request))
+        onPostProcessPerform(pPass, pCmdList, pRenderer, view);
+    }
+
+    void onPostProcessPerform(DeferredRenderer::Stages::PostProcess::Perform const * pPass,
+                              bfc::graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) {
       auto & ssaoOpts = view.pRenderData->renderables<PostProcessRenderable_SSAO>();
       if (ssaoOpts.size() == 0)
         return;
@@ -483,7 +535,7 @@ namespace engine {
       float radius   = ssao.radius;
       float strength = ssao.strength;
 
-      m_pPPS->addPass([=](graphics::CommandList * pCmdList, PostProcessParams const & params) {
+      pPass->pPostProcessing->addPass([=](graphics::CommandList * pCmdList, PostProcessParams const & params) {
         params.bindInputs(pCmdList);
         params.bindTarget(pCmdList);
         pCmdList->bindProgram(m_ssaoShader);
@@ -507,13 +559,11 @@ namespace engine {
     Vector<Vec3>             m_sampleKernel;
     int64_t                  m_kernelSize = 32;
     int64_t                  m_randSize   = 4;
-    PostProcessingStack *    m_pPPS       = nullptr;
   };
 
-  class Feature_SSR : public FeatureRenderer {
+  class PostProcess_SSR : public FeatureRenderer {
   public:
-    Feature_SSR(AssetManager * pAssets, PostProcessingStack * pPPS)
-      : m_pPPS(pPPS) {
+    PostProcess_SSR(AssetManager * pAssets) {
       programs.calculateReflections.assign(pAssets, URI::File("engine:shaders/ssr/calculate.shader"));
       programs.blendReflections.assign(pAssets, URI::File("engine:shaders/ssr/blend.shader"));
       programs.upsampler.assign(pAssets, URI::File("engine:shaders/bloom/upsample.shader"));
@@ -546,6 +596,19 @@ namespace engine {
           levelSize /= 2;
         }
       }
+    }
+
+    virtual void onRenderRequest(std::any const & request, bfc::graphics::CommandList * pCmdList, Renderer * pRenderer,
+                                 RenderView const & view) {
+      if (auto * pPass = std::any_cast<DeferredRenderer::Stages::PostProcess::Perform>(&request))
+        onPostProcessPerform(pPass, pCmdList, pRenderer, view);
+    }
+
+    void onPostProcessPerform(DeferredRenderer::Stages::PostProcess::Perform const * pPass, bfc::graphics::CommandList * pCmdList,
+                              Renderer * pRenderer, RenderView const & view) {
+      auto & ssrOpt = view.pRenderData->renderables<PostProcessRenderable_SSR>();
+      if (ssrOpt.size() == 0)
+        return;
 
       auto & opt         = ssrOpt.front();
       float  maxDistance = opt.maxDistance;
@@ -553,7 +616,7 @@ namespace engine {
       int    steps       = opt.steps;
       float  thickness   = opt.thickness;
 
-      m_pPPS->addPass([=](graphics::CommandList * pCmdList, PostProcessParams const & params) {
+      pPass->pPostProcessing->addPass([=](graphics::CommandList * pCmdList, PostProcessParams const & params) {
         Vec2i targetSize = params.target->getSize();
 
         // Calculate reflections
@@ -615,15 +678,12 @@ namespace engine {
     graphics::RenderTargetRef    m_mipChainTarget;
     Vec2i                        m_chainSize;
     Vector<graphics::TextureRef> m_mipChain;
-
-    PostProcessingStack * m_pPPS = nullptr;
   };
 
-  class Feature_Bloom : public FeatureRenderer {
+  class PostProcess_Bloom : public FeatureRenderer {
   public:
-    Feature_Bloom(AssetManager * pAssets, PostProcessingStack * pPPS, int64_t mipChainSize = 5)
-      : m_pPPS(pPPS)
-      , m_upsampler(pAssets, URI::File("engine:shaders/bloom/upsample.shader"))
+    PostProcess_Bloom(AssetManager * pAssets, int64_t mipChainSize = 5)
+      : m_upsampler(pAssets, URI::File("engine:shaders/bloom/upsample.shader"))
       , m_downsampler(pAssets, URI::File("engine:shaders/bloom/downsample.shader"))
       , m_blendBloom(pAssets, URI::File("engine:shaders/bloom/mix.shader"))
       , m_prefilter(pAssets, URI::File("engine:shaders/bloom/prefilter.shader")) {
@@ -655,7 +715,16 @@ namespace engine {
         graphics::loadTexture2D(pCmdList, &m_filtered, size, PixelFormat_RGBAf16);
         m_filteredTarget->attachColour(m_filtered);
       }
+    }
 
+    virtual void onRenderRequest(std::any const & request, bfc::graphics::CommandList * pCmdList, Renderer * pRenderer,
+                                 RenderView const & view) {
+      if (auto * pPass = std::any_cast<DeferredRenderer::Stages::PostProcess::Perform>(&request))
+        onPostProcessPerform(pPass, pCmdList, pRenderer, view);
+    }
+
+    void onPostProcessPerform(DeferredRenderer::Stages::PostProcess::Perform const * pPass,
+                              bfc::graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) {
       auto & bloomOpts = view.pRenderData->renderables<PostProcessRenderable_Bloom>();
       if (bloomOpts.size() == 0)
         return;
@@ -665,7 +734,7 @@ namespace engine {
       float                dirtIntensity = bloomOpts.front().dirtIntensity;
       graphics::TextureRef dirtTex       = bloomOpts.front().dirtTex;
 
-      m_pPPS->addPass([=](graphics::CommandList * pCmdList, PostProcessParams const & params) {
+      pPass->pPostProcessing->addPass([=](graphics::CommandList * pCmdList, PostProcessParams const & params) {
         if (threshold > 0) {
           pCmdList->bindProgram(m_prefilter);
           pCmdList->setUniform("threshold", threshold);
@@ -732,8 +801,6 @@ namespace engine {
       });
     }
 
-    PostProcessingStack * m_pPPS = nullptr;
-
     Asset<graphics::Program> m_upsampler;
     Asset<graphics::Program> m_downsampler;
     Asset<graphics::Program> m_blendBloom;
@@ -751,13 +818,19 @@ namespace engine {
     graphics::TextureRef      m_filtered;
   };
 
-  class Feature_Exposure : public FeatureRenderer {
+  class PostProcess_Exposure : public FeatureRenderer {
   public:
-    Feature_Exposure(AssetManager * pAssets, PostProcessingStack * pPPS)
-      : m_pPPS(pPPS)
-      , m_shader(pAssets, URI::File("engine:shaders/simple-tonemapper.shader")) {}
+    PostProcess_Exposure(AssetManager * pAssets)
+      : m_shader(pAssets, URI::File("engine:shaders/simple-tonemapper.shader")) {}
 
-    virtual void beginView(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) override {
+    virtual void onRenderRequest(std::any const & request, bfc::graphics::CommandList * pCmdList, Renderer * pRenderer,
+                                 RenderView const & view) {
+      if (auto * pPass = std::any_cast<DeferredRenderer::Stages::PostProcess::Perform>(&request))
+        onPostProcessPerform(pPass, pCmdList, pRenderer, view);
+    }
+
+    void onPostProcessPerform(DeferredRenderer::Stages::PostProcess::Perform const * pPass,
+                              bfc::graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) {
       GraphicsDevice * pDevice = pRenderer->getGraphicsDevice();
 
       auto  exposureRenderables = view.pRenderData->renderables<PostProcessRenderable_Exposure>();
@@ -765,7 +838,7 @@ namespace engine {
       if (exposureRenderables.size() > 0)
         exposure = exposureRenderables.front().exposure;
 
-      m_pPPS->addPass([=](graphics::CommandList * pCmdList, PostProcessParams const & params) {
+      pPass->pPostProcessing->addPass([=](graphics::CommandList * pCmdList, PostProcessParams const & params) {
         // Currently only support tone-mapping post process effect.
         // TODO: Add support for more effects (maybe custom effects as well?)
         params.bindInputs(pCmdList);
@@ -779,33 +852,6 @@ namespace engine {
     }
 
     Asset<graphics::Program> m_shader;
-    PostProcessingStack *    m_pPPS = nullptr;
-  };
-
-  class Feature_PostProcess : public FeatureRenderer {
-  public:
-    Feature_PostProcess(AssetManager * pAssets, PostProcessingStack * pPPS, GBuffer * pGBuffer,
-                        graphics::TextureRef * pFinalColour)
-      : m_pPPS(pPPS)
-      , m_pGBuffer(pGBuffer)
-      , m_pFinalColour(pFinalColour) {}
-
-    virtual void renderView(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) override {
-      m_pPPS->target               = view.renderTarget;
-      m_pPPS->sceneColour          = *m_pFinalColour;
-      m_pPPS->inputs.sceneDepth    = m_pGBuffer->getDepthTarget();
-      m_pPPS->inputs.baseColour    = m_pGBuffer->getBaseColour();
-      m_pPPS->inputs.ambientColour = m_pGBuffer->getAmbientColour();
-      m_pPPS->inputs.normal        = m_pGBuffer->getNormal();
-      m_pPPS->inputs.position      = m_pGBuffer->getPosition();
-      m_pPPS->inputs.rma           = m_pGBuffer->getRMA();
-
-      m_pPPS->execute(pCmdList, view.renderTarget->getSize());
-    }
-
-    PostProcessingStack *  m_pPPS         = nullptr;
-    GBuffer *              m_pGBuffer     = nullptr;
-    graphics::TextureRef * m_pFinalColour = nullptr;
   };
 
   class StaticMeshRenderer : public FeatureRenderer {
@@ -982,15 +1028,11 @@ namespace engine {
     addFeature<Feature_LightingPass>(Phase::lighting, pCmdList, pAssets, m_pGbuffer.get(), &m_finalTarget, &m_modelData);
     addFeature<Feature_Skybox>(Phase::skybox, pAssets, &m_finalTarget);
 
-    ensurePhase(Phase::prePostProcess);
-
-    addFeature<Feature_SSAO>(Phase::postProcess, pAssets, &m_postProc);
-    addFeature<Feature_SSR>(Phase::postProcess, pAssets, &m_postProc);
-    addFeature<Feature_Bloom>(Phase::postProcess, pAssets, &m_postProc);
-    addFeature<Feature_Exposure>(Phase::postProcess, pAssets, &m_postProc);
-    addFeature<Feature_PostProcess>(Phase::postProcess, pAssets, &m_postProc, m_pGbuffer.get(), &m_finalColourTarget);
-
-    ensurePhase(Phase::postPostProcess);
+    addFeature<Feature_PostProcessing>(Phase::postProcess, pAssets, m_pGbuffer.get(), &m_finalColourTarget);
+    addFeature<PostProcess_SSAO>(Phase::postProcess, pAssets);
+    addFeature<PostProcess_SSR>(Phase::postProcess, pAssets);
+    addFeature<PostProcess_Bloom>(Phase::postProcess, pAssets);
+    addFeature<PostProcess_Exposure>(Phase::postProcess, pAssets);
   }
 
   graphics::TextureRef const & DeferredRenderer::getDefaultTexture(Material::TextureSlot slot) const {
@@ -1016,8 +1058,6 @@ namespace engine {
     for (auto & [i, texture] : enumerate(m_defaultMaterialTextures)) {
       pCmdList->bindTexture(texture, Material::TextureBindPointBase + i);
     }
-
-    m_postProc.reset();
 
     Renderer::render(pCmdList, views);
   }

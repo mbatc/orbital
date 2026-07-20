@@ -6,10 +6,12 @@ namespace bfc {
 
   namespace graphics {
     StateManager::StateManager() {
-      set(State::EnableBlend{true}, State::EnableStencilTest{false}, State::EnableScissorTest{false}, State::EnableDepthRead{true},
-          State::EnableDepthWrite{true}, State::DepthRange{0.0f, 1.0f}, State::DepthFunc{ComparisonFunction_Less},
-          State::BlendFunc{BlendFunction_SourceAlpha, BlendFunction_OneMinusSourceAlpha}, State::BlendEq{BlendEquation_Add}, State::ColourWrite{true},
-          State::ColourFactor{1.0f}, State::StencilFunc{ComparisonFunction_Never, 0, 0}, State::StencilOp{StencilOperation_Keep});
+      set(State::EnableBlend{true}, State::EnableStencilTest{false}, State::EnableScissorTest{false},
+          State::EnableDepthRead{true}, State::EnableDepthWrite{true}, State::DepthRange{0.0f, 1.0f},
+          State::DepthFunc{ComparisonFunction_Less},
+          State::BlendFunc{BlendFunction_SourceAlpha, BlendFunction_OneMinusSourceAlpha}, State::BlendEq{BlendEquation_Add},
+          State::ColourWrite{true}, State::ColourFactor{1.0f}, State::StencilFunc{ComparisonFunction_Never, 0, 0},
+          State::StencilOp{StencilOperation_Keep}, State::EnableCullFace{false}, State::CullFace{Face_Back});
     }
 
     bool StateManager::beginGroup() {
@@ -179,14 +181,15 @@ namespace bfc {
       return setUniform(name, &value, sizeof(value));
     }
 
-    void loadTexture(CommandList * pCmdList, TextureRef * pTexture, TextureType const & type, media::Surface const & surface) {
+    void loadTexture(CommandList * pCmdList, TextureRef * pTexture, TextureType const & type,
+                     media::Surface const & surface) {
       if (*pTexture == nullptr || (*pTexture)->getType() != type)
         *pTexture = pCmdList->createTexture(type);
       pCmdList->uploadTexture(*pTexture, surface);
     }
 
-    void loadTexture(CommandList * pCmdList, TextureRef * pTexture, TextureType const & type, Vec3i const & size, PixelFormat const & format,
-                     void const * pPixels, int64_t rowPitch) {
+    void loadTexture(CommandList * pCmdList, TextureRef * pTexture, TextureType const & type, Vec3i const & size,
+                     PixelFormat const & format, void const * pPixels, int64_t rowPitch) {
       media::Surface surface;
       surface.pBuffer = (void *)pPixels;
       surface.format  = format;
@@ -195,7 +198,8 @@ namespace bfc {
       return loadTexture(pCmdList, pTexture, type, surface);
     }
 
-    void loadTexture(CommandList * pCmdList, TextureRef * pTexture, TextureType const & type, Vec3i const & size, DepthStencilFormat const & depthFormat) {
+    void loadTexture(CommandList * pCmdList, TextureRef * pTexture, TextureType const & type, Vec3i const & size,
+                     DepthStencilFormat const & depthFormat) {
       if (*pTexture == nullptr || (*pTexture)->getType() != type)
         *pTexture = pCmdList->createTexture(type);
       pCmdList->uploadTexture(*pTexture, depthFormat, size);
@@ -214,11 +218,13 @@ namespace bfc {
       return true;
     }
 
-    void loadTexture2D(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size, PixelFormat const & format, void const * pPixels, int64_t rowPitch) {
+    void loadTexture2D(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size, PixelFormat const & format,
+                       void const * pPixels, int64_t rowPitch) {
       loadTexture(pCmdList, pTexture, TextureType_2D, {size, 1}, format, pPixels, rowPitch);
     }
 
-    void loadTexture2D(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size, DepthStencilFormat const & depthFormat) {
+    void loadTexture2D(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size,
+                       DepthStencilFormat const & depthFormat) {
       loadTexture(pCmdList, pTexture, TextureType_2D, {size, 1}, depthFormat);
     }
 
@@ -233,12 +239,13 @@ namespace bfc {
       loadTexture(pCmdList, pTexture, TextureType_2DArray, surface);
     }
 
-    void loadTexture2DArray(CommandList * pCmdList, TextureRef * pTexture, Vec3i const & size, PixelFormat const & format, void const * pPixels,
-                            int64_t rowPitch) {
+    void loadTexture2DArray(CommandList * pCmdList, TextureRef * pTexture, Vec3i const & size, PixelFormat const & format,
+                            void const * pPixels, int64_t rowPitch) {
       loadTexture(pCmdList, pTexture, TextureType_2DArray, size, format, pPixels, rowPitch);
     }
 
-    void loadTexture2DArray(CommandList * pCmdList, TextureRef * pTexture, Vec3i const & size, DepthStencilFormat const & depthFormat) {
+    void loadTexture2DArray(CommandList * pCmdList, TextureRef * pTexture, Vec3i const & size,
+                            DepthStencilFormat const & depthFormat) {
       loadTexture(pCmdList, pTexture, TextureType_2DArray, size, depthFormat);
     }
 
@@ -246,11 +253,13 @@ namespace bfc {
       loadTexture(pCmdList, pTexture, TextureType_3D, surface);
     }
 
-    void loadTexture3D(CommandList * pCmdList, TextureRef * pTexture, Vec3i const & size, PixelFormat const & format, void const * pPixels, int64_t rowPitch) {
+    void loadTexture3D(CommandList * pCmdList, TextureRef * pTexture, Vec3i const & size, PixelFormat const & format,
+                       void const * pPixels, int64_t rowPitch) {
       loadTexture(pCmdList, pTexture, TextureType_3D, size, format, pPixels, rowPitch);
     }
 
-    void loadTexture3D(CommandList * pCmdList, TextureRef * pTexture, Vec3i const & size, DepthStencilFormat const & depthFormat) {
+    void loadTexture3D(CommandList * pCmdList, TextureRef * pTexture, Vec3i const & size,
+                       DepthStencilFormat const & depthFormat) {
       loadTexture(pCmdList, pTexture, TextureType_3D, size, depthFormat);
     }
 
@@ -260,12 +269,13 @@ namespace bfc {
       loadTexture(pCmdList, pTexture, TextureType_CubeMap, surface);
     }
 
-    void loadTextureCubeMap(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size, PixelFormat const & format, void const * pPixels,
-                            int64_t rowPitch) {
+    void loadTextureCubeMap(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size, PixelFormat const & format,
+                            void const * pPixels, int64_t rowPitch) {
       loadTexture(pCmdList, pTexture, TextureType_CubeMap, {size, CubeMapFace_Count}, format, pPixels, rowPitch);
     }
 
-    void loadTextureCubeMap(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size, DepthStencilFormat const & depthFormat) {
+    void loadTextureCubeMap(CommandList * pCmdList, TextureRef * pTexture, Vec2i const & size,
+                            DepthStencilFormat const & depthFormat) {
       loadTexture(pCmdList, pTexture, TextureType_CubeMap, {size, CubeMapFace_Count}, depthFormat);
     }
   } // namespace graphics
@@ -322,4 +332,3 @@ namespace bfc {
     return g_devices[index].first;
   }
 } // namespace bfc
-

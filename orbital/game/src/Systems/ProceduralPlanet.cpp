@@ -42,7 +42,13 @@ namespace {
   };
 
   struct PlanetAtmosphereRenderable {
-    engine::EntityID planetID;
+    bfc::Mat4 transform;
+    bfc::Vec3 sunDirection     = bfc::math::normalize(bfc::Vec3(1, 1, 1));
+    float     sunIntensity     = 20;
+    float     innerRadius      = 1;
+    float     outerRadius      = 1.025f;
+    float     rayleighConstant = 0.0025f;
+    float     mieConstant      = 0.0010f;
   };
 
   // Per tile data
@@ -194,8 +200,7 @@ namespace {
     virtual void endView(bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) override {}
 
   private:
-    void renderTerrainTiles(bfc::graphics::CommandList * pCmdList, uint64_t viewID, bfc::Mat4 viewProjectionMatrix)
-    {
+    void renderTerrainTiles(bfc::graphics::CommandList * pCmdList, uint64_t viewID, bfc::Mat4 viewProjectionMatrix) {
       pCmdList->bindVertexArray(m_quad->getVertexArray());
       pCmdList->bindUniformBuffer(m_terrainTileUBO, TerrainTileBufferBindPoint);
       pCmdList->bindUniformBuffer(m_terrainUBO, TerrainBufferBindPoint);
@@ -257,11 +262,53 @@ namespace {
 
   class PlanetAtmosphereFeatureRenderer : public engine::FeatureRenderer {
   public:
-    PlanetAtmosphereFeatureRenderer(engine::AssetManager *) {}
+    PlanetAtmosphereFeatureRenderer(engine::AssetManager *pAssets)
+      : m_sphere(pAssets, bfc::URI::File("engine:models/primitives/sphere.obj"))
+      , m_atmosphereShader(pAssets, bfc::URI::File("engine:shaders/terrain/atmosphere/atmosphere.shader")) {}
+
+    virtual void onRenderRequest(std::any const & request, bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) {
+      if (auto * pPass = std::any_cast<engine::DeferredRenderer::Stages::PostProcess::Pre>(&request))
+        onPostProcessPre(pPass, pCmdList, pRenderer, view);
+    }
+
+    void onPostProcessPre(engine::DeferredRenderer::Stages::PostProcess::Pre const * pPass,
+                              bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer,
+                              engine::RenderView const & view) {
+      
+      auto pRenderTarget = pCmdList->createRenderTarget(bfc::RenderTargetType_Texture);
+      pRenderTarget->attachColour(pPass->pFinalColour);
+      pRenderTarget->attachDepth(pPass->input.sceneDepth);
+      pCmdList->bindRenderTarget(pRenderTarget);
+
+      pCmdList->bindUniformBuffer(m_modelUBO, bfc::renderer::BufferBinding_ModelBuffer);
+      pCmdList->pushState(bfc::graphics::State::EnableCullFace{true}, bfc::graphics::State::EnableCullFace{bfc::Face_Front},
+                          bfc::graphics::State::Viewport(pRenderTarget), bfc::graphics::State::EnableDepthRead{true},
+                          bfc::graphics::State::EnableDepthWrite{false}, bfc::graphics::State::EnableBlend{true});
+      pCmdList->bindProgram(m_atmosphereShader);
+      pCmdList->bindVertexArray(m_sphere->getVertexArray());
+
+      auto & renderables = view.pRenderData->renderables<PlanetAtmosphereRenderable>();
+
+      for (const PlanetAtmosphereRenderable & atmosphere : renderables) {
+        m_modelUBO.data.modelMatrix  = atmosphere.transform;
+        m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(atmosphere.transform);
+        m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(atmosphere.transform, view.getViewProjectionMatrix());
+        m_modelUBO.upload(pCmdList);
+
+        pCmdList->setUniform("mieConstant", atmosphere.mieConstant);
+        pCmdList->setUniform("rayleighConstant", atmosphere.rayleighConstant);
+        pCmdList->setUniform("innerRadius", atmosphere.innerRadius);
+        pCmdList->setUniform("outerRadius", atmosphere.outerRadius);
+        pCmdList->setUniform("sunDirection", atmosphere.sunDirection);
+        pCmdList->setUniform("sunIntensity", atmosphere.sunIntensity);
+        pCmdList->draw();
+      }
+      pCmdList->popState();
+    }
 
     engine::Asset<bfc::graphics::Program> m_atmosphereShader;
 
-    engine::Asset<bfc::Mesh>                                    m_quad;
+    engine::Asset<bfc::Mesh>                                    m_sphere;
     bfc::graphics::StructuredBuffer<PlanetTerrainUBO>           m_terrainUBO;
     bfc::graphics::StructuredBuffer<bfc::renderer::ModelBuffer> m_modelUBO;
   };
@@ -273,6 +320,8 @@ namespace {
 
     virtual void apply(engine::Renderer * pRenderer) override {
       pRenderer->addFeature<ProceduralPlanetTerrainFeatureRenderer>(engine::DeferredRenderer::Phase::Base::Mesh::opaque, m_pAssets.get());
+      pRenderer->addFeature<PlanetAtmosphereFeatureRenderer>(engine::DeferredRenderer::Phase::postProcess,
+                                                             m_pAssets.get());
     }
 
     bfc::Ref<engine::AssetManager> m_pAssets;
@@ -294,6 +343,7 @@ void ProceduralTerrainSystem::stop(engine::Level * pLevel) {}
 void ProceduralTerrainSystem::collectRenderData(engine::RenderView * pRenderView, engine::Level const * pLevel) {
   engine::RenderData & renderData = *pRenderView->pRenderData;
   auto &               terrains   = renderData.renderables<ProceduralPlanetRenderable>();
+  auto &               atmospheres = renderData.renderables<PlanetAtmosphereRenderable>();
   for (auto const & [transform, planet] : pLevel->getView<components::Transform, components::ProceduralPlanet>()) {
     ProceduralPlanetRenderable renderable;
     renderable.planetID    = pLevel->toEntity(&transform);
@@ -307,5 +357,17 @@ void ProceduralTerrainSystem::collectRenderData(engine::RenderView * pRenderView
     renderable.persistance = planet.persistance;
     renderable.lacurnarity = planet.lacurnarity;
     terrains.pushBack(renderable);
+  }
+
+  for (auto const & [transform, atmosphere] : pLevel->getView<components::Transform, components::PlanetAtmosphere>()) {
+    PlanetAtmosphereRenderable renderable;
+    renderable.innerRadius = atmosphere.innerRadius;
+    renderable.outerRadius = atmosphere.outerRadius;
+    renderable.mieConstant  = atmosphere.mieConstant;
+    renderable.rayleighConstant = atmosphere.rayleighConstant;
+    renderable.sunDirection = atmosphere.sunDirection;
+    renderable.sunIntensity = atmosphere.sunIntensity;
+    renderable.transform        = transform.globalTransform(pLevel);
+    atmospheres.pushBack(renderable);
   }
 }

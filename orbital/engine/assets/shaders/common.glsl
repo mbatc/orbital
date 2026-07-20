@@ -35,8 +35,16 @@ vec3 rotateAxis(vec3 p, vec3 axis, float angle) {
   return mix(dot(axis, p) * axis, p, cos(angle)) + cross(axis, p) * sin(angle);
 }
 
+vec3 getModelPosition() {
+  return modelMatrix[3].xyz;
+}
+
 vec3 getCameraPosition() {
   return invViewMatrix[3].xyz;
+}
+
+vec3 getCameraForward() {
+  return invViewMatrix[2].xyz;
 }
 
 vec2 getScreenUV(vec3 worldPosition) {

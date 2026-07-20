@@ -589,54 +589,60 @@ namespace bfc {
     }
 
     void StateManager_OpenGL::apply(State const & state) {
-      state.visit(overloaded([](State::EnableBlend const & state) { SetGLStateEnabled(GL_BLEND, state.enabled); },
-                             [](State::EnableStencilTest const & state) { SetGLStateEnabled(GL_STENCIL_TEST, state.enabled); },
-                             [](State::EnableScissorTest const & state) { SetGLStateEnabled(GL_SCISSOR_TEST, state.enabled); },
-                             [](State::EnableDepthRead const & state) { SetGLStateEnabled(GL_DEPTH_TEST, state.enabled); },
-                             [](State::EnableDepthWrite const & state) { glDepthMask(state.enabled ? GL_TRUE : GL_FALSE); },
-                             [](State::Viewport const & state) { glViewport(state.position.x, state.position.y, state.size.x, state.size.y); },
-                             [](State::Scissor const & state) { glScissor(state.position.x, state.position.y, state.size.x, state.size.y); },
-                             [](State::DepthRange const & state) { glDepthRange(state.min, state.max); },
-                             [](State::DepthFunc const & state) { glDepthFunc(ToGLComparison(state.comparison)); },
-                             [](State::BlendFunc const & state) {
-                               GLenum glSrcColourFactor = ToGLBlendFunction(state.sourceColourFactor);
-                               GLenum glSrcAlphaFactor  = ToGLBlendFunction(state.sourceAlphaFactor);
-                               GLenum glDstColourFactor = ToGLBlendFunction(state.destColourFactor);
-                               GLenum glDstAlphaFactor  = ToGLBlendFunction(state.destAlphaFactor);
-                               if (state.colourAttachment.has_value())
-                                 glBlendFuncSeparatei((GLuint)state.colourAttachment.value(), glSrcColourFactor, glDstColourFactor, glSrcAlphaFactor,
-                                                      glDstAlphaFactor);
-                               else
-                                 glBlendFuncSeparate(glSrcColourFactor, glDstColourFactor, glSrcAlphaFactor, glDstAlphaFactor);
-                             },
-                             [](State::BlendEq const & state) {
-                               GLenum glColourEq = ToGLEquation(state.colour);
-                               GLenum glAlphaEq  = ToGLEquation(state.alpha);
-                               if (state.colourAttachment.has_value())
-                                 glBlendEquationSeparatei((GLuint)state.colourAttachment.value(), glColourEq, glAlphaEq);
-                               else
-                                 glBlendEquationSeparate(glColourEq, glAlphaEq);
-                             },
-                             [](State::ColourWrite const & state) {
-                               if (state.colourAttachment.has_value())
-                                 glColorMaski((GLuint)state.colourAttachment.value(), state.r, state.g, state.b, state.a);
-                               else
-                                 glColorMask(state.r, state.g, state.b, state.a);
-                             },
-                             [](State::ColourFactor const & state) { glBlendColor(state.r, state.g, state.b, state.a); },
-                             [](State::StencilOp const & state) {
-                               const GLenum glFace          = ToGLFace(state.face);
-                               const GLenum glOnStencilFail = ToGLStencilOperation(state.onStencilFail);
-                               const GLenum glOnDepthFail   = ToGLStencilOperation(state.onDepthFail);
-                               const GLenum glOnPass        = ToGLStencilOperation(state.onPass);
-                               glStencilOpSeparate(glFace, glOnStencilFail, glOnDepthFail, glOnPass);
-                             },
-                             [](State::StencilFunc const & state) {
-                               const GLenum glFace = ToGLFace(state.face);
-                               const GLenum glFunc = ToGLComparison(state.func);
-                               glStencilFuncSeparate(glFace, glFunc, state.referenceValue, state.mask);
-                             },
-                             [](auto && v) { BFC_FAIL("State is not suported (type: %s)", typeid(v).name()); }));
+      state.visit(overloaded(
+        [](State::EnableBlend const & state) { SetGLStateEnabled(GL_BLEND, state.enabled); },
+        [](State::EnableStencilTest const & state) { SetGLStateEnabled(GL_STENCIL_TEST, state.enabled); },
+        [](State::EnableScissorTest const & state) { SetGLStateEnabled(GL_SCISSOR_TEST, state.enabled); },
+        [](State::EnableDepthRead const & state) { SetGLStateEnabled(GL_DEPTH_TEST, state.enabled); },
+        [](State::EnableDepthWrite const & state) { glDepthMask(state.enabled ? GL_TRUE : GL_FALSE); },
+        [](State::Viewport const & state) { glViewport(state.position.x, state.position.y, state.size.x, state.size.y); },
+        [](State::Scissor const & state) { glScissor(state.position.x, state.position.y, state.size.x, state.size.y); },
+        [](State::DepthRange const & state) { glDepthRange(state.min, state.max); },
+        [](State::DepthFunc const & state) { glDepthFunc(ToGLComparison(state.comparison)); },
+        [](State::BlendFunc const & state) {
+          GLenum glSrcColourFactor = ToGLBlendFunction(state.sourceColourFactor);
+          GLenum glSrcAlphaFactor  = ToGLBlendFunction(state.sourceAlphaFactor);
+          GLenum glDstColourFactor = ToGLBlendFunction(state.destColourFactor);
+          GLenum glDstAlphaFactor  = ToGLBlendFunction(state.destAlphaFactor);
+          if (state.colourAttachment.has_value())
+            glBlendFuncSeparatei((GLuint)state.colourAttachment.value(), glSrcColourFactor, glDstColourFactor,
+                                 glSrcAlphaFactor, glDstAlphaFactor);
+          else
+            glBlendFuncSeparate(glSrcColourFactor, glDstColourFactor, glSrcAlphaFactor, glDstAlphaFactor);
+        },
+        [](State::BlendEq const & state) {
+          GLenum glColourEq = ToGLEquation(state.colour);
+          GLenum glAlphaEq  = ToGLEquation(state.alpha);
+          if (state.colourAttachment.has_value())
+            glBlendEquationSeparatei((GLuint)state.colourAttachment.value(), glColourEq, glAlphaEq);
+          else
+            glBlendEquationSeparate(glColourEq, glAlphaEq);
+        },
+        [](State::ColourWrite const & state) {
+          if (state.colourAttachment.has_value())
+            glColorMaski((GLuint)state.colourAttachment.value(), state.r, state.g, state.b, state.a);
+          else
+            glColorMask(state.r, state.g, state.b, state.a);
+        },
+        [](State::ColourFactor const & state) { glBlendColor(state.r, state.g, state.b, state.a); },
+        [](State::StencilOp const & state) {
+          const GLenum glFace          = ToGLFace(state.face);
+          const GLenum glOnStencilFail = ToGLStencilOperation(state.onStencilFail);
+          const GLenum glOnDepthFail   = ToGLStencilOperation(state.onDepthFail);
+          const GLenum glOnPass        = ToGLStencilOperation(state.onPass);
+          glStencilOpSeparate(glFace, glOnStencilFail, glOnDepthFail, glOnPass);
+        },
+        [](State::StencilFunc const & state) {
+          const GLenum glFace = ToGLFace(state.face);
+          const GLenum glFunc = ToGLComparison(state.func);
+          glStencilFuncSeparate(glFace, glFunc, state.referenceValue, state.mask);
+        },
+        [](State::EnableCullFace const & state) { SetGLStateEnabled(GL_CULL_FACE, state.enabled); },
+        [](State::CullFace const & state) {
+          const GLenum glFace = ToGLFace(state.face);
+          glCullFace(glFace);
+        },
+        [](auto && v) { BFC_FAIL("State is not suported (type: %s)", typeid(v).name()); }));
     }
 
     CommandList_OpenGL::CommandList_OpenGL(GraphicsDevice * pDevice, RenderTargetRef defaultTarget, VertexArrayRef emptyVertexArray, uint32_t lastTextureUnit)
