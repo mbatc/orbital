@@ -14,7 +14,7 @@ namespace engine {
   void TransformEditor::draw(LevelEditor * pEditor, Ref<Level> const & pLevel, EntityID entityID, components::Transform * pComponent) {
     Vec3d translation = pComponent->translation();
     Vec3d scale       = pComponent->scale();
-    Vec3d ypr         = pComponent->ypr();
+    Vec3d ypr         = bfc::math::degrees(pComponent->ypr());
 
     ui::Input("Translation", &translation);
     ui::Input("Scale", &scale);
@@ -22,7 +22,7 @@ namespace engine {
 
     pComponent->setTranslation(translation);
     pComponent->setScale(scale);
-    pComponent->setYpr(ypr);
+    pComponent->setYpr(bfc::math::radians(ypr));
   }
 
   void CameraEditor::draw(LevelEditor * pEditor, Ref<Level> const & pLevel, EntityID entityID, components::Camera * pComponent) {

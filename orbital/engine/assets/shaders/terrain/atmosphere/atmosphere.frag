@@ -4,21 +4,23 @@
 #include "../../gbuffer-out.glsl"
 #include "../../common.glsl"
 
-
 in vec3 vsout_position0;
 in vec2 vsout_uv0;
 in mat3 vsout_tbnMat0;
 
+uniform float mieConstant;
+uniform float rayleighConstant;
+uniform float innerRadius;
+uniform float outerRadius;
+uniform vec3 sunDirection;
+uniform float sunIntensity;
+
 bool rayOnSphere(vec3 rayPos, vec3 rayDir, vec3 sphereCenter, float radius, out float t0, out float t1) {
-  vec3  toCenter       = sphereCenter - rayPos;
-  float distToCenter   = length(toCenter);
-  float distToMidpoint = dot(rayDir, toCenter);
-  if (distToMidpoint <= 0)
-    return false;
+  vec3  toCenter        = sphereCenter - rayPos;
+  float distToCenter    = length(toCenter);
+  float distToMidpoint  = dot(rayDir, toCenter);
   float distMidToCenter = distToCenter * distToCenter - distToMidpoint * distToMidpoint;
-  if (distMidToCenter <= 0)
-    return false;
-  float depth2 = radius * radius - distMidToCenter;
+  float depth2          = radius * radius - distMidToCenter;
   if (depth2 <= 0)
     return false;
   float depth = sqrt(depth2);
@@ -29,14 +31,17 @@ bool rayOnSphere(vec3 rayPos, vec3 rayDir, vec3 sphereCenter, float radius, out 
 
 void main()
 {
+  vec3 wavelengths = pow(vec3(1) - vec3(0.650, 0.57, 0.475), vec3(4));
+
   float t0;
   float t1;
   float depth = 0;
-  if (rayOnSphere(getCameraPosition(), normalize(vsout_position0 - getCameraPosition()), getModelPosition(), 1.025, t0, t1))
+  vec3 viewDirection = normalize(vsout_position0 - getCameraPosition());
+  if (rayOnSphere(getCameraPosition(), viewDirection, getModelPosition(), outerRadius, t0, t1))
   {
     float innerT0 = t0;
     float innerT1 = t1;
-    if (rayOnSphere(getCameraPosition(), normalize(vsout_position0 - getCameraPosition()), getModelPosition(), 1, innerT0, innerT1))
+    if (rayOnSphere(getCameraPosition(), viewDirection, getModelPosition(), innerRadius, innerT0, innerT1))
       depth = (innerT0 - t0) / 0.5;
     else
       depth = (t1 - t0) / 0.5;
@@ -47,8 +52,10 @@ void main()
   normal = texture(normalMap, vsout_uv0).rgb;
   normal = normal * 2.0 - 1.0;
   normal = normalize(vsout_tbnMat0 * normal);
+  vec3 halfVec = normalize(normal - viewDirection);
+  // gbuffer_SetColour(vec4(pow(wavelengths, vec3(depth)), 1) * max(0, dot(normal, -sunDirection)) * sunIntensity);
 
-  gbuffer_SetColour(vec4(0.2, 0.6, 0.9, depth) * 5);
+  gbuffer_SetColour(vec4(wavelengths, depth) * max(0, dot(normal, -sunDirection)) * sunIntensity);
   gbuffer_SetAmbient(texture2D(ambientMap, vsout_uv0) * ambient);
   gbuffer_SetPosition(vsout_position0);
   gbuffer_SetNormal(normal);
