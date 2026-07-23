@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Viewport.h"
+#include "ui/Context.h"
 
 namespace bfc {
   class GraphicsDevice;
@@ -65,6 +66,8 @@ namespace engine {
 
     bfc::Mouse &    getMouse();
     bfc::Keyboard & getKeyboard();
+
+    bool manipulate(bfc::Mat4 *pTransform, ImGuizmo::OPERATION op, ImGuizmo::MODE mode);
 
     EditorCamera camera;
 

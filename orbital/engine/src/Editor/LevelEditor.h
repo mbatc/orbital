@@ -98,6 +98,7 @@ namespace engine {
     void drawUI(bfc::Ref<LevelManager> const & pLevels, bfc::Ref<AssetManager> const & pAssets, bfc::Ref<Rendering> const & pRendering,
                 bfc::Ref<VirtualFileSystem> const & pFileSystem);
 
+    void drawViewportGizmo(bfc::Ref<Level> const & pLevel, EntityID entityID);
     void drawAssetsPanel(bfc::Ref<VirtualFileSystem> const & pFileSystem, bfc::Ref<LevelManager> const & pLevels);
     void drawLevelPanel(bfc::Ref<LevelManager> const & pLevels, bfc::Ref<AssetManager> const & pAssets, bfc::Ref<Rendering> const & pRendering,
                         bfc::Ref<Level> const & pLevel);

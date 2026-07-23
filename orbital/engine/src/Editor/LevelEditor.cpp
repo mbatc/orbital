@@ -331,6 +331,21 @@ namespace engine {
     drawEntityProperties(pLevel, m_selected);
     drawEditorSettings();
     drawAssetsPanel(pFileSystem, pLevels);
+    drawViewportGizmo(pLevel, m_selected);
+  }
+
+  void LevelEditor::drawViewportGizmo(bfc::Ref<Level> const & pLevel, EntityID entityID) {
+    auto *pTransform = pLevel->tryGet<components::Transform>(entityID);
+    if (pTransform == nullptr)
+      return;
+
+
+    ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList());
+    ImGuizmo::SetRect(0, 0, ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y);
+    
+    bfc::Mat4 transform = pTransform->globalTransform(pLevel.get());
+    if (m_pEditorViewport->manipulate(&transform, ImGuizmo::OPERATION::UNIVERSAL, ImGuizmo::MODE::WORLD))
+      pTransform->setGlobalTransform(pLevel.get(), transform);
   }
 
   void LevelEditor::drawAssetsPanel(Ref<VirtualFileSystem> const & pFileSystem, Ref<LevelManager> const & pLevels) {
