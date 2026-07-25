@@ -177,10 +177,12 @@ namespace engine {
     ImGui::Render();
     m_pDrawData = ImGui::GetDrawData();
 
-    if (ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard) {
-      m_pEditorViewport->getEvents()->stopListening(pRendering->getMainWindow()->getEvents());
-    } else {
-      m_pEditorViewport->getEvents()->listenTo(pRendering->getMainWindow()->getEvents());
+    if (!m_pEditorViewport->camera.wantMouseCapture()) {
+      if (ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard) {
+        m_pEditorViewport->getEvents()->stopListening(pRendering->getMainWindow()->getEvents());
+      } else {
+        m_pEditorViewport->getEvents()->listenTo(pRendering->getMainWindow()->getEvents());
+      }
     }
 
     // Apply camera controls
@@ -197,18 +199,33 @@ namespace engine {
       }
 
       if (kbd.isPressed(KeyCode_1)) {
-        // Reload all the shaders
         BFC_LOG_INFO("LevelEditor", "Reloading shaders");
         for (AssetHandle handle : pAssets->findHandles<bfc::graphics::Program>()) {
           pAssets->reload(handle);
         }
       }
+
       if (kbd.isPressed(KeyCode_2)) {
-        // Reload all the shaders
         BFC_LOG_INFO("LevelEditor", "Saving app settings");
 
         getApp()->saveSettings();
       }
+    }
+
+    if (kbd.isPressed(KeyCode_R)) {
+      m_manipulator.op = ImGuizmo::ROTATE;
+    }
+
+    if (kbd.isPressed(KeyCode_T)) {
+      m_manipulator.op = ImGuizmo::TRANSLATE;
+    }
+
+    if (kbd.isPressed(KeyCode_Y)) {
+      m_manipulator.op = ImGuizmo::SCALE;
+    }
+
+    if (kbd.isPressed(KeyCode_U)) {
+      m_manipulator.op = ImGuizmo::UNIVERSAL;
     }
   }
 
@@ -344,7 +361,7 @@ namespace engine {
     ImGuizmo::SetRect(0, 0, ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y);
     
     bfc::Mat4 transform = pTransform->globalTransform(pLevel.get());
-    if (m_pEditorViewport->manipulate(&transform, ImGuizmo::OPERATION::UNIVERSAL, ImGuizmo::MODE::WORLD))
+    if (m_pEditorViewport->manipulate(&transform, m_manipulator.op, m_manipulator.mode))
       pTransform->setGlobalTransform(pLevel.get(), transform);
   }
 
@@ -503,6 +520,24 @@ namespace engine {
         ImGui::EndMenu();
       }
       ImGui::EndDisabled();
+
+      ImGui::Separator();
+
+      if (ImGui::Selectable("Translate", (m_manipulator.op & ImGuizmo::OPERATION::TRANSLATE) > 0)) {
+        m_manipulator.op = ImGuizmo::OPERATION::TRANSLATE;
+      }
+
+      if (ImGui::Selectable("Rotate", (m_manipulator.op & ImGuizmo::OPERATION::ROTATE) > 0)) {
+        m_manipulator.op = ImGuizmo::OPERATION::ROTATE;
+      }
+
+      if (ImGui::Selectable("Scale", (m_manipulator.op & ImGuizmo::OPERATION::SCALE) > 0)) {
+        m_manipulator.op = ImGuizmo::OPERATION::SCALE;
+      }
+
+      if (ImGui::Selectable("Local Space", m_manipulator.mode == ImGuizmo::MODE::LOCAL)) {
+        m_manipulator.mode = m_manipulator.mode == ImGuizmo::MODE::LOCAL ? ImGuizmo::MODE::WORLD : ImGuizmo::MODE::LOCAL;
+      }
 
       ImGui::EndMenu();
     }

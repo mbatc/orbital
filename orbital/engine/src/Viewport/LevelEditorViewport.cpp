@@ -75,6 +75,10 @@ namespace engine {
     m_position  = m_position + mv * (double)finalMutlipler;
   }
 
+  bool EditorCamera::wantMouseCapture() const {
+    return m_hasMouse;
+  }
+
   void EditorCamera::setFOV(float fov) {
     m_fov = fov;
   }
@@ -159,7 +163,7 @@ namespace engine {
 
   bool LevelEditorViewport::manipulate(bfc::Mat4 *pTransform, ImGuizmo::OPERATION op, ImGuizmo::MODE mode) {
     bfc::Mat4 view = camera.viewMat();
-    bfc::Mat4 proj = camera.projectionMat();
+    bfc::Mat4 proj = camera.projectionMat((float)getSize().x / getSize().y);
     return ImGuizmo::Manipulate(bfc::math::begin(view), bfc::math::begin(proj), op, mode, bfc::math::begin(*pTransform));
   }
 } // namespace engine

@@ -113,6 +113,11 @@ namespace engine {
     bfc::Ref<bfc::EventListener> m_pViewportListener;
     bfc::Ref<bfc::EventListener> m_pAppListener;
 
+    struct
+    {
+      ImGuizmo::MODE      mode = ImGuizmo::MODE::WORLD;
+      ImGuizmo::OPERATION op   = ImGuizmo::OPERATION::UNIVERSAL;
+    } m_manipulator;
     bfc::Ref<LevelEditorViewport> m_pEditorViewport;
 
     bfc::Map<bfc::type_index, bfc::Ref<IComponentEditor>> m_componentEditors;

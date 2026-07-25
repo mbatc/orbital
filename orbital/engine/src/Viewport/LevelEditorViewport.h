@@ -16,6 +16,8 @@ namespace engine {
 
     void update(bfc::Timestamp dt);
 
+    bool wantMouseCapture() const;
+
     void setFOV(float fov);
 
     void setNearPlane(float nearPlane);
