@@ -290,12 +290,12 @@ namespace {
       auto & renderables = view.pRenderData->renderables<PlanetAtmosphereRenderable>();
 
       for (const PlanetAtmosphereRenderable & atmosphere : renderables) {
-        const bfc::Mat4d quadTransform =
+        const bfc::Mat4d quadTransform = 
+          bfc::math::translation(bfc::Vec3(atmosphere.transform[3])) *
           bfc::Mat4(bfc::Vec4d(-view.getCameraRight(), 0), bfc::Vec4d(-view.getCameraUp(), 0),
-                     bfc::Vec4d(-view.getCameraForward(), 0),
-                     bfc::Vec4d(0, 0, 0, 1)) *
-          bfc::math::axisAngleMatrix(bfc::math::right<float>, bfc::math::half_pi<float>()) *
-          bfc::math::scale(2.5f * atmosphere.outerRadius);
+                                                   bfc::Vec4d(-view.getCameraForward(), 0), bfc::Vec4d(0, 0, 0, 1)) *
+                                         bfc::math::axisAngleMatrix(bfc::math::right<float>, bfc::math::half_pi<float>()) *
+                                         bfc::math::scale(2.5f * atmosphere.outerRadius);
 
         m_modelUBO.data.modelMatrix  = quadTransform;
         m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(quadTransform);

@@ -37,8 +37,11 @@ void main()
   float t1;
   float depth = 0;
   vec3 viewDirection = normalize(vsout_position0 - getCameraPosition());
+  vec3 normal = vec3(0);
   if (rayOnSphere(getCameraPosition(), viewDirection, getModelPosition(), outerRadius, t0, t1))
   {
+    normal = normalize(getModelPosition() - (getCameraPosition() + viewDirection * t0));
+
     float innerT0 = t0;
     float innerT1 = t1;
     if (rayOnSphere(getCameraPosition(), viewDirection, getModelPosition(), innerRadius, innerT0, innerT1))
@@ -47,13 +50,6 @@ void main()
       depth = (t1 - t0) / 0.5;
     depth = depth * depth;
   }
-
-  vec3 normal;
-  normal = texture(normalMap, vsout_uv0).rgb;
-  normal = normal * 2.0 - 1.0;
-  normal = normalize(vsout_tbnMat0 * normal);
-  vec3 halfVec = normalize(normal - viewDirection);
-  // gbuffer_SetColour(vec4(pow(wavelengths, vec3(depth)), 1) * max(0, dot(normal, -sunDirection)) * sunIntensity);
 
   gbuffer_SetColour(vec4(wavelengths, depth) * max(0, dot(normal, -sunDirection)) * sunIntensity);
   gbuffer_SetAmbient(texture2D(ambientMap, vsout_uv0) * ambient);
