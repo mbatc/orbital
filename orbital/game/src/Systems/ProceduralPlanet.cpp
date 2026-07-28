@@ -263,7 +263,7 @@ namespace {
   class PlanetAtmosphereFeatureRenderer : public engine::FeatureRenderer {
   public:
     PlanetAtmosphereFeatureRenderer(engine::AssetManager *pAssets)
-      : m_sphere(pAssets, bfc::URI::File("engine:models/primitives/sphere.obj"))
+      : m_quad(pAssets, bfc::URI::File("engine:models/primitives/plane.obj"))
       , m_atmosphereShader(pAssets, bfc::URI::File("engine:shaders/terrain/atmosphere/atmosphere.shader")) {}
 
     virtual void onRenderRequest(std::any const & request, bfc::graphics::CommandList * pCmdList, engine::Renderer * pRenderer, engine::RenderView const & view) {
@@ -285,14 +285,21 @@ namespace {
                           bfc::graphics::State::Viewport(pRenderTarget), bfc::graphics::State::EnableDepthRead{true},
                           bfc::graphics::State::EnableDepthWrite{false}, bfc::graphics::State::EnableBlend{true});
       pCmdList->bindProgram(m_atmosphereShader);
-      pCmdList->bindVertexArray(m_sphere->getVertexArray());
+      pCmdList->bindVertexArray(m_quad->getVertexArray());
 
       auto & renderables = view.pRenderData->renderables<PlanetAtmosphereRenderable>();
 
       for (const PlanetAtmosphereRenderable & atmosphere : renderables) {
-        m_modelUBO.data.modelMatrix  = atmosphere.transform;
-        m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(atmosphere.transform);
-        m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(atmosphere.transform, view.getViewProjectionMatrix());
+        const bfc::Mat4d quadTransform =
+          bfc::Mat4(bfc::Vec4d(-view.getCameraRight(), 0), bfc::Vec4d(-view.getCameraUp(), 0),
+                     bfc::Vec4d(-view.getCameraForward(), 0),
+                     bfc::Vec4d(0, 0, 0, 1)) *
+          bfc::math::axisAngleMatrix(bfc::math::right<float>, bfc::math::half_pi<float>()) *
+          bfc::math::scale(2.5f * atmosphere.outerRadius);
+
+        m_modelUBO.data.modelMatrix  = quadTransform;
+        m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(quadTransform);
+        m_modelUBO.data.mvpMatrix    = bfc::renderer::calcMvpMatrix(quadTransform, view.getViewProjectionMatrix());
         m_modelUBO.upload(pCmdList);
 
         pCmdList->setUniform("mieConstant", atmosphere.mieConstant);
@@ -301,14 +308,15 @@ namespace {
         pCmdList->setUniform("outerRadius", atmosphere.outerRadius);
         pCmdList->setUniform("sunDirection", atmosphere.sunDirection);
         pCmdList->setUniform("sunIntensity", atmosphere.sunIntensity);
-        pCmdList->draw();
+        pCmdList->drawIndexed();
       }
       pCmdList->popState();
     }
 
+    engine::Asset<bfc::Mesh> m_quad;
+
     engine::Asset<bfc::graphics::Program> m_atmosphereShader;
 
-    engine::Asset<bfc::Mesh>                                    m_sphere;
     bfc::graphics::StructuredBuffer<PlanetTerrainUBO>           m_terrainUBO;
     bfc::graphics::StructuredBuffer<bfc::renderer::ModelBuffer> m_modelUBO;
   };
