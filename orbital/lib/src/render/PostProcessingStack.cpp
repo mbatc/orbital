@@ -1,21 +1,26 @@
 #include "render/PostProcessingStack.h"
 
 namespace bfc {
+  void PostProcessInput::bind(graphics::CommandList * pCmdList) const {
+    pCmdList->bindTexture(sceneDepth, PostProcessInputBindPoint_SceneDepth);
+    pCmdList->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_SceneDepth);
+    pCmdList->bindTexture(baseColour, PostProcessInputBindPoint_BaseColour);
+    pCmdList->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_BaseColour);
+    pCmdList->bindTexture(ambientColour, PostProcessInputBindPoint_AmbientColour);
+    pCmdList->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_AmbientColour);
+    pCmdList->bindTexture(normal, PostProcessInputBindPoint_Normal);
+    pCmdList->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_Normal);
+    pCmdList->bindTexture(position, PostProcessInputBindPoint_Position);
+    pCmdList->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_Position);
+    pCmdList->bindTexture(rma, PostProcessInputBindPoint_RMA);
+    pCmdList->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_RMA);
+  }
+
   void PostProcessParams::bindInputs(graphics::CommandList * pCmdList) const {
     pCmdList->bindTexture(sceneColour, PostProcessInputBindPoint_SceneColour);
     pCmdList->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_SceneColour);
-    pCmdList->bindTexture(pInput->sceneDepth, PostProcessInputBindPoint_SceneDepth);
-    pCmdList->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_SceneDepth);
-    pCmdList->bindTexture(pInput->baseColour, PostProcessInputBindPoint_BaseColour);
-    pCmdList->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_BaseColour);
-    pCmdList->bindTexture(pInput->ambientColour, PostProcessInputBindPoint_AmbientColour);
-    pCmdList->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_AmbientColour);
-    pCmdList->bindTexture(pInput->normal, PostProcessInputBindPoint_Normal);
-    pCmdList->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_Normal);
-    pCmdList->bindTexture(pInput->position, PostProcessInputBindPoint_Position);
-    pCmdList->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_Position);
-    pCmdList->bindTexture(pInput->rma, PostProcessInputBindPoint_RMA);
-    pCmdList->bindSampler(InvalidGraphicsResource, PostProcessInputBindPoint_RMA);
+
+    pInput->bind(pCmdList);
   }
 
   void PostProcessParams::bindTarget(graphics::CommandList * pCmdList) const {
@@ -79,4 +84,5 @@ namespace bfc {
     m_passes.clear();
     m_currentTarget = 0;
   }
-}
+
+} // namespace bfc

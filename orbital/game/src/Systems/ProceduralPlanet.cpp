@@ -277,25 +277,24 @@ namespace {
       
       auto pRenderTarget = pCmdList->createRenderTarget(bfc::RenderTargetType_Texture);
       pRenderTarget->attachColour(pPass->pFinalColour);
-      pRenderTarget->attachDepth(pPass->input.sceneDepth);
       pCmdList->bindRenderTarget(pRenderTarget);
 
       pCmdList->bindUniformBuffer(m_modelUBO, bfc::renderer::BufferBinding_ModelBuffer);
-      pCmdList->pushState(bfc::graphics::State::EnableCullFace{true}, bfc::graphics::State::EnableCullFace{bfc::Face_Front},
-                          bfc::graphics::State::Viewport(pRenderTarget), bfc::graphics::State::EnableDepthRead{true},
+      pCmdList->pushState(bfc::graphics::State::Viewport(pRenderTarget), bfc::graphics::State::EnableDepthRead{false},
                           bfc::graphics::State::EnableDepthWrite{false}, bfc::graphics::State::EnableBlend{true});
       pCmdList->bindProgram(m_atmosphereShader);
       pCmdList->bindVertexArray(m_quad->getVertexArray());
 
+      pPass->input.bind(pCmdList);
+
       auto & renderables = view.pRenderData->renderables<PlanetAtmosphereRenderable>();
 
       for (const PlanetAtmosphereRenderable & atmosphere : renderables) {
-        const bfc::Mat4d quadTransform = 
-          bfc::math::translation(bfc::Vec3(atmosphere.transform[3])) *
-          bfc::Mat4(bfc::Vec4d(-view.getCameraRight(), 0), bfc::Vec4d(-view.getCameraUp(), 0),
-                                                   bfc::Vec4d(-view.getCameraForward(), 0), bfc::Vec4d(0, 0, 0, 1)) *
-                                         bfc::math::axisAngleMatrix(bfc::math::right<float>, bfc::math::half_pi<float>()) *
-                                         bfc::math::scale(2.5f * atmosphere.outerRadius);
+        const bfc::Vec3d atmosCenter = bfc::Vec3(atmosphere.transform[3]);
+        const bfc::Mat4d quadTransform = bfc::math::translation(atmosCenter) *
+          bfc::math::lookRotation(atmosCenter, view.getCameraPosition(), view.getCameraUp()) *
+                                         bfc::math::axisAngleMatrix(bfc::math::right<double>, bfc::math::half_pi<double>()) *
+                                         bfc::math::scale(2.5 * atmosphere.outerRadius);
 
         m_modelUBO.data.modelMatrix  = quadTransform;
         m_modelUBO.data.normalMatrix = bfc::renderer::calcNormalMatrix(quadTransform);

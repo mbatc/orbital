@@ -25,6 +25,8 @@ namespace bfc {
     graphics::TextureRef normal;
     graphics::TextureRef rma;
     graphics::TextureRef sceneDepth;
+
+    void bind(graphics::CommandList * pCmdList) const;
   };
 
   class BFC_API PostProcessParams {

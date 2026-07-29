@@ -20,7 +20,7 @@ float calculateUVFalloff(float a) {
 }
 
 void main() {
-  float fragDepth = texture(sceneDepthTex, vsout_uv0).r;
+  float fragDepth = pps_ReadDepth(vsout_uv0);
 
   if (fragDepth == 1) {
     fragColour = vec4(0, 0, 0, 0);

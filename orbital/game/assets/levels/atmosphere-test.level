@@ -42,17 +42,17 @@ entities:
       name: Planet
       transform:
         translation:
-          - 0
+          - 1.4901161193847656e-08
           - 0
           - 0
         ypr:
           - -0
-          - 57.295779513082323
+          - 57.295789494437948
           - 0
         scale:
           - 1
-          - 1
-          - 1
+          - 0.99999999652875715
+          - 0.99999986401306939
         parent: ~
       procedural-planet:
         seed: 2128970880

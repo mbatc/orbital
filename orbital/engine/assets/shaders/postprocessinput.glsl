@@ -19,4 +19,40 @@ layout(binding = BND_TEX_Position)    uniform sampler2D positionTex;
 layout(binding = BND_TEX_Normal)      uniform sampler2D normalTex;
 layout(binding = BND_TEX_RMA)         uniform sampler2D RMATex;
 
+
+vec4 pps_ReadSceneColour(vec2 uv)
+{
+  return texture2D(sceneColourTex, uv);
+}
+
+vec3 pps_ReadBaseColour(vec2 uv)
+{
+  return texture2D(baseColourTex, uv).xyz;
+}
+
+float pps_ReadDepth(vec2 uv)
+{
+  return texture2D(sceneDepthTex, uv).x;
+}
+
+vec3 pps_ReadAmbientColour(vec2 uv)
+{
+  return texture2D(ambientTex, uv).xyz;
+}
+
+vec3 pps_ReadPosition(vec2 uv)
+{
+  return texture2D(positionTex, uv).xyz;
+}
+
+vec3 pps_ReadNormal(vec2 uv)
+{
+  return normalize(2 * (texture2D(normalTex, uv).xyz - vec3(0.5)));
+}
+
+vec3 pps_ReadRMA(vec2 uv)
+{
+  return texture2D(RMATex, uv).xyz;
+}
+
 #endif // POSTPROCESSINPUT_GLSL

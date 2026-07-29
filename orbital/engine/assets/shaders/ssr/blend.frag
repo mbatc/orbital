@@ -13,13 +13,11 @@ layout (binding=8) uniform sampler2D blurredSceneColourTex;
 out vec4 fragColour;
 
 void main() {
-  // Sample GBuffers
-  // TODO: Add sample functions to gbuffer/postprocessinput include
-  vec4 scene    = texture2D(sceneColourTex, vsout_uv0);
-  vec3 base     = texture2D(baseColourTex, vsout_uv0).xyz;
-  vec3 position = texture2D(positionTex, vsout_uv0).xyz;
-  vec3 rma      = texture2D(RMATex, vsout_uv0).xyz;
-  vec3 normal   = normalize(2 * (texture2D(normalTex, vsout_uv0).xyz - vec3(0.5)));
+  vec4 scene    = pps_ReadSceneColour(vsout_uv0);
+  vec3 base     = pps_ReadBaseColour(vsout_uv0);
+  vec3 position = pps_ReadPosition(vsout_uv0);
+  vec3 rma      = pps_ReadRMA(vsout_uv0);
+  vec3 normal   = pps_ReadNormal(vsout_uv0);
   
   float roughness = rma.x;
   float metalness = rma.y;

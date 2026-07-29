@@ -363,6 +363,19 @@ namespace bfc {
     }
 
     template<typename T>
+    Matrix<T> lookRotation(Vector3<T> const & from, Vector3<T> const & target, Vector3<T> const & up) {
+      const Vector3<T> fwd    = glm::normalize(target - from);
+      const Vector3<T> right  = glm::normalize(glm::cross(up, fwd));
+      const Vector3<T> upOrth = glm::normalize(glm::cross(fwd, right));
+      return Matrix<T>{
+        Vector4<T>(right, 0),
+        Vector4<T>(upOrth, 0),
+        Vector4<T>(fwd, 0),
+        Vector4<T>(0, 0, 0, 1)
+      };
+    }
+
+    template<typename T>
     Quaternion<T> yprToQuat(bfc::Vector3<T> const & ypr) {
       bfc::Vec3d pyr = {ypr.y, ypr.x, ypr.z};
       return bfc::Quatd(pyr);
