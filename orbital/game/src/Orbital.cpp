@@ -21,6 +21,7 @@ Orbital::Orbital()
   m_pRendering     = addSubsystem<engine::Rendering>();
   m_pAssets        = addSubsystem<engine::AssetManager>();
   m_pLevels        = addSubsystem<engine::LevelManager>();
+  m_pScripting     = addSubsystem<engine::Scripting>();
   m_pOrbitalLevels = addSubsystem<OrbitalGameSystems>();
   m_pLevelEditor   = addSubsystem<engine::LevelEditor>();
   m_pOrbitalEditor = addSubsystem<OrbitalEditor>();

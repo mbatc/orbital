@@ -30,7 +30,7 @@ namespace engine {
     bfc::Map<bfc::CubeMapFace, bfc::URI> cubeSource;
 
     bfc::PixelFormat pixelFormat = bfc::PixelFormat_RGBu8;
-    bfc::Vec2i resolution  = bfc::Vec2i(2048);
+    bfc::Vec2i       resolution  = bfc::Vec2i(2048);
   };
 
   class SkyboxLoader : public AssetLoader<bfc::graphics::Texture> {
@@ -38,7 +38,7 @@ namespace engine {
     SkyboxLoader(bfc::GraphicsDevice * pGraphicsDevice);
 
     virtual bfc::Ref<bfc::graphics::Texture> load(bfc::URI const & uri, AssetLoadContext * pContext) const override;
-    virtual bool                   handles(bfc::URI const & uri, AssetManager const * pManager) const override;
+    virtual bool                             handles(bfc::URI const & uri, AssetManager const * pManager) const override;
 
   private:
     bfc::GraphicsDevice * m_pGraphicsDevice = nullptr;
@@ -49,8 +49,9 @@ namespace bfc {
   template<>
   struct EnumValueMap<engine::SkyboxFormat> {
     // inline static Vector<any> const mapping;
-    inline static Map<engine::SkyboxFormat, String> const mapping = {
-      {engine::SkyboxFormat_CubeMap, "cube"}, {engine::SkyboxFormat_Equirectangular, "eqrect"}, {engine::SkyboxFormat_Unknown, "unknown"}};
+    inline static Map<engine::SkyboxFormat, String> const mapping = {{engine::SkyboxFormat_CubeMap, "cube"},
+                                                                     {engine::SkyboxFormat_Equirectangular, "eqrect"},
+                                                                     {engine::SkyboxFormat_Unknown, "unknown"}};
   };
 
   template<>

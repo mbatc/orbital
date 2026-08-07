@@ -5,6 +5,9 @@
 
 [bB]in/
 
+orbital/game/assets/
+orbital/engine/assets/
+
 *.gen.h
 *.gen.cpp
 *.obj
@@ -16,5 +19,3 @@
 *.vcxproj
 *.vcxproj.user
 *.vcxproj.filters
-
-vendor/

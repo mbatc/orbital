@@ -12,15 +12,18 @@ includedirs {
   "src/engine",
   "src",
 
+  ORBITAL_ROOT .. "vendor/adder/lib/include",
   ORBITAL_ROOT .. "vendor/glm/",
 }
 
 dependson {
   "lib",
+  "adderlang"
 }
 
 links {
   "lib",
+  "adderlang"
 }
 
 files {

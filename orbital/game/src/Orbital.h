@@ -6,13 +6,13 @@
 namespace engine {
   class VirtualFileSystem;
   // class Windowing;
+  class Scripting;
   class Rendering;
   class AssetManager;
   class LevelManager;
   class LevelPlayer;
   class LevelEditor;
   class Input;
-
 }
 
 class OrbitalEditor;
@@ -33,6 +33,7 @@ private:
   bfc::Ref<engine::LevelManager> m_pLevels;
   // bfc::Ref<engine::LevelPlayer> m_pLevelPlayer;
   bfc::Ref<engine::LevelEditor> m_pLevelEditor;
+  bfc::Ref<engine::Scripting> m_pScripting;
 
   // Game systems
   bfc::Ref<OrbitalGameSystems> m_pOrbitalLevels;
