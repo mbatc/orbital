@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Subsystem.h"
-#include "adder/vm.h"
+#include "../../../../vendor/adder/lib/include/adder/vm.h"
 
 namespace engine {
   class NativeLibrary {
@@ -25,6 +25,7 @@ namespace engine {
     struct Backend;
 
     Scripting();
+    ~Scripting();
 
     bool reload();
 

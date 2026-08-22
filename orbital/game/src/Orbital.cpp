@@ -5,6 +5,7 @@
 #include "Levels/LevelManager.h"
 #include "Rendering/Rendering.h"
 #include "Editor/LevelEditor.h"
+#include "Scripting/Scripting.h"
 #include "OrbitalLevelSystems.h"
 #include "OrbitalEditor.h"
 
