@@ -35,11 +35,11 @@ namespace engine {
         }
         
          jobs.pushBack(std::move(bfc::async([=]() {
-          auto pSurface = pContext->load<media::Surface>(baseUri.resolveRelativeReference(faceUri));
+          auto pSurface = pContext->load<media::Surface>(baseUri.resolveRelativeReference(faceUri.uri));
           if (pSurface == nullptr)
             return;
           media::Surface dst = sfc.slice(face);
-          media::convertSurface(&dst, *pSurface);
+          media::convertSurface(&dst, pSurface->sub(faceUri.region.min, faceUri.region.max));
          })));
       }
 
@@ -65,5 +65,23 @@ namespace engine {
     BFC_UNUSED(pManager);
 
     return Filename::extension(uri.pathView()).equals("skybox", true);
+  }
+
+  geometry::Rectangled SkyboxDefinition::getCombinedCubeMapFaceRegion(CubeMapFace face) {
+    Vec2d const dims = {4, 3};
+    Vec2d const sz = Vec2d(1) / dims;
+
+    Vec2d cell = {0, 0};
+    switch (face)
+    {
+    case CubeMapFace_Top: cell = {1, 0}; break;
+    case CubeMapFace_Left: cell = {0, 1}; break;
+    case CubeMapFace_Front: cell = {1, 1}; break;
+    case CubeMapFace_Right: cell = {2, 1}; break;
+    case CubeMapFace_Back: cell = {3, 1}; break;
+    case CubeMapFace_Bottom: cell = {1, 2}; break;
+    }
+    Vec2d const min = cell * sz;
+    return bfc::geometry::Rectangled(min, min + sz);
   }
 } // namespace engine

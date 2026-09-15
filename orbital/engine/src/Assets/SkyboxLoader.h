@@ -1,6 +1,7 @@
 #include "AssetLoader.h"
 #include "core/Map.h"
 #include "core/Serialize.h"
+#include "geometry/Rectangle.h"
 #include "media/Pixel.h"
 
 namespace bfc {
@@ -24,13 +25,18 @@ namespace engine {
 
   class SkyboxDefinition {
   public:
-    SkyboxFormat format;
+    static bfc::geometry::Rectangled getCombinedCubeMapFaceRegion(bfc::CubeMapFace face);
 
-    bfc::URI                             eqrectSource;
-    bfc::Map<bfc::CubeMapFace, bfc::URI> cubeSource;
+    struct Image {
+      bfc::URI uri;
+      bfc::geometry::Rectangled region = bfc::geometry::Rectangled::one();
+    };
 
-    bfc::PixelFormat pixelFormat = bfc::PixelFormat_RGBu8;
-    bfc::Vec2i resolution  = bfc::Vec2i(2048);
+    SkyboxFormat                      format = SkyboxFormat_Unknown;
+    Image                             eqrectSource;
+    bfc::Map<bfc::CubeMapFace, Image> cubeSource;
+    bfc::PixelFormat                  pixelFormat = bfc::PixelFormat_RGBu8;
+    bfc::Vec2i                        resolution  = bfc::Vec2i(2048);
   };
 
   class SkyboxLoader : public AssetLoader<bfc::graphics::Texture> {
@@ -60,7 +66,7 @@ namespace bfc {
       SerializedObject src;
       switch (o.format) {
       case engine::SkyboxFormat_CubeMap: src = serialize(o.cubeSource); break;
-      case engine::SkyboxFormat_Equirectangular: src = serialize(o.eqrectSource);
+      case engine::SkyboxFormat_Equirectangular: src = serialize(o.eqrectSource); break;
       }
 
       return SerializedObject::MakeMap({
@@ -77,7 +83,20 @@ namespace bfc {
 
       switch (o.format) {
       case engine::SkyboxFormat_CubeMap:
-        s.get("source").readOrConstruct(o.cubeSource);
+        if (s.get("source").isText()) {
+          bfc::Uninitialized<bfc::URI> uri;
+          s.get("source").readOrConstruct(uri.get());
+          mem::construct(&o.cubeSource);
+          for (size_t i = 0; i < CubeMapFace_Count; ++i) {
+            CubeMapFace f = (CubeMapFace)i;
+            engine::SkyboxDefinition::Image       mapping;
+            mapping.uri = uri.get();
+            mapping.region = engine::SkyboxDefinition::getCombinedCubeMapFaceRegion(f);
+            o.cubeSource.add(f, mapping);
+          }
+        } else {
+          s.get("source").readOrConstruct(o.cubeSource);
+        }
         mem::construct(&o.eqrectSource);
         break;
       case engine::SkyboxFormat_Equirectangular:
@@ -89,6 +108,29 @@ namespace bfc {
       s.get("resolution").readOrConstruct(o.resolution, Vec2i(2048));
       s.get("pixelFormat").readOrConstruct(o.pixelFormat, PixelFormat_RGBu8);
 
+      return true;
+    }
+  };
+
+  template<>
+  struct Serializer<engine::SkyboxDefinition::Image> {
+    template<typename Context>
+    static SerializedObject write(engine::SkyboxDefinition::Image const & o, Context const &) {
+      return SerializedObject::MakeMap({
+        { "uri", serialize(o.uri) },
+        { "region", serialize(o.region) }
+      });
+    }
+
+    template<typename Context>
+    static bool read(SerializedObject const & s, engine::SkyboxDefinition::Image & o, Context const &) {
+      if (s.isText()) {
+        s.readOrConstruct(o.uri);
+        mem::construct(&o.region, Vec2d(0), Vec2d(1));
+      } else {
+        s.get("uri").readOrConstruct(o.uri);
+        s.get("region").readOrConstruct(o.region, Vec2d(0), Vec2d(1));
+      }
       return true;
     }
   };

@@ -246,9 +246,7 @@ namespace engine {
 
       if (load) {
         stored.status = AssetStatus_Loading;
-      } else if (wait) {
-        m_assetNotifier.wait(assetGuard, [&]() { return m_assetPool[handle].status != AssetStatus_Loading; });
-      } else {
+      } else if (!wait) {
         return nullptr;
       }
     }

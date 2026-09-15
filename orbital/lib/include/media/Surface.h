@@ -20,6 +20,7 @@ namespace bfc {
 
       void free();
 
+      Surface sub(bfc::Vec2d min, bfc::Vec2d max, int64_t z = 0);
       Surface slice(int64_t z) const;
     };
 

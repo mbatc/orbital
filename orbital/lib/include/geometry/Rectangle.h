@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../math/MathTypes.h"
+#include "../core/Serialize.h"
 
 namespace bfc {
   namespace geometry {
@@ -20,7 +21,11 @@ namespace bfc {
       }
 
       Rectangle(Vector2<T> const & center, T const & size)
-        : Box(center - size / 2, center + size / 2) {}
+        : Rectangle(center - size / 2, center + size / 2) {}
+      
+      static Rectangle one() {
+        return {{0, 0}, {1, 1}};
+      }
 
       Vector2<T> center() const {
         return (min + max) / 2;
@@ -51,21 +56,21 @@ namespace bfc {
         return math::minComponent(size());
       }
 
-      void growToContain(Box<T> const & box) {
-        min = math::min(box.min);
-        max = math::max(box.max);
+      void growToContain(Rectangle<T> const & box) {
+        min = math::min(min, box.min);
+        max = math::max(max, box.max);
       }
 
       void growToContain(Vector2<T> const & point) {
-        min = math::min(point);
-        max = math::max(point);
+        min = math::min(min, point);
+        max = math::max(max, point);
       }
 
       bool contains(Vector2<T> const & point) const {
         return point.x >= min.x && point.y >= min.y && point.x <= max.x && point.y <= max.y;
       }
 
-      bool contains(Box<T> const & box) const {
+      bool contains(Rectangle<T> const & box) const {
         return box.min.x >= min.x && box.min.y >= min.y && box.max.x <= max.x && box.max.y <= max.y;
       }
 
@@ -73,7 +78,7 @@ namespace bfc {
         return contains(point);
       }
 
-      bool overlaps(Box<T> const & point) const {
+      bool overlaps(Rectangle<T> const & box) const {
         return box.min.x <= max.x && box.min.y <= max.y && box.max.x >= min.x && box.max.y >= min.y;
       }
 
@@ -97,6 +102,21 @@ namespace bfc {
     }
 
     template<typename T>
-    using has_calc_bounding_rectangle = std::is_void_v<!decltype(calcBoundingRectangle(std::declval<T>()))>;
+    inline static constexpr bool has_calc_bounding_rectangle = !std::is_void_v<decltype(calcBoundingRectangle(std::declval<T>()))>;
   }
+  
+  template<typename T>
+  struct Serializer<geometry::Rectangle<T>> {
+    template<typename Context>
+    static SerializedObject write(geometry::Rectangle<T> const & o, Context const &) {
+      return SerializedObject::MakeMap({{"min", serialize(o.min)}, {"max", serialize(o.max)}});
+    }
+
+    template<typename Context>
+    static bool read(SerializedObject const & s, geometry::Rectangle<T> & o, Context const &) {
+      s.get("min").readOrConstruct(o.min);
+      s.get("max").readOrConstruct(o.max);
+      return true;
+    }
+  };
 }

@@ -116,6 +116,19 @@ namespace bfc {
       pBuffer = 0;
     }
 
+    
+    Surface Surface::sub(bfc::Vec2d min, bfc::Vec2d max, int64_t z) {
+      assert(size.z <= 1 && "Need slice-pitch to support 3d subrects");
+      auto size2d = Vec2d(size);
+
+      Surface ret;
+      ret.size    = Vec3d(size2d * (max - min), 1);
+      ret.pitch   = getSurfacePitch(*this);
+      ret.format  = format;
+      ret.pBuffer = getSurfacePixel(*this, bfc::Vec3d(size2d * min, z));
+      return ret;
+    }
+
     Surface Surface::slice(int64_t z) const {
       Surface ret;
       ret.size    = {size.x, size.y, 1 };
