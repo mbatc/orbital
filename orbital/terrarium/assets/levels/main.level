@@ -1,0 +1,56 @@
+entities:
+  - uuid: b4f68613-e0d0-486f-8f90-8eb8e3f8baf2
+    components:
+      name: Environment
+      skybox:
+        texture:
+          uri: file:game:/skyboxes/afternoon.skybox
+      transform:
+        translation:
+          - 0
+          - 0
+          - 0
+        ypr:
+          - -45.000000000000007
+          - 45.000000000000007
+          - -4.497983566394945e-15
+        scale:
+          - 1
+          - 1
+          - 1
+        parent: ~
+      light:
+        type: sun
+        colour:
+          - 0.69999998807907104
+          - 0.69999998807907104
+          - 0.69999998807907104
+        ambient:
+          - 0.69999998807907104
+          - 0.69999998807907104
+          - 0.69999998807907104
+        attenuation:
+          - 0
+          - 0
+          - 1
+        strength: 1
+        innerConeAngle: 30.000001907348633
+        outerConeAngle: 35
+        castShadows: 1
+  - uuid: 49c744eb-4fb5-4046-86af-1c37e3bff9f3
+    components:
+      post-process-volume:
+        enabled: 1
+        extents:
+          min:
+            - -5
+            - -5
+            - -5
+          max:
+            - 5
+            - 5
+            - 5
+        infinite: 1
+        effects: 0
+      post-process-tonemap:
+        exposure: 1
