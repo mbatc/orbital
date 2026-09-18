@@ -516,14 +516,21 @@ namespace bfc {
       }
 
       // Get the attribute list
-      Vector<int> attribList = {WGL_DRAW_TO_WINDOW_ARB, GL_TRUE, WGL_SUPPORT_OPENGL_ARB, GL_TRUE,          WGL_DOUBLE_BUFFER_ARB, GL_TRUE,
-                                WGL_COLOR_BITS_ARB,     32,      WGL_PIXEL_TYPE_ARB,     WGL_TYPE_RGBA_ARB};
+      Vector<int> attribList = {WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
+                                WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
+                                WGL_DOUBLE_BUFFER_ARB,  GL_TRUE,
+                                WGL_COLOR_BITS_ARB,     32,
+                                WGL_PIXEL_TYPE_ARB,     WGL_TYPE_RGBA_ARB,
+                                WGL_SAMPLE_BUFFERS_ARB, GL_TRUE,
+                                WGL_SAMPLES_ARB,        8,
+                                WGL_ACCELERATION_ARB,   WGL_FULL_ACCELERATION_ARB};
 
       // Depth Buffer Format
       if (numDepthBits > 0)
         attribList.pushBack({WGL_DEPTH_BITS_ARB, (int)numDepthBits});
       if (numStencilBits > 0)
         attribList.pushBack({WGL_STENCIL_BITS_ARB, (int)numStencilBits});
+      
       attribList.pushBack(0);
 
       int  pixelFormat     = 0;

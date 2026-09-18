@@ -10,5 +10,7 @@ out vec4 psout_colour0;
 
 void main()
 {
-  psout_colour0 = vec4(texture(texture0, vsout_direction0).rgb, 1);
+  vec3 colour = texture(texture0, vsout_direction0).rgb;
+  // vec3 streched = (texture(texture0, vsout_direction0).rgb - vec3(0.5)) * 5 + vec3(0.5);
+  psout_colour0 = vec4(colour, 1);
 }

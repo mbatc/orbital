@@ -4,53 +4,174 @@ entities:
       name: Environment
       skybox:
         texture:
-          uri: file:game:/skyboxes/afternoon.skybox
+          uri: file:game:/skyboxes/afternoon-stylized.skybox
+      transform:
+        translation:
+          - 0.5192335844039917
+          - 2.3302950859069824
+          - 0.22759722173213962
+        ypr:
+          - -58.811737366937784
+          - 60.622234634441526
+          - -10.303314182350498
+        scale:
+          - 0.99999922928681495
+          - 0.99999925307337623
+          - 1.0000007031117979
+        parent: ~
+      light:
+        type: sun
+        colour:
+          - 0.98529410362243652
+          - 0.98216891288757324
+          - 0.87903684377670288
+        ambient:
+          - 0.64215683937072754
+          - 0.60586422681808472
+          - 0.46587851643562317
+        attenuation:
+          - 0
+          - 0
+          - 1
+        strength: 5
+        innerConeAngle: 30.000001907348633
+        outerConeAngle: 35
+        castShadows: 1
+  - uuid: a195da93-0e94-4abe-9af4-0d9c6803fd0c
+    components:
+      post-process-volume:
+        enabled: 1
+        extents:
+          min:
+            - 0
+            - 0
+            - 0
+          max:
+            - 0
+            - 0
+            - 0
+        infinite: 1
+        effects: 0
+      post-process-tonemap:
+        exposure: 1
+      post-process-ssao:
+        bias: 0.02500000037252903
+        radius: 0.10000000149011612
+        strength: 1
+      post-process-bloom:
+        filterRadius: 0.004999999888241291
+        strength: 0.039999999105930328
+        threshold: 0.25
+        dirtIntensity: 1
+        dirt: ~
+  - uuid: 32dc0a7a-b68e-40df-8e0d-70815fdfa5fb
+    components:
+      name: storefront
       transform:
         translation:
           - 0
           - 0
           - 0
         ypr:
-          - -45.000000000000007
-          - 45.000000000000007
-          - -4.497983566394945e-15
+          - -0
+          - 0
+          - 0
         scale:
           - 1
           - 1
           - 1
         parent: ~
+      static-mesh:
+        castShadows: 1
+        useTesselation: 0
+        materials:
+          - material: ~
+            shader: ~
+          - material: ~
+            shader: ~
+          - material: ~
+            shader: ~
+        mesh:
+          uri: file:game:/models/storefront.obj
+  - uuid: 02acba1a-24d5-4964-8eaf-baa3c38212f7
+    components:
+      transform:
+        translation:
+          - -0.014922976493835449
+          - 0.81983572244644165
+          - -0.48312723636627203
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 1
+          - 1
+          - 1
+        parent: 32dc0a7a-b68e-40df-8e0d-70815fdfa5fb
       light:
-        type: sun
+        type: point
         colour:
-          - 0.69999998807907104
-          - 0.69999998807907104
-          - 0.69999998807907104
+          - 1
+          - 1
+          - 1
         ambient:
-          - 0.69999998807907104
-          - 0.69999998807907104
-          - 0.69999998807907104
+          - 1
+          - 1
+          - 1
         attenuation:
           - 0
           - 0
           - 1
-        strength: 1
+        strength: 2
         innerConeAngle: 30.000001907348633
         outerConeAngle: 35
         castShadows: 1
-  - uuid: 49c744eb-4fb5-4046-86af-1c37e3bff9f3
+  - uuid: cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd
     components:
-      post-process-volume:
-        enabled: 1
-        extents:
-          min:
-            - -5
-            - -5
-            - -5
-          max:
-            - 5
-            - 5
-            - 5
-        infinite: 1
-        effects: 0
-      post-process-tonemap:
-        exposure: 1
+      transform:
+        translation:
+          - 0.94890385866165172
+          - 0.50105953216552734
+          - -0.00091546773910522461
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 1
+          - 0.4375322163105011
+          - 1
+        parent: 32dc0a7a-b68e-40df-8e0d-70815fdfa5fb
+      static-mesh:
+        castShadows: 1
+        useTesselation: 0
+        materials: ~
+        mesh:
+          uri: file:engine:/models/primitives/cube.obj
+  - uuid: c4f0ff92-c36a-45ce-a638-b6f84457137b
+    components:
+      name: crate
+      transform:
+        translation:
+          - -3.1528754234313965
+          - 0
+          - -3.5410103797912598
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 1
+          - 1
+          - 1
+        parent: ~
+      static-mesh:
+        castShadows: 1
+        useTesselation: 0
+        materials:
+          - material:
+              uri: file:game:/models/military_crate_M37/source/crate.obj#material.0
+            shader: ~
+        mesh:
+          uri: file:game:/models/military_crate_M37/source/crate.obj

@@ -741,4 +741,11 @@ namespace engine {
       }
     }
   }
+  void LevelEditor::LevelEditorRenderingPlugin::onFrame(bfc::graphics::CommandList *   pCmdList,
+                                                        bfc::platform::Window *        pWindow,
+                                                        bfc::graphics::RenderTargetRef renderTarget) {
+    auto pRenderTarget = m_pEditor->m_pEditorViewportRenderTarget;
+    m_pEditor->m_pEditorViewport->setSize(pCmdList, pRenderTarget->getSize());
+    m_pEditor->m_pEditorViewport->render(pCmdList, pRenderTarget);
+  }
 } // namespace engine

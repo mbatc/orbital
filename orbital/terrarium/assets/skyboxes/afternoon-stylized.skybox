@@ -1,0 +1,16 @@
+format: "cube"
+source:
+  - key: left
+    value: "afternoon-stylized/nx.png"
+  - key: front
+    value: "afternoon-stylized/pz.png"
+  - key: right
+    value: "afternoon-stylized/px.png"
+  - key: back
+    value: "afternoon-stylized/nz.png"
+  - key: top
+    value: "afternoon-stylized/py.png"
+  - key: bottom
+    value: "afternoon-stylized/ny.png"
+resolution: 512
+pixelFormat: "rgb-u8"

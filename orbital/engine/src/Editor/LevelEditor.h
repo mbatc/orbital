@@ -4,6 +4,7 @@
 #include "Subsystem.h"
 #include "ui/Context.h"
 #include "util/Settings.h"
+#include "rendering/Rendering.h"
 
 namespace bfc {
   // class EventListener;
@@ -110,6 +111,17 @@ namespace engine {
     void drawEntityComponentProperties(bfc::Ref<Level> const & pLevel, EntityID entityID);
     void drawAddComponentMenu(bfc::Ref<Level> const & pLevel, EntityID targetEntityID);
 
+    class LevelEditorRenderingPlugin : public IRenderingPlugin {
+    public:
+      LevelEditorRenderingPlugin(LevelEditor * pEditor)
+        : m_pEditor(pEditor) {}
+
+      virtual void onFrame(bfc::graphics::CommandList * pCmdList, bfc::platform::Window * pWindow,
+                           bfc::graphics::RenderTargetRef renderTarget) override;
+
+      LevelEditor * m_pEditor = nullptr;
+    };
+
     bfc::Ref<bfc::EventListener> m_pViewportListener;
     bfc::Ref<bfc::EventListener> m_pAppListener;
 
@@ -118,7 +130,9 @@ namespace engine {
       ImGuizmo::MODE      mode = ImGuizmo::MODE::WORLD;
       ImGuizmo::OPERATION op   = ImGuizmo::OPERATION::UNIVERSAL;
     } m_manipulator;
-    bfc::Ref<LevelEditorViewport> m_pEditorViewport;
+
+    bfc::graphics::RenderTargetRef m_pEditorViewportRenderTarget;
+    bfc::Ref<LevelEditorViewport>  m_pEditorViewport;
 
     bfc::Map<bfc::type_index, bfc::Ref<IComponentEditor>> m_componentEditors;
 

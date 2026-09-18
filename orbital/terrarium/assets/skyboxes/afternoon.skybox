@@ -1,4 +1,4 @@
 format: "cube"
-source: "Cubemap/Cubemap_Sky_03-512x512.png"
+source: "afternoon/Cubemap_Sky_03-512x512.png"
 resolution: 512
 pixelFormat: "rgb-u8"

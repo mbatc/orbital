@@ -37,6 +37,14 @@ namespace engine {
     virtual void apply(Renderer * pRenderer) = 0;
   };
 
+  class IRenderingPlugin {
+  public:
+    virtual void onFrame(bfc::graphics::CommandList * pCmdList, bfc::platform::Window * pWindow,
+                         bfc::graphics::RenderTargetRef renderTarget) {
+      BFC_UNUSED(pCmdList, pWindow, renderTarget);
+    }
+  };
+
   class Rendering : public Subsystem {
   public:
     Rendering();
@@ -50,6 +58,12 @@ namespace engine {
     virtual void shutdown() override;
 
     virtual void loop(Application * pApp) override;
+
+    /// Register a plugin.
+    void registerPlugin(bfc::Ref<IRenderingPlugin> pPlugin);
+
+    /// Unregister a plugin.
+    bool unregisterExtension(bfc::Ref<IRenderingPlugin> pPlugin);
 
     /// Set the viewport rendered to the main window.
     void setMainViewport(bfc::Ref<Viewport> const & pViewport);
@@ -74,6 +88,7 @@ namespace engine {
     bfc::Setting<bfc::String>       m_api;
 
     bfc::Vector<bfc::WeakRef<Renderer>>        m_renderers;
+    bfc::Vector<bfc::Ref<IRenderingPlugin>>    m_plugins;
     bfc::Vector<bfc::Ref<IRenderingExtension>> m_extensions;
 
     uint64_t m_lastFrameFence = 0;
