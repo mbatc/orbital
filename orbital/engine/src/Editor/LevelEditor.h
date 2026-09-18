@@ -103,6 +103,7 @@ namespace engine {
     void drawAssetsPanel(bfc::Ref<VirtualFileSystem> const & pFileSystem, bfc::Ref<LevelManager> const & pLevels);
     void drawLevelPanel(bfc::Ref<LevelManager> const & pLevels, bfc::Ref<AssetManager> const & pAssets, bfc::Ref<Rendering> const & pRendering,
                         bfc::Ref<Level> const & pLevel);
+    void drawEditorViewportPanel();
     void drawEntityProperties(bfc::Ref<Level> const & pLevel, EntityID entityID);
     void drawEditorSettings();
     void drawCameraProperties(EditorCamera * pCamera);
@@ -131,6 +132,10 @@ namespace engine {
       ImGuizmo::OPERATION op   = ImGuizmo::OPERATION::UNIVERSAL;
     } m_manipulator;
 
+    bfc::Vec2                      m_viewportSize = { 1, 1 };
+
+    bfc::graphics::TextureRef      m_pEditorViewportColour;
+    bfc::graphics::TextureRef      m_pEditorViewportDepth;
     bfc::graphics::RenderTargetRef m_pEditorViewportRenderTarget;
     bfc::Ref<LevelEditorViewport>  m_pEditorViewport;
 

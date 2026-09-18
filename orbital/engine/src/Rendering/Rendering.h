@@ -3,6 +3,7 @@
 #include "../../../../vendor/imgui/imgui_internal.h"
 #include "Subsystem.h"
 #include "util/Settings.h"
+#include "render/GraphicsDevice.h"
 
 namespace bfc {
   class GraphicsDevice;

@@ -73,8 +73,9 @@ namespace engine {
       m_pEditorViewport = NewRef<LevelEditorViewport>(pRenderer);
       pRendering->getDevice()->submit(std::move(pInitCmdList));
     }
-
     m_pEditorViewport->setLevel(pLevels->getActiveLevel());
+    m_pEditorViewportRenderTarget = pRendering->getDevice()->createRenderTarget(RenderTargetType_Texture);
+    pRendering->registerPlugin(bfc::NewRef<LevelEditorRenderingPlugin>(this));
 
     m_pViewportListener = m_pEditorViewport->getEvents()->addListener();
     m_pViewportListener->on([=](bfc::events::DroppedFiles const & e) {
@@ -117,6 +118,7 @@ namespace engine {
       if (m_pDrawData != nullptr && e.isMainViewport) {
         auto pCmdList = e.pDevice->createCommandList();
         pCmdList->setDebugName("LevelEditor::OnRenderViewport");
+
         m_uiContext.renderDrawData(pCmdList.get(), m_pDrawData);
         m_pDrawData = nullptr;
         e.pDevice->submit(std::move(pCmdList));
@@ -349,6 +351,7 @@ namespace engine {
     drawEditorSettings();
     drawAssetsPanel(pFileSystem, pLevels);
     drawViewportGizmo(pLevel, m_selected);
+    drawEditorViewportPanel();
   }
 
   void LevelEditor::drawViewportGizmo(bfc::Ref<Level> const & pLevel, EntityID entityID) {
@@ -363,6 +366,13 @@ namespace engine {
     bfc::Mat4 transform = pTransform->globalTransform(pLevel.get());
     if (m_pEditorViewport->manipulate(&transform, m_manipulator.op, m_manipulator.mode))
       pTransform->setGlobalTransform(pLevel.get(), transform);
+  }
+
+  void LevelEditor::drawEditorViewportPanel() {
+    ImGui::Begin("Scene");
+    m_viewportSize = ImGui::GetContentRegionAvail();
+    ImGui::Image(m_pEditorViewportRenderTarget->getColour(0).texture, m_viewportSize);
+    ImGui::End();
   }
 
   void LevelEditor::drawAssetsPanel(Ref<VirtualFileSystem> const & pFileSystem, Ref<LevelManager> const & pLevels) {
@@ -744,6 +754,13 @@ namespace engine {
   void LevelEditor::LevelEditorRenderingPlugin::onFrame(bfc::graphics::CommandList *   pCmdList,
                                                         bfc::platform::Window *        pWindow,
                                                         bfc::graphics::RenderTargetRef renderTarget) {
+    if (m_pEditor->m_pEditorViewportRenderTarget->getSize() != m_pEditor->m_viewportSize) {
+      bfc::graphics::loadTexture2D(pCmdList, &m_pEditor->m_pEditorViewportColour, m_pEditor->m_viewportSize, PixelFormat_RGBAf16);
+      bfc::graphics::loadTexture2D(pCmdList, &m_pEditor->m_pEditorViewportDepth, m_pEditor->m_viewportSize, DepthStencilFormat_D24S8);
+      m_pEditor->m_pEditorViewportRenderTarget->attachColour(m_pEditor->m_pEditorViewportColour);
+      m_pEditor->m_pEditorViewportRenderTarget->attachDepth(m_pEditor->m_pEditorViewportDepth);
+    }
+
     auto pRenderTarget = m_pEditor->m_pEditorViewportRenderTarget;
     m_pEditor->m_pEditorViewport->setSize(pCmdList, pRenderTarget->getSize());
     m_pEditor->m_pEditorViewport->render(pCmdList, pRenderTarget);

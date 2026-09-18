@@ -16,7 +16,7 @@ namespace engine {
   Viewport::Viewport(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets, StringView const & viewportName)
     : Viewport(NewRef<DeferredRenderer>(pCmdList, pAssets), viewportName) {}
 
-  void Viewport::render(bfc::graphics::CommandList *pCmdList, bfc::graphics::RenderTargetRef renderTarget) {
+  void Viewport::render(bfc::graphics::CommandList * pCmdList, bfc::graphics::RenderTargetRef renderTarget) {
     if (m_renderScene.getLevel() == nullptr || getSize().x == 0 || getSize().y == 0)
       return;
 

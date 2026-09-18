@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef IMGUI_USER_CONFIG
+#define IMGUI_USER_CONFIG "ImGuiConfig.h"
+#endif
+
 #include "../../../vendor/imgui/imgui.h"
 #include "../../../vendor/imgui/imgui_internal.h"
 #include "../../../vendor/ImGuizmo/ImGuizmo.h"

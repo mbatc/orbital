@@ -65,15 +65,18 @@ namespace engine {
     pCmdList->swap();
     pCmdList->clear({0, 0, 0, 1});
     for (auto & pPlugin : m_plugins)
-      pPlugin->onFrame(pCmdList.get(), m_pWindow->getSize(), m_pDevice->getDefaultRenderTarget());
+      pPlugin->onFrame(pCmdList.get(), m_pWindow.get(), m_pDevice->getDefaultRenderTarget());
+    pCmdList->bindRenderTarget(m_pDevice->getDefaultRenderTarget());
 
-    m_pMainViewport->setSize(pCmdList.get(), m_pWindow->getSize());
-    m_pMainViewport->render(pCmdList.get(), m_pDevice->getDefaultRenderTarget());
+    // m_pMainViewport->setSize(pCmdList.get(), m_pWindow->getSize());
+    // m_pMainViewport->render(pCmdList.get(), m_pDevice->getDefaultRenderTarget());
     uint64_t thisFrameFence = m_pDevice->submit(std::move(pCmdList));
 
     m_pDevice->wait(m_lastFrameFence);
     m_lastFrameFence = thisFrameFence;
+
     {
+
       events::OnRenderViewport e;
       e.pViewport = m_pMainViewport.get();
       e.pDevice   = m_pDevice.get();
