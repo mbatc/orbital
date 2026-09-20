@@ -74,15 +74,6 @@ namespace engine {
 
     m_pDevice->wait(m_lastFrameFence);
     m_lastFrameFence = thisFrameFence;
-
-    {
-
-      events::OnRenderViewport e;
-      e.pViewport = m_pMainViewport.get();
-      e.pDevice   = m_pDevice.get();
-      e.isMainViewport = true;
-      pApp->broadcast(e);
-    }
   }
 
   void Rendering::registerPlugin(bfc::Ref<IRenderingPlugin> pPlugin) {
@@ -91,21 +82,6 @@ namespace engine {
 
   bool Rendering::unregisterExtension(bfc::Ref<IRenderingPlugin> pPlugin) {
     return m_plugins.eraseValue(pPlugin);
-  }
-
-  void Rendering::setMainViewport(bfc::Ref<Viewport> const & pViewport) {
-    events::OnMainViewportChanged changeEvent;
-    changeEvent.pOldViewport = m_pMainViewport;
-    changeEvent.pNewViewport = pViewport;
-
-    if (m_pMainViewport != nullptr) {
-      m_pMainViewport->getEvents()->stopListening(m_pWindow->getEvents());
-    }
-
-    m_pMainViewport = pViewport;
-    m_pMainViewport->getEvents()->listenTo(m_pWindow->getEvents());
-
-    getEvents()->broadcast(changeEvent);
   }
 
   void Rendering::registerExtension(bfc::Ref<IRenderingExtension> const & pExtension) {

@@ -18,21 +18,8 @@ namespace engine {
   class Viewport;
   class Renderer;
   class Rendering;
-
-  namespace events {
-    struct OnRenderViewport {
-      bool                  isMainViewport = false;
-      bfc::GraphicsDevice * pDevice        = nullptr;
-      Viewport *            pViewport      = nullptr;
-    };
-
-    struct OnMainViewportChanged {
-      bfc::Ref<Viewport> pOldViewport;
-      bfc::Ref<Viewport> pNewViewport;
-    };
-  } // namespace events
-
   class Renderer;
+
   class IRenderingExtension {
   public:
     virtual void apply(Renderer * pRenderer) = 0;
@@ -65,9 +52,6 @@ namespace engine {
 
     /// Unregister a plugin.
     bool unregisterExtension(bfc::Ref<IRenderingPlugin> pPlugin);
-
-    /// Set the viewport rendered to the main window.
-    void setMainViewport(bfc::Ref<Viewport> const & pViewport);
 
     /// Register a renderer extension
     void registerExtension(bfc::Ref<IRenderingExtension> const & pExtension);

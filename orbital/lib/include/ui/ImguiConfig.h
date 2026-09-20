@@ -70,6 +70,7 @@ namespace bfc {
   namespace external {
     struct ImGuiTextureRef {
       ImGuiTextureRef() = default;
+      ImGuiTextureRef(uint64_t index);
       ImGuiTextureRef(ImGuiTextureRef const & o);
       ImGuiTextureRef & operator=(ImGuiTextureRef const & o);
       ImGuiTextureRef(::bfc::graphics::TextureRef const & pTexture);

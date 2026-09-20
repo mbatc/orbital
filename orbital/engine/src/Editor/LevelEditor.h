@@ -95,7 +95,9 @@ namespace engine {
                                   VirtualFileSystem * pFileSystem,
                                   bfc::StringView const & emptyPreview = "[ None ]");
 
+    void activateViewport(bfc::Ref<Viewport>);
   private:
+
     void drawUI(bfc::Ref<LevelManager> const & pLevels, bfc::Ref<AssetManager> const & pAssets, bfc::Ref<Rendering> const & pRendering,
                 bfc::Ref<VirtualFileSystem> const & pFileSystem);
 
@@ -134,10 +136,13 @@ namespace engine {
 
     bfc::Vec2                      m_viewportSize = { 1, 1 };
 
+    bool                           m_viewportWantsInput = false;
     bfc::graphics::TextureRef      m_pEditorViewportColour;
     bfc::graphics::TextureRef      m_pEditorViewportDepth;
     bfc::graphics::RenderTargetRef m_pEditorViewportRenderTarget;
     bfc::Ref<LevelEditorViewport>  m_pEditorViewport;
+
+    bfc::Ref<Viewport> m_pActiveViewport = nullptr;
 
     bfc::Map<bfc::type_index, bfc::Ref<IComponentEditor>> m_componentEditors;
 
