@@ -97,6 +97,7 @@ namespace engine {
 
     void activateViewport(bfc::Ref<Viewport>);
   private:
+    void onRenderFrame(bfc::graphics::CommandList * pCmdList, bfc::graphics::RenderTargetRef renderTarget);
 
     void drawUI(bfc::Ref<LevelManager> const & pLevels, bfc::Ref<AssetManager> const & pAssets, bfc::Ref<Rendering> const & pRendering,
                 bfc::Ref<VirtualFileSystem> const & pFileSystem);

@@ -292,6 +292,10 @@ namespace engine {
 
       auto handles = pManager->findHandles([assetType](URI const & uri, type_index const & type, StringView const & loaderID) { return type == assetType; });
 
+      if (ImGui::Selectable("[ None ]"), *pHandle == InvalidAssetHandle) {
+        *pHandle = InvalidAssetHandle;
+      }
+
       for (AssetHandle option : handles) {
         ImGui::PushID((int)(option & 0x00000000FFFFFFFF));
         ImGui::PushID((int)((option >> 32) & 0x00000000FFFFFFFF));
@@ -334,6 +338,27 @@ namespace engine {
     }
 
     m_pActiveViewport = pNewViewport;
+  }
+
+  void LevelEditor::onRenderFrame(bfc::graphics::CommandList * pCmdList, bfc::graphics::RenderTargetRef renderTarget) {
+    if (m_pEditorViewportRenderTarget->getSize() != m_viewportSize) {
+      bfc::graphics::loadTexture2D(pCmdList, &m_pEditorViewportColour, m_viewportSize,
+                                   PixelFormat_RGBAf16);
+      bfc::graphics::loadTexture2D(pCmdList, &m_pEditorViewportDepth, m_viewportSize,
+                                   DepthStencilFormat_D24S8);
+      m_pEditorViewportRenderTarget->attachColour(m_pEditorViewportColour);
+      m_pEditorViewportRenderTarget->attachDepth(m_pEditorViewportDepth);
+    }
+
+    m_pActiveViewport->setSize(pCmdList, m_pEditorViewportRenderTarget->getSize());
+    m_pActiveViewport->render(pCmdList, m_pEditorViewportRenderTarget);
+
+    pCmdList->bindRenderTarget(renderTarget);
+
+    if (m_pDrawData != nullptr) {
+      m_uiContext.renderDrawData(pCmdList, m_pDrawData);
+      m_pDrawData = nullptr;
+    }
   }
 
   void LevelEditor::drawUI(bfc::Ref<LevelManager> const & pLevels, bfc::Ref<AssetManager> const & pAssets, bfc::Ref<Rendering> const & pRendering,
@@ -758,22 +783,6 @@ namespace engine {
   void LevelEditor::LevelEditorRenderingPlugin::onFrame(bfc::graphics::CommandList *   pCmdList,
                                                         bfc::platform::Window *        pWindow,
                                                         bfc::graphics::RenderTargetRef renderTarget) {
-    if (m_pEditor->m_pEditorViewportRenderTarget->getSize() != m_pEditor->m_viewportSize) {
-      bfc::graphics::loadTexture2D(pCmdList, &m_pEditor->m_pEditorViewportColour, m_pEditor->m_viewportSize, PixelFormat_RGBAf16);
-      bfc::graphics::loadTexture2D(pCmdList, &m_pEditor->m_pEditorViewportDepth, m_pEditor->m_viewportSize, DepthStencilFormat_D24S8);
-      m_pEditor->m_pEditorViewportRenderTarget->attachColour(m_pEditor->m_pEditorViewportColour);
-      m_pEditor->m_pEditorViewportRenderTarget->attachDepth(m_pEditor->m_pEditorViewportDepth);
-    }
-
-    auto pRenderTarget = m_pEditor->m_pEditorViewportRenderTarget;
-    m_pEditor->m_pActiveViewport->setSize(pCmdList, pRenderTarget->getSize());
-    m_pEditor->m_pActiveViewport->render(pCmdList, pRenderTarget);
-
-    pCmdList->bindRenderTarget(renderTarget);
-
-    if (m_pEditor->m_pDrawData != nullptr) {
-      m_pEditor->m_uiContext.renderDrawData(pCmdList, m_pEditor->m_pDrawData);
-      m_pEditor->m_pDrawData = nullptr;
-    }
+    m_pEditor->onRenderFrame(pCmdList, renderTarget);
   }
 } // namespace engine
