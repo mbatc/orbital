@@ -4,6 +4,7 @@
 #include "Subsystem.h"
 #include "ui/Context.h"
 #include "util/Settings.h"
+#include "rendering/Rendering.h"
 
 namespace bfc {
   // class EventListener;
@@ -94,7 +95,10 @@ namespace engine {
                                   VirtualFileSystem * pFileSystem,
                                   bfc::StringView const & emptyPreview = "[ None ]");
 
+    void activateViewport(bfc::Ref<Viewport>);
   private:
+    void onRenderFrame(bfc::graphics::CommandList * pCmdList, bfc::graphics::RenderTargetRef renderTarget);
+
     void drawUI(bfc::Ref<LevelManager> const & pLevels, bfc::Ref<AssetManager> const & pAssets, bfc::Ref<Rendering> const & pRendering,
                 bfc::Ref<VirtualFileSystem> const & pFileSystem);
 
@@ -102,6 +106,7 @@ namespace engine {
     void drawAssetsPanel(bfc::Ref<VirtualFileSystem> const & pFileSystem, bfc::Ref<LevelManager> const & pLevels);
     void drawLevelPanel(bfc::Ref<LevelManager> const & pLevels, bfc::Ref<AssetManager> const & pAssets, bfc::Ref<Rendering> const & pRendering,
                         bfc::Ref<Level> const & pLevel);
+    void drawEditorViewportPanel();
     void drawEntityProperties(bfc::Ref<Level> const & pLevel, EntityID entityID);
     void drawEditorSettings();
     void drawCameraProperties(EditorCamera * pCamera);
@@ -109,6 +114,17 @@ namespace engine {
     void drawTransformTree(bfc::Ref<Level> const & pLevel, EntityID entityID);
     void drawEntityComponentProperties(bfc::Ref<Level> const & pLevel, EntityID entityID);
     void drawAddComponentMenu(bfc::Ref<Level> const & pLevel, EntityID targetEntityID);
+
+    class LevelEditorRenderingPlugin : public IRenderingPlugin {
+    public:
+      LevelEditorRenderingPlugin(LevelEditor * pEditor)
+        : m_pEditor(pEditor) {}
+
+      virtual void onFrame(bfc::graphics::CommandList * pCmdList, bfc::platform::Window * pWindow,
+                           bfc::graphics::RenderTargetRef renderTarget) override;
+
+      LevelEditor * m_pEditor = nullptr;
+    };
 
     bfc::Ref<bfc::EventListener> m_pViewportListener;
     bfc::Ref<bfc::EventListener> m_pAppListener;
@@ -118,7 +134,16 @@ namespace engine {
       ImGuizmo::MODE      mode = ImGuizmo::MODE::WORLD;
       ImGuizmo::OPERATION op   = ImGuizmo::OPERATION::UNIVERSAL;
     } m_manipulator;
-    bfc::Ref<LevelEditorViewport> m_pEditorViewport;
+
+    bfc::Vec2                      m_viewportSize = { 1, 1 };
+
+    bool                           m_viewportWantsInput = false;
+    bfc::graphics::TextureRef      m_pEditorViewportColour;
+    bfc::graphics::TextureRef      m_pEditorViewportDepth;
+    bfc::graphics::RenderTargetRef m_pEditorViewportRenderTarget;
+    bfc::Ref<LevelEditorViewport>  m_pEditorViewport;
+
+    bfc::Ref<Viewport> m_pActiveViewport = nullptr;
 
     bfc::Map<bfc::type_index, bfc::Ref<IComponentEditor>> m_componentEditors;
 

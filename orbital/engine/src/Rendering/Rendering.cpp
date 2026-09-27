@@ -60,38 +60,28 @@ namespace engine {
     pCmdList->setDebugName("Rendering::loop MainViewport");
 
     BFC_UNUSED(pApp);
+
     pCmdList->bindRenderTarget(m_pDevice->getDefaultRenderTarget());
     pCmdList->swap();
     pCmdList->clear({0, 0, 0, 1});
+    for (auto & pPlugin : m_plugins)
+      pPlugin->onFrame(pCmdList.get(), m_pWindow.get(), m_pDevice->getDefaultRenderTarget());
+    pCmdList->bindRenderTarget(m_pDevice->getDefaultRenderTarget());
 
-    m_pMainViewport->setSize(pCmdList.get(), m_pWindow->getSize());
-    m_pMainViewport->render(pCmdList.get(), m_pDevice->getDefaultRenderTarget());
+    // m_pMainViewport->setSize(pCmdList.get(), m_pWindow->getSize());
+    // m_pMainViewport->render(pCmdList.get(), m_pDevice->getDefaultRenderTarget());
     uint64_t thisFrameFence = m_pDevice->submit(std::move(pCmdList));
 
     m_pDevice->wait(m_lastFrameFence);
     m_lastFrameFence = thisFrameFence;
-    {
-      events::OnRenderViewport e;
-      e.pViewport = m_pMainViewport.get();
-      e.pDevice   = m_pDevice.get();
-      e.isMainViewport = true;
-      pApp->broadcast(e);
-    }
   }
 
-  void Rendering::setMainViewport(bfc::Ref<Viewport> const & pViewport) {
-    events::OnMainViewportChanged changeEvent;
-    changeEvent.pOldViewport = m_pMainViewport;
-    changeEvent.pNewViewport = pViewport;
+  void Rendering::registerPlugin(bfc::Ref<IRenderingPlugin> pPlugin) {
+    m_plugins.pushBack(pPlugin);
+  }
 
-    if (m_pMainViewport != nullptr) {
-      m_pMainViewport->getEvents()->stopListening(m_pWindow->getEvents());
-    }
-
-    m_pMainViewport = pViewport;
-    m_pMainViewport->getEvents()->listenTo(m_pWindow->getEvents());
-
-    getEvents()->broadcast(changeEvent);
+  bool Rendering::unregisterExtension(bfc::Ref<IRenderingPlugin> pPlugin) {
+    return m_plugins.eraseValue(pPlugin);
   }
 
   void Rendering::registerExtension(bfc::Ref<IRenderingExtension> const & pExtension) {

@@ -3,6 +3,7 @@
 #include "../../../../vendor/imgui/imgui_internal.h"
 #include "Subsystem.h"
 #include "util/Settings.h"
+#include "render/GraphicsDevice.h"
 
 namespace bfc {
   class GraphicsDevice;
@@ -17,24 +18,19 @@ namespace engine {
   class Viewport;
   class Renderer;
   class Rendering;
-
-  namespace events {
-    struct OnRenderViewport {
-      bool                  isMainViewport = false;
-      bfc::GraphicsDevice * pDevice        = nullptr;
-      Viewport *            pViewport      = nullptr;
-    };
-
-    struct OnMainViewportChanged {
-      bfc::Ref<Viewport> pOldViewport;
-      bfc::Ref<Viewport> pNewViewport;
-    };
-  } // namespace events
-
   class Renderer;
+
   class IRenderingExtension {
   public:
     virtual void apply(Renderer * pRenderer) = 0;
+  };
+
+  class IRenderingPlugin {
+  public:
+    virtual void onFrame(bfc::graphics::CommandList * pCmdList, bfc::platform::Window * pWindow,
+                         bfc::graphics::RenderTargetRef renderTarget) {
+      BFC_UNUSED(pCmdList, pWindow, renderTarget);
+    }
   };
 
   class Rendering : public Subsystem {
@@ -51,8 +47,11 @@ namespace engine {
 
     virtual void loop(Application * pApp) override;
 
-    /// Set the viewport rendered to the main window.
-    void setMainViewport(bfc::Ref<Viewport> const & pViewport);
+    /// Register a plugin.
+    void registerPlugin(bfc::Ref<IRenderingPlugin> pPlugin);
+
+    /// Unregister a plugin.
+    bool unregisterExtension(bfc::Ref<IRenderingPlugin> pPlugin);
 
     /// Register a renderer extension
     void registerExtension(bfc::Ref<IRenderingExtension> const & pExtension);
@@ -74,6 +73,7 @@ namespace engine {
     bfc::Setting<bfc::String>       m_api;
 
     bfc::Vector<bfc::WeakRef<Renderer>>        m_renderers;
+    bfc::Vector<bfc::Ref<IRenderingPlugin>>    m_plugins;
     bfc::Vector<bfc::Ref<IRenderingExtension>> m_extensions;
 
     uint64_t m_lastFrameFence = 0;

@@ -73,8 +73,9 @@ namespace engine {
       m_pEditorViewport = NewRef<LevelEditorViewport>(pRenderer);
       pRendering->getDevice()->submit(std::move(pInitCmdList));
     }
-
     m_pEditorViewport->setLevel(pLevels->getActiveLevel());
+    m_pEditorViewportRenderTarget = pRendering->getDevice()->createRenderTarget(RenderTargetType_Texture);
+    pRendering->registerPlugin(bfc::NewRef<LevelEditorRenderingPlugin>(this));
 
     m_pViewportListener = m_pEditorViewport->getEvents()->addListener();
     m_pViewportListener->on([=](bfc::events::DroppedFiles const & e) {
@@ -97,32 +98,6 @@ namespace engine {
 
     m_pAppListener = pApp->addListener();
 
-    m_pAppListener->on([=](events::OnMainViewportChanged const & e) {
-      BFC_LOG_INFO("LevelEditor", "Mapping input devices from new viewport to the input subsystem");
-
-      if (e.pOldViewport != nullptr) {
-        for (auto [name, pDevice] : e.pOldViewport->getInputDevices()) {
-          pLevels->getApp()->findSubsystem<Input>()->setInputDevice(name, nullptr);
-        }
-      }
-
-      if (e.pNewViewport != nullptr) {
-        for (auto [name, pDevice] : e.pNewViewport->getInputDevices()) {
-          pLevels->getApp()->findSubsystem<Input>()->setInputDevice(name, pDevice);
-        }
-      }
-    });
-
-    m_pAppListener->on([=](events::OnRenderViewport const & e) {
-      if (m_pDrawData != nullptr && e.isMainViewport) {
-        auto pCmdList = e.pDevice->createCommandList();
-        pCmdList->setDebugName("LevelEditor::OnRenderViewport");
-        m_uiContext.renderDrawData(pCmdList.get(), m_pDrawData);
-        m_pDrawData = nullptr;
-        e.pDevice->submit(std::move(pCmdList));
-      }
-    });
-
     m_pAppListener->on([=](events::OnLevelActivated const & e) {
       BFC_LOG_INFO("LevelEditor", "Level activated. Setting editor viewport level.");
       // TODO: May not want to always sync the editor level with the active level.
@@ -136,7 +111,7 @@ namespace engine {
     pInitCmdList->setDebugName("LevelEditor init");
 
     // Render the editor viewport to the main window.
-    pRendering->setMainViewport(m_pEditorViewport);
+    activateViewport(m_pEditorViewport);
 
     // Init ui context rendering.
     m_uiContext.init(pInitCmdList.get());
@@ -175,10 +150,11 @@ namespace engine {
     drawUI(pLevels, pAssets, pRendering, pFileSystem);
 
     ImGui::Render();
+
     m_pDrawData = ImGui::GetDrawData();
 
     if (!m_pEditorViewport->camera.wantMouseCapture()) {
-      if (ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard) {
+      if (!m_viewportWantsInput || ImGui::GetIO().WantCaptureKeyboard) {
         m_pEditorViewport->getEvents()->stopListening(pRendering->getMainWindow()->getEvents());
       } else {
         m_pEditorViewport->getEvents()->listenTo(pRendering->getMainWindow()->getEvents());
@@ -316,6 +292,10 @@ namespace engine {
 
       auto handles = pManager->findHandles([assetType](URI const & uri, type_index const & type, StringView const & loaderID) { return type == assetType; });
 
+      if (ImGui::Selectable("[ None ]"), *pHandle == InvalidAssetHandle) {
+        *pHandle = InvalidAssetHandle;
+      }
+
       for (AssetHandle option : handles) {
         ImGui::PushID((int)(option & 0x00000000FFFFFFFF));
         ImGui::PushID((int)((option >> 32) & 0x00000000FFFFFFFF));
@@ -340,15 +320,62 @@ namespace engine {
     return changed;
   }
 
+  void LevelEditor::activateViewport(bfc::Ref<Viewport> pNewViewport) {
+    BFC_LOG_INFO("LevelEditor", "Mapping input devices from new viewport to the input subsystem");
+
+    auto pInputs = getApp()->findSubsystem<Input>();
+
+    if (m_pActiveViewport != nullptr) {
+      for (auto [name, pDevice] : m_pActiveViewport->getInputDevices()) {
+        pInputs->setInputDevice(name, nullptr);
+      }
+    }
+
+    if (pNewViewport != nullptr) {
+      for (auto [name, pDevice] : pNewViewport->getInputDevices()) {
+        pInputs->setInputDevice(name, pDevice);
+      }
+    }
+
+    m_pActiveViewport = pNewViewport;
+  }
+
+  void LevelEditor::onRenderFrame(bfc::graphics::CommandList * pCmdList, bfc::graphics::RenderTargetRef renderTarget) {
+    if (m_pEditorViewportRenderTarget->getSize() != m_viewportSize) {
+      bfc::graphics::loadTexture2D(pCmdList, &m_pEditorViewportColour, m_viewportSize,
+                                   PixelFormat_RGBAf16);
+      bfc::graphics::loadTexture2D(pCmdList, &m_pEditorViewportDepth, m_viewportSize,
+                                   DepthStencilFormat_D24S8);
+      m_pEditorViewportRenderTarget->attachColour(m_pEditorViewportColour);
+      m_pEditorViewportRenderTarget->attachDepth(m_pEditorViewportDepth);
+    }
+
+    m_pActiveViewport->setSize(pCmdList, m_pEditorViewportRenderTarget->getSize());
+    m_pActiveViewport->render(pCmdList, m_pEditorViewportRenderTarget);
+
+    pCmdList->bindRenderTarget(renderTarget);
+
+    if (m_pDrawData != nullptr) {
+      m_uiContext.renderDrawData(pCmdList, m_pDrawData);
+      m_pDrawData = nullptr;
+    }
+  }
+
   void LevelEditor::drawUI(bfc::Ref<LevelManager> const & pLevels, bfc::Ref<AssetManager> const & pAssets, bfc::Ref<Rendering> const & pRendering,
                            bfc::Ref<VirtualFileSystem> const & pFileSystem) {
     Ref<Level> pLevel = pLevels->getActiveLevel();
+
+    ImGuiID dockspaceId = ImGui::GetID("main-dockspace");
+    ImGui::DockSpaceOverViewport(dockspaceId);
 
     drawLevelPanel(pLevels, pAssets, pRendering, pLevel);
     drawEntityProperties(pLevel, m_selected);
     drawEditorSettings();
     drawAssetsPanel(pFileSystem, pLevels);
     drawViewportGizmo(pLevel, m_selected);
+    drawEditorViewportPanel();
+
+    ImGui::ShowDemoWindow();
   }
 
   void LevelEditor::drawViewportGizmo(bfc::Ref<Level> const & pLevel, EntityID entityID) {
@@ -363,6 +390,18 @@ namespace engine {
     bfc::Mat4 transform = pTransform->globalTransform(pLevel.get());
     if (m_pEditorViewport->manipulate(&transform, m_manipulator.op, m_manipulator.mode))
       pTransform->setGlobalTransform(pLevel.get(), transform);
+  }
+
+  void LevelEditor::drawEditorViewportPanel() {
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    ImGui::Begin("Scene");
+    m_viewportSize = ImGui::GetContentRegionAvail();
+    if (m_viewportSize.x <= 0) m_viewportSize.x = 1;
+    if (m_viewportSize.y <= 0) m_viewportSize.y = 1;
+    ImGui::Image(m_pEditorViewportRenderTarget->getColour(0).texture, m_viewportSize, ImVec2(0, 1), ImVec2(1, 0));
+    m_viewportWantsInput = ImGui::IsWindowHovered();
+    ImGui::End();
+    ImGui::PopStyleVar();
   }
 
   void LevelEditor::drawAssetsPanel(Ref<VirtualFileSystem> const & pFileSystem, Ref<LevelManager> const & pLevels) {
@@ -436,7 +475,7 @@ namespace engine {
 
       if (activateEditorViewport) {
         m_pEditorViewport->setLevel(pLevels->getActiveLevel());
-        pRendering->setMainViewport(m_pEditorViewport);
+        activateViewport(m_pEditorViewport);
       } else if (activateGameViewport) {
         auto pInitCmdList = pRendering->getDevice()->createCommandList();
         pInitCmdList->setDebugName("LevelEditor init game viewport");
@@ -447,7 +486,7 @@ namespace engine {
         pRendering->getDevice()->submit(std::move(pInitCmdList));
 
         pGameViewport->setLevel(pLevels->getActiveLevel());
-        pRendering->setMainViewport(pGameViewport);
+        activateViewport(pGameViewport);
       }
     }
 
@@ -740,5 +779,10 @@ namespace engine {
         pInterface->addComponent(pLevel.get(), targetEntityID);
       }
     }
+  }
+  void LevelEditor::LevelEditorRenderingPlugin::onFrame(bfc::graphics::CommandList *   pCmdList,
+                                                        bfc::platform::Window *        pWindow,
+                                                        bfc::graphics::RenderTargetRef renderTarget) {
+    m_pEditor->onRenderFrame(pCmdList, renderTarget);
   }
 } // namespace engine
