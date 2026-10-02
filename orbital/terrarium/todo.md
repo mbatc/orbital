@@ -29,7 +29,6 @@
   * choose bowl
   * water level
   * base soil/sand/pebbles.
-  * 
 
 # Gameplay
 * New items received as "deliveries" that can be unboxed.

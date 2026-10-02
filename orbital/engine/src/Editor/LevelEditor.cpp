@@ -372,27 +372,26 @@ namespace engine {
     drawEntityProperties(pLevel, m_selected);
     drawEditorSettings();
     drawAssetsPanel(pFileSystem, pLevels);
-    drawViewportGizmo(pLevel, m_selected);
-    drawEditorViewportPanel();
+    drawEditorViewportPanel(pLevel);
 
     ImGui::ShowDemoWindow();
   }
 
-  void LevelEditor::drawViewportGizmo(bfc::Ref<Level> const & pLevel, EntityID entityID) {
+  void LevelEditor::drawViewportGizmo(bfc::Ref<Level> const & pLevel, EntityID entityID, ImVec2 vpMin, ImVec2 vpMax) {
     auto *pTransform = pLevel->tryGet<components::Transform>(entityID);
     if (pTransform == nullptr)
       return;
 
 
-    ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList());
-    ImGuizmo::SetRect(0, 0, ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y);
+    ImGuizmo::SetDrawlist(ImGui::GetForegroundDrawList());
+    ImGuizmo::SetRect(vpMin.x, vpMin.y, vpMax.x - vpMin.x, vpMax.y - vpMin.y);
     
     bfc::Mat4 transform = pTransform->globalTransform(pLevel.get());
     if (m_pEditorViewport->manipulate(&transform, m_manipulator.op, m_manipulator.mode))
       pTransform->setGlobalTransform(pLevel.get(), transform);
   }
 
-  void LevelEditor::drawEditorViewportPanel() {
+  void LevelEditor::drawEditorViewportPanel(bfc::Ref<Level> const & pLevel) {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::Begin("Scene");
     m_viewportSize = ImGui::GetContentRegionAvail();
@@ -400,8 +399,14 @@ namespace engine {
     if (m_viewportSize.y <= 0) m_viewportSize.y = 1;
     ImGui::Image(m_pEditorViewportRenderTarget->getColour(0).texture, m_viewportSize, ImVec2(0, 1), ImVec2(1, 0));
     m_viewportWantsInput = ImGui::IsWindowHovered();
+
+    ImVec2 vpMin = ImGui::GetItemRectMin();
+    ImVec2 vpMax = ImGui::GetItemRectMax();
+
     ImGui::End();
     ImGui::PopStyleVar();
+
+    drawViewportGizmo(pLevel, m_selected, vpMin, vpMax);
   }
 
   void LevelEditor::drawAssetsPanel(Ref<VirtualFileSystem> const & pFileSystem, Ref<LevelManager> const & pLevels) {

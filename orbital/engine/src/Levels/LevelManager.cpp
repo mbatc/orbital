@@ -10,6 +10,8 @@
 #include "Rendering/Rendering.h"
 #include "Assets/AssetManager.h"
 
+#include "Physics/Physics.h"
+
 #include "mesh/Mesh.h"
 #include "platform/Window.h"
 #include "platform/OS.h"
@@ -176,7 +178,16 @@ namespace engine {
     registerComponentType<components::PostProcess_Bloom>("post-process-bloom");
     registerComponentType<components::PostProcess_SSAO>("post-process-ssao");
     registerComponentType<components::PostProcess_SSR>("post-process-ssr");
+
+    // Physics
+    registerComponentType<components::ColliderCube>("physics.collider.cube");
+    registerComponentType<components::ColliderSphere>("physics.collider.sphere");
+    registerComponentType<components::ColliderCapsule>("physics.collider.capsule");
+    registerComponentType<components::ColliderMesh>("physics.collider.mesh");
+    registerComponentType<components::RigidBody>("physics.rigidbody");
   }
 
-  void LevelManager::registerCoreSystems() {}
+  void LevelManager::registerCoreSystems() {
+    registerLevelSystem<engine::Physics>();
+  }
 } // namespace engine
