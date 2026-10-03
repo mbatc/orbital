@@ -1,24 +1,7 @@
 workspace "Orbital"
   startproject "Orbital"
 
-  configurations {
-    "Debug",
-    "Release"
-  }
+  dofile "premake5-engine.lua"
 
-  dofile "prj-common.lua"
-
-  group "Engine"
-    dofile "orbital/lib/project.lua"
-    dofile "orbital/test/project.lua"
-    dofile "orbital/engine/project.lua"
-
-  group "Terrarium"
-    dofile "orbital/terrarium/project.lua"
-  
   group "Orbital"
     dofile "orbital/game/project.lua"
-
-  group "Vendor"
-    dofile "orbital/vendor/yaml-cpp.lua"
-    dofile "orbital/vendor/bullet3.lua"

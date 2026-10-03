@@ -9,11 +9,13 @@ function getScriptDir()
    return str:match("(.*/)")
 end
 
-location (_ACTION)
-
 if ORBITAL_ROOT == nil then
   ORBITAL_ROOT=_OPTIONS["bfc-root"] or getScriptDir()
 end
+
+print(_MAIN_SCRIPT_DIR .. "/" .. _ACTION)
+
+location (_MAIN_SCRIPT_DIR .. "/" .. _ACTION)
 
 targetdir  "%{wks.location}/../build/bin/%{cfg.buildcfg}/%{cfg.system}/%{cfg.architecture}"
 objdir     "%{wks.location}/../build/intermediate/%{cfg.buildcfg}/%{cfg.system}/%{cfg.architecture}/%{prj.name}"
@@ -27,8 +29,8 @@ libdirs {
 
 -- include this file in the project
 files {
-  "%{wks.location}/../prj-common.lua",
-  "%{wks.location}/../.clang-format"
+  ORBITAL_ROOT .. "/prj-common.lua",
+  ORBITAL_ROOT .. "/.clang-format"
 }
 
 -- Build options
