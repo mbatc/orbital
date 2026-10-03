@@ -2,13 +2,18 @@
 
 #include "Levels/Level.h"
 #include "Levels/LevelSystem.h"
+#include "Assets/AssetManager.h"
 
 #include "geometry/Box.h"
 #include "geometry/Sphere.h"
 
+namespace bfc {
+  class Mesh;
+}
+
 namespace components {
   struct ColliderCube {
-    bfc::Vec3d size;
+    bfc::Vec3d size = bfc::Vec3d(0.5);
   };
 
   struct ColliderSphere {
@@ -30,13 +35,15 @@ namespace components {
 
 namespace engine {
   class Physics
-    : public engine::ILevelCreated
-    , public engine::ILevelUpdate
-    , public engine::ILevelActivate
-    , public engine::ILevelPause
-    , public engine::ILevelStop
-    , public engine::ILevelRenderDataCollector {
+    : public ILevelCreated
+    , public ILevelUpdate
+    , public ILevelActivate
+    , public ILevelPause
+    , public ILevelStop
+    , public ILevelRenderDataCollector {
   public:
+    Physics(AssetManager *pAssets);
+
     virtual void created(Level * pLevel) override;
     virtual void update(Level * pLevel, bfc::Timestamp dt) override;
     virtual void activate(Level * pLevel) override;
@@ -45,8 +52,8 @@ namespace engine {
     virtual void collectRenderData(RenderView * pRenderView, Level const * pLevel) override;
 
   private:
-    struct LevelData;
-    struct Body;
+    Asset<bfc::Mesh> m_pCube;
+    Asset<bfc::Mesh> m_pSphere;
   };
 } // namespace engine
 

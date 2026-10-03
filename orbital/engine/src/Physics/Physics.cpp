@@ -1,6 +1,10 @@
 #include "Physics.h"
 #include "../../../../vendor/bullet3/src/btBulletDynamicsCommon.h"
 #include "Levels/CoreComponents.h"
+#include "Assets/BuiltinAssets.h"
+#include "Rendering/Renderer.h"
+#include "Rendering/RenderData.h"
+#include "Rendering/Renderables.h"
 
 namespace engine {
   static btVector3 ToBt(bfc::Vector3<btScalar> const & v) {
@@ -33,7 +37,9 @@ namespace engine {
 
     // TODO: Implement trait to enable static addresses for level components so we can use btCollisionObject as the component
     struct PhysicsCollider {
-      bfc::Ref<btCollisionObject> obj;
+      bfc::Ref<btCollisionShape>        shape; ///< Shape used by the collider
+      bfc::Ref<btCollisionObject>       obj;
+      bfc::Ref<btDiscreteDynamicsWorld> world;
     };
 
     struct PhysicsMotionSync : btMotionState {
@@ -75,6 +81,18 @@ namespace engine {
       pComponent->world->removeRigidBody(pComponent->body.get());
     }
   };
+  
+  template<>
+  struct LevelComponent_OnPreErase<internal::PhysicsCollider> {
+    inline static void onPreErase(internal::PhysicsCollider * pComponent, Level * pLevel) {
+      pComponent->world->removeCollisionObject(pComponent->obj.get());
+    }
+  };
+
+  Physics::Physics(engine::AssetManager * pAssets)
+    : m_pCube(pAssets, builtin_assets::mesh::cube)
+    , m_pSphere(pAssets, builtin_assets::mesh::sphere)
+  {}
 
   void Physics::created(Level * pLevel) {
     auto pCollisionConfiguration = pLevel->addData<btDefaultCollisionConfiguration>();
@@ -116,23 +134,41 @@ namespace engine {
       pLevel->replace<internal::PhysicsShape>(entityId, shape);
     }
 
-    for (auto & [shape, body, transform] :
-         pLevel->getView<internal::PhysicsShape, components::RigidBody, components::Transform>()) {
+    for (auto & [shape, transform] :
+         pLevel->getView<internal::PhysicsShape, components::Transform>()) {
+      shape.shape->setLocalScaling(ToBt(transform.globalScale(pLevel)));
+
       auto entityId = pLevel->toEntity(&transform);
+      if (auto* pBody = pLevel->tryGet<components::RigidBody>(entityId)) {
+        internal::PhysicsRigidBody rigidbody;
 
-      internal::PhysicsRigidBody rigidbody;
-      rigidbody.shape        = shape.shape;
-      rigidbody.sync         = bfc::NewRef<internal::PhysicsMotionSync>();
-      rigidbody.sync->pLevel = pLevel;
-      rigidbody.sync->entity = entityId;
-      rigidbody.world        = pWorld;
+        rigidbody.shape        = shape.shape;
+        rigidbody.sync         = bfc::NewRef<internal::PhysicsMotionSync>();
+        rigidbody.sync->pLevel = pLevel;
+        rigidbody.sync->entity = entityId;
+        rigidbody.world        = pWorld;
+        btRigidBody::btRigidBodyConstructionInfo params((btScalar)pBody->mass, rigidbody.sync.get(), shape.shape.get());
+        shape.shape->calculateLocalInertia((btScalar)pBody->mass, params.m_localInertia);
 
-      btRigidBody::btRigidBodyConstructionInfo params((btScalar)body.mass, rigidbody.sync.get(), shape.shape.get());
-      rigidbody.body = bfc::NewRef<btRigidBody>(params);
-      rigidbody.body->setWorldTransform(ToBt(pLevel, transform));
+        rigidbody.body = bfc::NewRef<btRigidBody>(params);
+        rigidbody.body->setWorldTransform(ToBt(pLevel, transform));
+        
+        pWorld->addRigidBody(rigidbody.body.get());
+        pLevel->replace<internal::PhysicsRigidBody>(entityId, rigidbody);
+      }
+      else {
+        internal::PhysicsCollider collider;
+        collider.obj = bfc::NewRef<btCollisionObject>();
+        collider.obj->setCollisionShape(shape.shape.get());
+        collider.obj->setWorldTransform(ToBt(pLevel, transform));
 
-      pWorld->addRigidBody(rigidbody.body.get());
-      pLevel->replace<internal::PhysicsRigidBody>(entityId, rigidbody);
+        collider.shape = shape.shape;
+        collider.world = pWorld;
+
+        pWorld->addCollisionObject(collider.obj.get());
+
+        pLevel->replace<internal::PhysicsCollider>(entityId, collider);
+      }
     }
   }
 
@@ -141,6 +177,33 @@ namespace engine {
   void Physics::stop(Level * pLevel) {}
 
   void Physics::collectRenderData(RenderView * pRenderView, Level const * pLevel) {
-    // Debug render info
+    auto pRenderData = pRenderView->pRenderData;
+    auto pSphere     = m_pSphere.instance();
+    auto pCube       = m_pCube.instance();
+
+    RenderableStorage<StaticMeshRenderable> & meshes = pRenderData->renderables<StaticMeshRenderable>();
+
+    for (auto & [transform, sphere] : pLevel->getView<components::Transform, components::ColliderSphere>()) {
+      StaticMeshRenderable mesh(transform.globalTransform(pLevel) * bfc::math::scale(sphere.radius * 2), *pSphere, 0);
+      mesh.primitiveType = bfc::PrimitiveType_Line;
+      meshes.pushBack(mesh);
+    }
+
+    for (auto & [transform, cube] : pLevel->getView<components::Transform, components::ColliderCube>()) {
+      StaticMeshRenderable mesh(transform.globalTransform(pLevel) * bfc::math::scale(cube.size), *pCube, 0);
+      mesh.primitiveType              = bfc::PrimitiveType_Line;
+      meshes.pushBack(mesh);
+    }
+
+    for (auto & [transform, capsule] : pLevel->getView<components::Transform, components::ColliderCapsule>()) {
+      const bfc::Vec3d     offset = bfc::math::up<double> * (capsule.height / 2 - capsule.radius);
+      StaticMeshRenderable top(transform.globalTransform(pLevel) * bfc::math::translation(offset) * bfc::math::scale(capsule.radius * 2), *pSphere, 0);
+      top.primitiveType = bfc::PrimitiveType_Line;
+      meshes.pushBack(top);
+      
+      StaticMeshRenderable bottom(transform.globalTransform(pLevel) * bfc::math::translation(-offset) * bfc::math::scale(capsule.radius * 2), *pSphere, 0);
+      bottom.primitiveType = bfc::PrimitiveType_Line;
+      meshes.pushBack(bottom);
+    }
   }
 } // namespace engine

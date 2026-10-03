@@ -26,12 +26,12 @@ namespace engine {
     : Subsystem(TypeID<LevelManager>(), "LevelManager") {}
 
   bool LevelManager::init(Application * pApp) {
+    m_pAssets    = pApp->findSubsystem<AssetManager>();
+    m_pRendering = pApp->findSubsystem<Rendering>();
+
     registerCoreComponentTypes();
     registerCoreSystems();
 
-    m_pAssets = pApp->findSubsystem<AssetManager>();
-
-    m_pRendering   = pApp->findSubsystem<Rendering>();
     m_pActiveLevel = createLevel();
 
     return true;
@@ -194,6 +194,6 @@ namespace engine {
   }
 
   void LevelManager::registerCoreSystems() {
-    registerLevelSystem<engine::Physics>();
+    registerLevelSystem<engine::Physics>(m_pAssets.get());
   }
 } // namespace engine

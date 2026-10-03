@@ -1,7 +1,6 @@
 entities:
   - uuid: b4f68613-e0d0-486f-8f90-8eb8e3f8baf2
     components:
-      name: Environment
       skybox:
         texture:
           uri: file:game:/skyboxes/afternoon-stylized.skybox
@@ -11,9 +10,9 @@ entities:
           - 2.3302950859069824
           - 0.22759722173213962
         ypr:
-          - -58.811737366937784
+          - -58.811737366937813
           - 60.622234634441526
-          - -10.303314182350498
+          - -10.303314182350491
         scale:
           - 0.99999922928681495
           - 0.99999925307337623
@@ -37,8 +36,21 @@ entities:
         innerConeAngle: 30.000001907348633
         outerConeAngle: 35
         castShadows: 1
+      name: Environment
   - uuid: a195da93-0e94-4abe-9af4-0d9c6803fd0c
     components:
+      post-process-tonemap:
+        exposure: 1
+      post-process-ssao:
+        bias: 0.02500000037252903
+        radius: 0.10000000149011612
+        strength: 1
+      post-process-bloom:
+        filterRadius: 0.004999999888241291
+        strength: 0.039999999105930328
+        threshold: 0.25
+        dirtIntensity: 1
+        dirt: ~
       post-process-volume:
         enabled: 1
         extents:
@@ -52,21 +64,8 @@ entities:
             - 0
         infinite: 1
         effects: 0
-      post-process-tonemap:
-        exposure: 1
-      post-process-ssao:
-        bias: 0.02500000037252903
-        radius: 0.10000000149011612
-        strength: 1
-      post-process-bloom:
-        filterRadius: 0.004999999888241291
-        strength: 0.039999999105930328
-        threshold: 0.25
-        dirtIntensity: 1
-        dirt: ~
   - uuid: 32dc0a7a-b68e-40df-8e0d-70815fdfa5fb
     components:
-      name: storefront
       transform:
         translation:
           - 0
@@ -81,6 +80,7 @@ entities:
           - 1
           - 1
         parent: ~
+      name: storefront
       static-mesh:
         castShadows: 1
         useTesselation: 0
@@ -91,8 +91,7 @@ entities:
             shader: ~
           - material: ~
             shader: ~
-        mesh:
-          uri: file:game:/models/storefront.obj
+        mesh: ~
   - uuid: 02acba1a-24d5-4964-8eaf-baa3c38212f7
     components:
       transform:
@@ -143,6 +142,13 @@ entities:
           - 0.4375322163105011
           - 1
         parent: 32dc0a7a-b68e-40df-8e0d-70815fdfa5fb
+      physics.collider.cube:
+        size:
+          - 1
+          - 1
+          - 1
+      physics.rigidbody:
+        mass: 1
       static-mesh:
         castShadows: 1
         useTesselation: 0
@@ -151,7 +157,6 @@ entities:
           uri: file:engine:/models/primitives/cube.obj
   - uuid: c4f0ff92-c36a-45ce-a638-b6f84457137b
     components:
-      name: crate
       transform:
         translation:
           - -3.1528754234313965
@@ -166,6 +171,7 @@ entities:
           - 1
           - 1
         parent: ~
+      name: crate
       static-mesh:
         castShadows: 1
         useTesselation: 0
@@ -173,5 +179,117 @@ entities:
           - material:
               uri: file:game:/models/military_crate_M37/source/crate.obj#material.0
             shader: ~
+        mesh: ~
+  - uuid: bb11a6bc-e5b9-4d75-917d-1715175f3bdc
+    components:
+      transform:
+        translation:
+          - 0.90744614601135254
+          - 0.97190308570861828
+          - 2.1586885452270508
+        ypr:
+          - 7.0167092646361376e-15
+          - -7.0167096047110005e-15
+          - -7.0167092646361376e-15
+        scale:
+          - 0.99999994039535522
+          - 1
+          - 0.99999994039535522
+        parent: ~
+      camera:
+        farPlane: 1000
+        nearPlane: 0.0099999997764825821
+        viewportSize:
+          - 1
+          - 1
+        viewportPosition:
+          - 0
+          - 0
+        fov: 60.000003814697266
+      name: Camera
+  - uuid: 91b16e10-1ddd-4f21-b5e5-6c39222f0dce
+    components:
+      transform:
+        translation:
+          - 1.1384718418121338
+          - -0.093200236558914198
+          - 0.10966202616691589
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 4.5299997329711914
+          - 4.5299997329711914
+          - 4.5299997329711914
+        parent: ~
+      physics.collider.cube:
+        size:
+          - 1
+          - 0
+          - 1
+      name: Floor
+      static-mesh:
+        castShadows: 1
+        useTesselation: 0
+        materials: ~
         mesh:
-          uri: file:game:/models/military_crate_M37/source/crate.obj
+          uri: file:engine:/models/primitives/plane.obj
+  - uuid: 7dfc19f3-f778-49fe-95df-8e9956e3dcfd
+    components:
+      transform:
+        translation:
+          - 1.6224561929702759
+          - 1.7806911468505859
+          - -0.73019582033157349
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 1
+          - 0.4375322163105011
+          - 1
+        parent: ~
+      physics.collider.cube:
+        size:
+          - 1
+          - 1
+          - 1
+      physics.rigidbody:
+        mass: 1
+      static-mesh:
+        castShadows: 1
+        useTesselation: 0
+        materials: ~
+        mesh:
+          uri: file:engine:/models/primitives/cube.obj
+  - uuid: e5d94f00-f840-441f-82ad-03ce668dc156
+    components:
+      transform:
+        translation:
+          - 1.3824299573898315
+          - 2.6620748043060303
+          - -0.18083639442920685
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 1
+          - 0.4375322163105011
+          - 1
+        parent: ~
+      physics.collider.cube:
+        size:
+          - 1
+          - 1
+          - 1
+      physics.rigidbody:
+        mass: 1
+      static-mesh:
+        castShadows: 1
+        useTesselation: 0
+        materials: ~
+        mesh:
+          uri: file:engine:/models/primitives/cube.obj
