@@ -51,6 +51,8 @@ namespace engine {
     virtual void stop(Level * pLevel) override;
     virtual void collectRenderData(RenderView * pRenderView, Level const * pLevel) override;
 
+    // static void rayTrace(Level * pLevel);
+
   private:
     Asset<bfc::Mesh> m_pCube;
     Asset<bfc::Mesh> m_pSphere;

@@ -30,6 +30,48 @@ namespace engine {
   }
 
   namespace internal {
+    class BulletMeshInterface : public btStridingMeshInterface {
+    public:
+      BulletMeshInterface()
+        : {
+
+      }
+
+      virtual void getLockedVertexIndexBase(unsigned char** vertexbase, int& numverts, PHY_ScalarType& type, int& stride,
+        unsigned char** indexbase, int& indexstride, int& numfaces,
+        PHY_ScalarType& indicestype, int subpart = 0) {
+        *vertexbase = (unsigned char*)mesh->positions.begin();
+        *indexbase  = mesh->triangles;
+      }
+
+      virtual void getLockedReadOnlyVertexIndexBase(const unsigned char** vertexbase, int& numverts, PHY_ScalarType& type,
+        int& stride, const unsigned char** indexbase, int& indexstride,
+        int& numfaces, PHY_ScalarType& indicestype, int subpart = 0) const {
+
+      }
+
+      virtual void unLockVertexBase(int subpart) {
+
+      }
+
+      virtual void unLockReadOnlyVertexBase(int subpart) const {
+
+      }
+
+      virtual int getNumSubParts() const {
+      }
+
+      virtual void preallocateVertices(int numverts) {
+
+      }
+
+      virtual void preallocateIndices(int numindices) {
+
+      }
+
+      bfc::Ref<bfc::MeshData> mesh;
+    };
+
     // TODO: Implement trait to enable static addresses for level components so we can use btCollisionShape as the component
     struct PhysicsShape {
       bfc::Ref<btCollisionShape> shape;
@@ -133,6 +175,15 @@ namespace engine {
       shape.shape = bfc::NewRef<btCapsuleShape>((btScalar)capsule.radius, (btScalar)capsule.height);
       pLevel->replace<internal::PhysicsShape>(entityId, shape);
     }
+    
+    for (auto & [mesh] : pLevel->getView<components::ColliderMesh>()) {
+      btBvhTriangleMeshShape shape;
+      
+      auto                   entityId = pLevel->toEntity(&capsule);
+      internal::PhysicsShape shape;
+      shape.shape = bfc::NewRef<btCapsuleShape>((btScalar)capsule.radius, (btScalar)capsule.height);
+      pLevel->replace<internal::PhysicsShape>(entityId, shape);
+    }
 
     for (auto & [shape, transform] :
          pLevel->getView<internal::PhysicsShape, components::Transform>()) {
@@ -191,7 +242,7 @@ namespace engine {
 
     for (auto & [transform, cube] : pLevel->getView<components::Transform, components::ColliderCube>()) {
       StaticMeshRenderable mesh(transform.globalTransform(pLevel) * bfc::math::scale(cube.size), *pCube, 0);
-      mesh.primitiveType              = bfc::PrimitiveType_Line;
+      mesh.primitiveType = bfc::PrimitiveType_Line;
       meshes.pushBack(mesh);
     }
 

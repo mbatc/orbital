@@ -10,9 +10,9 @@ entities:
           - 2.3302950859069824
           - 0.22759722173213962
         ypr:
-          - -58.811737366937813
-          - 60.622234634441526
-          - -10.303314182350491
+          - -58.811737366937834
+          - 60.622234634441512
+          - -10.303314182350475
         scale:
           - 0.99999922928681495
           - 0.99999925307337623
@@ -21,9 +21,9 @@ entities:
       light:
         type: sun
         colour:
-          - 0.98529410362243652
-          - 0.98216891288757324
-          - 0.87903684377670288
+          - 1
+          - 0.97039705514907837
+          - 0.76106196641921997
         ambient:
           - 0.64215683937072754
           - 0.60586422681808472
@@ -125,7 +125,7 @@ entities:
         strength: 2
         innerConeAngle: 30.000001907348633
         outerConeAngle: 35
-        castShadows: 1
+        castShadows: 0
   - uuid: cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd
     components:
       transform:
@@ -293,3 +293,32 @@ entities:
         materials: ~
         mesh:
           uri: file:engine:/models/primitives/cube.obj
+  - uuid: bb1d0872-61e3-4d8b-9776-92d2f138f974
+    components:
+      transform:
+        translation:
+          - 0.5362822413444519
+          - 2.6682846546173096
+          - 0.0077145141549408436
+        ypr:
+          - -0
+          - 0
+          - 0
+        scale:
+          - 1
+          - 1
+          - 1
+        parent: ~
+      physics.rigidbody:
+        mass: 1
+      physics.collider.sphere:
+        radius: 0.5
+      name: sphere
+      static-mesh:
+        castShadows: 1
+        useTesselation: 0
+        materials:
+          - material: ~
+            shader: ~
+        mesh:
+          uri: file:engine:/models/primitives/sphere.obj
