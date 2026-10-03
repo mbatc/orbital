@@ -1,9 +1,12 @@
 #include "LevelSystem.h"
+#include "Level.h"
 #include "core/Vector.h"
 
 namespace engine {
   struct {
     // Scene behaviour extensions
+    bfc::Vector<bfc::Ref<ILevelCreated>>    creators;
+    bfc::Vector<bfc::Ref<ILevelDestroyed>>  destroyers;
     bfc::Vector<bfc::Ref<ILevelActivate>>   activators;
     bfc::Vector<bfc::Ref<ILevelDeactivate>> deactivators;
     bfc::Vector<bfc::Ref<ILevelPlay>>       players;
@@ -14,6 +17,16 @@ namespace engine {
     // Rendering extensions
     bfc::Vector<bfc::Ref<ILevelRenderDataCollector>> renderDataCollectors;
   } static s_systems;
+
+  void registerLevelCreated(bfc::Ref<ILevelCreated> const & pCreator) {
+    if (!s_systems.creators.contains(pCreator))
+      s_systems.creators.pushBack(pCreator);
+  }
+
+  void registerLevelDestroyed(bfc::Ref<ILevelDestroyed> const & pDestroyer) {
+    if (!s_systems.destroyers.contains(pDestroyer))
+      s_systems.destroyers.pushBack(pDestroyer);
+  }
 
   void registerLevelActivate(bfc::Ref<ILevelActivate> const & pActivator) {
     if (!s_systems.activators.contains(pActivator))
@@ -48,6 +61,20 @@ namespace engine {
   void registerLevelRenderDataCollector(bfc::Ref<ILevelRenderDataCollector> const & pCollector) {
     if (!s_systems.renderDataCollectors.contains(pCollector))
       s_systems.renderDataCollectors.pushBack(pCollector);
+  }
+
+  bfc::Ref<Level> createLevel() {
+    auto pLevel = bfc::Ref<Level>(new Level, [](Level * pLevel) {
+      for (auto const & pSystem : s_systems.destroyers)
+        pSystem->destroyed(pLevel);
+
+      delete pLevel;
+    });
+
+    for (auto const & pSystem : s_systems.creators)
+      pSystem->created(pLevel.get());
+
+    return pLevel;
   }
 
   void playLevel(Level * pLevel) {

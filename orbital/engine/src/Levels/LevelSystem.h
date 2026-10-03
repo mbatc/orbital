@@ -6,6 +6,16 @@
 namespace engine {
   class Level;
 
+  class ILevelCreated {
+  public:
+    virtual void created(Level * pLevel) = 0;
+  };
+
+  class ILevelDestroyed {
+  public:
+    virtual void destroyed(Level * pLevel) = 0;
+  };
+
   class ILevelActivate {
   public:
     virtual void activate(Level * pLevel) = 0;
@@ -43,6 +53,8 @@ namespace engine {
     virtual void collectRenderData(RenderView * pRenderView, Level const * pLevel) = 0;
   };
 
+  void registerLevelCreated(bfc::Ref<ILevelCreated> const & pCreator);
+  void registerLevelDestroyed(bfc::Ref<ILevelDestroyed> const & pDestroyer);
   void registerLevelActivate(bfc::Ref<ILevelActivate> const & pActivator);
   void registerLevelDeactivate(bfc::Ref<ILevelDeactivate> const & pDeactivator);
   void registerLevelPlay(bfc::Ref<ILevelPlay> const & pPlayer);
@@ -54,6 +66,12 @@ namespace engine {
   template<typename T, typename... Args>
   void registerLevelSystem(Args &&... args) {
     bfc::Ref<T> pSystem = bfc::NewRef<T>(std::forward<Args>(args)...);
+
+    if constexpr (std::is_base_of_v<ILevelCreated, T>)
+      registerLevelCreated(pSystem);
+
+    if constexpr (std::is_base_of_v<ILevelDestroyed, T>)
+      registerLevelDestroyed(pSystem);
 
     if constexpr (std::is_base_of_v<ILevelActivate, T>)
       registerLevelActivate(pSystem);
@@ -77,6 +95,7 @@ namespace engine {
       registerLevelRenderDataCollector(pSystem);
   }
 
+  bfc::Ref<Level> createLevel();
   void playLevel(Level * pLevel);
   void pauseLevel(Level * pLevel);
   void stopLevel(Level * pLevel);

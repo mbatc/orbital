@@ -73,6 +73,10 @@ namespace engine {
 
     bool Import(Level * pLevel, bfc::URI const & uri) const;
 
+    /// Create a managed level.
+    /// The level manager will ensure level system hooks are invoked on this level.
+    bfc::Ref<Level> createLevel() const;
+
   private:
     // Register the game component types.
     void registerCoreComponentTypes();
@@ -84,6 +88,8 @@ namespace engine {
 
     bfc::Ref<Level> m_pActiveLevel = nullptr;
     bfc::Ref<Level> m_pBackupLevel = nullptr;
+
+    bfc::Vector<bfc::Ref<Level>> m_managedLevels;
 
     SimulateState m_state = SimulateState_Stopped;
   };

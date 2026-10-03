@@ -30,12 +30,14 @@ namespace components {
 
 namespace engine {
   class Physics
-    : public engine::ILevelUpdate
+    : public engine::ILevelCreated
+    , public engine::ILevelUpdate
     , public engine::ILevelActivate
     , public engine::ILevelPause
     , public engine::ILevelStop
     , public engine::ILevelRenderDataCollector {
   public:
+    virtual void created(Level * pLevel) override;
     virtual void update(Level * pLevel, bfc::Timestamp dt) override;
     virtual void activate(Level * pLevel) override;
     virtual void pause(Level * pLevel) override;
@@ -49,6 +51,16 @@ namespace engine {
 } // namespace engine
 
 namespace bfc {
+  template<>
+  struct Reflect<components::ColliderCapsule> {
+    static inline constexpr auto get() {
+      return makeReflection<components::ColliderCapsule>(
+        BFC_REFLECT(components::ColliderCapsule, height),
+        BFC_REFLECT(components::ColliderCapsule, radius)
+      );
+    }
+  };
+
   template<>
   struct Serializer<components::ColliderCapsule> {
     template<typename Context>
@@ -67,6 +79,13 @@ namespace bfc {
       s.get("radius").read(o.radius);
 
       return true;
+    }
+  };
+  
+  template<>
+  struct Reflect<components::ColliderCube> {
+    static inline constexpr auto get() {
+      return makeReflection<components::ColliderCube>(BFC_REFLECT(components::ColliderCube, size));
     }
   };
 
@@ -90,6 +109,13 @@ namespace bfc {
   };
 
   template<>
+  struct Reflect<components::ColliderSphere> {
+    static inline constexpr auto get() {
+      return makeReflection<components::ColliderSphere>(BFC_REFLECT(components::ColliderSphere, radius));
+    }
+  };
+
+  template<>
   struct Serializer<components::ColliderSphere> {
     template<typename Context>
     static SerializedObject write(components::ColliderSphere const & o, Context const &) {
@@ -107,6 +133,15 @@ namespace bfc {
       return true;
     }
   };
+  
+
+  // template<>
+  // struct Reflect<components::ColliderMesh> {
+  //   static inline constexpr auto get() {
+  //     return makeReflection<components::ColliderMesh>(BFC_REFLECT(components::ColliderMesh, mass)
+  //     );
+  //   }
+  // };
 
   template<>
   struct Serializer<components::ColliderMesh> {
@@ -121,6 +156,15 @@ namespace bfc {
       mem::construct(&o);
 
       return true;
+    }
+  };
+
+  template<>
+  struct Reflect<components::RigidBody> {
+    static inline constexpr auto get() {
+      return makeReflection<components::RigidBody>(
+        BFC_REFLECT(components::RigidBody, mass)
+      );
     }
   };
 

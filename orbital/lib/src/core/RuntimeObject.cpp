@@ -53,17 +53,17 @@ namespace bfc {
     return RuntimeObject();
   }
 
-  Vector<String> const & RuntimeObject::members() {
+  Vector<String> const & RuntimeObject::members() const {
     BFC_ASSERT(!isEmpty(), "RuntimeObject is null");
     return reflection()->members();
   }
 
-  Vector<String> const & RuntimeObject::methods() {
+  Vector<String> const & RuntimeObject::methods() const {
     BFC_ASSERT(!isEmpty(), "RuntimeObject is null");
     return reflection()->methods();
   }
 
-  RuntimeObject RuntimeObject::call(StringView const & name, Vector<RuntimeObject> const & args) {
+  RuntimeObject RuntimeObject::call(StringView const & name, Vector<RuntimeObject> const & args) const {
     BFC_ASSERT(!isEmpty(), "RuntimeObject is null");
     MethodReflection const * pMethod = m_pData->type->getMethod(name);
     if (pMethod == nullptr) {
@@ -73,7 +73,7 @@ namespace bfc {
     return pMethod->invoke(m_pData->pInstance, args);
   }
 
-  RuntimeObject RuntimeObject::get(StringView const & name) {
+  RuntimeObject RuntimeObject::get(StringView const & name) const {
     BFC_ASSERT(!isEmpty(), "RuntimeObject is null");
     MemberReflection const * pMember = m_pData->type->getMember(name);
     if (pMember == nullptr) {

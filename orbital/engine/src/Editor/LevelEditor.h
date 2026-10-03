@@ -58,10 +58,15 @@ namespace engine {
       }
     };
 
+    template<typename T>
+    class DefaultComponentEditor : public IComponentEditor {
+
+    };
+
     template<typename Editor, typename... Args>
-    void addComponentEditor(Args &&... args) {
+    void addPropertyEditor(Args &&... args) {
       bfc::Ref<IComponentEditor> pEditor = bfc::NewRef<Editor>(std::forward<Args>(args)...);
-      m_componentEditors.add(pEditor->type(), pEditor);
+      m_propertyEditors.add(pEditor->type(), pEditor);
     }
 
     static bool drawEntitySelector(bfc::StringView const & name, EntityID * pEntityID, Level * pLevel);
@@ -96,6 +101,14 @@ namespace engine {
                                   bfc::StringView const & emptyPreview = "[ None ]");
 
     void activateViewport(bfc::Ref<Viewport>);
+
+    template<typename T>
+    void drawPropertyEditor(bfc::Ref<Level> const& pLevel, EntityID entityID, T * pValue) {
+      drawPropertyEditor(pLevel, entityID, bfc::RuntimeObject::bind(pValue));
+    }
+
+    void drawPropertyEditor(bfc::Ref<Level> const & pLevel, EntityID entityID, bfc::RuntimeObject const & instance);
+
   private:
     void onRenderFrame(bfc::graphics::CommandList * pCmdList, bfc::graphics::RenderTargetRef renderTarget);
 
@@ -145,7 +158,7 @@ namespace engine {
 
     bfc::Ref<Viewport> m_pActiveViewport = nullptr;
 
-    bfc::Map<bfc::type_index, bfc::Ref<IComponentEditor>> m_componentEditors;
+    bfc::Map<bfc::type_index, bfc::Ref<IComponentEditor>> m_propertyEditors;
 
     bfc::URI m_selectedAssetPath;
 

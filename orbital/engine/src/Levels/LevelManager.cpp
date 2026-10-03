@@ -27,11 +27,12 @@ namespace engine {
 
   bool LevelManager::init(Application * pApp) {
     registerCoreComponentTypes();
+    registerCoreSystems();
 
     m_pAssets = pApp->findSubsystem<AssetManager>();
 
     m_pRendering   = pApp->findSubsystem<Rendering>();
-    m_pActiveLevel = NewRef<Level>();
+    m_pActiveLevel = createLevel();
 
     return true;
   }
@@ -53,7 +54,8 @@ namespace engine {
     if (m_state == SimulateState_Stopped) {
       // Transition into a "playing" state
       BFC_LOG_INFO("LevelManager", "Start playing. Backing up level");
-      Ref<Level> pPlayingLevel = NewRef<Level>();
+
+      Ref<Level> pPlayingLevel = createLevel();
       m_pActiveLevel->copyTo(pPlayingLevel.get(), true);
       m_pBackupLevel = m_pActiveLevel;
       setActiveLevel(pPlayingLevel);
@@ -106,7 +108,7 @@ namespace engine {
   }
 
   Ref<Level> LevelManager::load(bfc::URI const & uri) const {
-    Ref<Level> pLevel = NewRef<Level>();
+    Ref<Level> pLevel = createLevel();
 
     return load(uri, pLevel.get()) ? pLevel : nullptr;
   }
@@ -164,6 +166,10 @@ namespace engine {
     }
 
     return false;
+  }
+
+  bfc::Ref<Level> LevelManager::createLevel() const {
+    return engine::createLevel();
   }
 
   void LevelManager::registerCoreComponentTypes() {

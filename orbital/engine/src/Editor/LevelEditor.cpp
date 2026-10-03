@@ -22,6 +22,14 @@
 using namespace bfc;
 
 namespace engine {
+  template<typename T>
+  class DefaultPropertyEditor : public LevelEditor::ComponentEditor<T> {
+  public:
+    virtual void draw(LevelEditor * pEditor, bfc::Ref<Level> const& pLevel, EntityID entityID, T * pValue) {
+      ui::Input("", pValue);
+    }
+  };
+
   LevelEditor::LevelEditor()
     : Subsystem(TypeID<LevelEditor>(), "LevelEditor") {}
 
@@ -117,17 +125,50 @@ namespace engine {
     m_uiContext.init(pInitCmdList.get());
     m_uiContext.getEvents()->listenTo(pRendering->getMainWindow()->getEvents());
 
-    addComponentEditor<NameEditor>();
-    addComponentEditor<TransformEditor>();
-    addComponentEditor<CameraEditor>();
-    addComponentEditor<LightEditor>();
-    addComponentEditor<SkyboxEditor>();
-    addComponentEditor<StaticMeshEditor>();
-    addComponentEditor<PostProcessVolumeEditor>();
-    addComponentEditor<PostProcess_TonemapEditor>();
-    addComponentEditor<PostProcess_BloomEditor>();
-    addComponentEditor<PostProcess_SSAOEditor>();
-    addComponentEditor<PostProcess_SSREditor>();
+    addPropertyEditor<DefaultPropertyEditor<int8_t>>();
+    addPropertyEditor<DefaultPropertyEditor<int16_t>>();
+    addPropertyEditor<DefaultPropertyEditor<int32_t>>();
+    addPropertyEditor<DefaultPropertyEditor<int64_t>>();
+    addPropertyEditor<DefaultPropertyEditor<uint8_t>>();
+    addPropertyEditor<DefaultPropertyEditor<uint16_t>>();
+    addPropertyEditor<DefaultPropertyEditor<uint32_t>>();
+    addPropertyEditor<DefaultPropertyEditor<uint64_t>>();
+
+    addPropertyEditor<DefaultPropertyEditor<float>>();
+    addPropertyEditor<DefaultPropertyEditor<double>>();
+
+    addPropertyEditor<DefaultPropertyEditor<Vec2>>();
+    addPropertyEditor<DefaultPropertyEditor<Vec2d>>();
+    addPropertyEditor<DefaultPropertyEditor<Vec2i>>();
+    addPropertyEditor<DefaultPropertyEditor<Vec2u>>();
+    addPropertyEditor<DefaultPropertyEditor<Vec2i64>>();
+    addPropertyEditor<DefaultPropertyEditor<Vec2u64>>();
+
+    addPropertyEditor<DefaultPropertyEditor<Vec3>>();
+    addPropertyEditor<DefaultPropertyEditor<Vec3d>>();
+    addPropertyEditor<DefaultPropertyEditor<Vec3i>>();
+    addPropertyEditor<DefaultPropertyEditor<Vec3u>>();
+    addPropertyEditor<DefaultPropertyEditor<Vec3i64>>();
+    addPropertyEditor<DefaultPropertyEditor<Vec3u64>>();
+
+    addPropertyEditor<DefaultPropertyEditor<Vec4>>();
+    addPropertyEditor<DefaultPropertyEditor<Vec4d>>();
+    addPropertyEditor<DefaultPropertyEditor<Vec4i>>();
+    addPropertyEditor<DefaultPropertyEditor<Vec4u>>();
+    addPropertyEditor<DefaultPropertyEditor<Vec4i64>>();
+    addPropertyEditor<DefaultPropertyEditor<Vec4u64>>();
+
+    addPropertyEditor<NameEditor>();
+    addPropertyEditor<TransformEditor>();
+    addPropertyEditor<CameraEditor>();
+    addPropertyEditor<LightEditor>();
+    addPropertyEditor<SkyboxEditor>();
+    addPropertyEditor<StaticMeshEditor>();
+    addPropertyEditor<PostProcessVolumeEditor>();
+    addPropertyEditor<PostProcess_TonemapEditor>();
+    addPropertyEditor<PostProcess_BloomEditor>();
+    addPropertyEditor<PostProcess_SSAOEditor>();
+    addPropertyEditor<PostProcess_SSREditor>();
 
     pGraphicDevice->submit(std::move(pInitCmdList));
 
@@ -373,20 +414,18 @@ namespace engine {
     drawEditorSettings();
     drawAssetsPanel(pFileSystem, pLevels);
     drawEditorViewportPanel(pLevel);
-
-    ImGui::ShowDemoWindow();
   }
 
   void LevelEditor::drawViewportGizmo(bfc::Ref<Level> const & pLevel, EntityID entityID, ImVec2 vpMin, ImVec2 vpMax) {
     auto *pTransform = pLevel->tryGet<components::Transform>(entityID);
-    if (pTransform == nullptr)
+    if (pTransform == nullptr || m_pActiveViewport != m_pEditorViewport)
       return;
 
-
-    ImGuizmo::SetDrawlist(ImGui::GetForegroundDrawList());
+    ImGuizmo::SetDrawlist(ImGui::GetWindowDrawList());
     ImGuizmo::SetRect(vpMin.x, vpMin.y, vpMax.x - vpMin.x, vpMax.y - vpMin.y);
-    
+
     bfc::Mat4 transform = pTransform->globalTransform(pLevel.get());
+
     if (m_pEditorViewport->manipulate(&transform, m_manipulator.op, m_manipulator.mode))
       pTransform->setGlobalTransform(pLevel.get(), transform);
   }
@@ -403,10 +442,10 @@ namespace engine {
     ImVec2 vpMin = ImGui::GetItemRectMin();
     ImVec2 vpMax = ImGui::GetItemRectMax();
 
+    drawViewportGizmo(pLevel, m_selected, vpMin, vpMax);
+
     ImGui::End();
     ImGui::PopStyleVar();
-
-    drawViewportGizmo(pLevel, m_selected, vpMin, vpMax);
   }
 
   void LevelEditor::drawAssetsPanel(Ref<VirtualFileSystem> const & pFileSystem, Ref<LevelManager> const & pLevels) {
@@ -508,7 +547,7 @@ namespace engine {
       }
 
       if (ImGui::Selectable("New Level")) {
-        pLevels->setActiveLevel(bfc::NewRef<Level>());
+        pLevels->setActiveLevel(pLevels->createLevel());
       }
 
       {
@@ -729,11 +768,8 @@ namespace engine {
 
   void LevelEditor::drawEntityComponentProperties(bfc::Ref<Level> const & pLevel, EntityID entityID) {
     for (auto& [type, pStorage] : pLevel->components()) {
-      void * pComponent = pStorage->getOpaque(entityID);
-
-      Ref<IComponentEditor> pEditor = m_componentEditors.getOr(type, nullptr);
-
-      if (pComponent == nullptr)
+      RuntimeObject component = pStorage->getRuntimeInterface(entityID);
+      if (component.isEmpty())
         continue;
 
       String typeName = ILevelComponentType::findName(type);
@@ -746,11 +782,7 @@ namespace engine {
       bool visible = true;
       if (ImGui::CollapsingHeader(typeName.c_str(), &visible)) {
         ImGui::Indent();
-        if (pEditor != nullptr)
-          pEditor->_draw(this, pLevel, entityID, pComponent);
-        else
-          ImGui::Text("No editor implemented");
-
+        drawPropertyEditor(pLevel, entityID, component);
         ImGui::Unindent();
       }
 
@@ -770,6 +802,22 @@ namespace engine {
       }
 
       ImGui::PopID();
+    }
+  }
+
+  void LevelEditor::drawPropertyEditor(bfc::Ref<Level> const & pLevel, EntityID entityID,
+                                       bfc::RuntimeObject const & instance) {
+    if (instance.isEmpty())
+      return;
+
+    Ref<IComponentEditor> pEditor = m_propertyEditors.getOr(instance.typeInfo(), nullptr);
+    if (pEditor != nullptr) {
+      pEditor->_draw(this, pLevel, entityID, instance.data());
+    } else {
+      for (auto & member : instance.members()) {
+        ImGui::Text("%s", member.c_str());
+        drawPropertyEditor(pLevel, entityID, instance.get(member));
+      }
     }
   }
 

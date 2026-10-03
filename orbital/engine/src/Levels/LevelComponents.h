@@ -4,6 +4,8 @@
 #include "core/Pool.h"
 #include "core/Serialize.h"
 #include "core/typeindex.h"
+#include "core/RuntimeType.h"
+#include "core/RuntimeObject.h"
 #include "LevelSerializer.h"
 
 namespace engine {
@@ -163,6 +165,8 @@ namespace engine {
     virtual void * getOpaque(EntityID entityID) = 0;
     virtual void const * getOpaque(EntityID entityID) const = 0;
 
+    virtual bfc::RuntimeObject getRuntimeInterface(EntityID entityID) = 0;
+
     Level * getOwner() const;
 
   private:
@@ -235,6 +239,10 @@ namespace engine {
 
     virtual void * addOpaque(EntityID entityID) override {
       return &add(entityID);
+    }
+
+    virtual bfc::RuntimeObject getRuntimeInterface(EntityID entityID) override {
+      return bfc::RuntimeObject::bind(tryGet(entityID));
     }
 
     template<typename... Args>

@@ -14,11 +14,11 @@ bool OrbitalEditor::init(engine::Application * pApp) {
   BFC_UNUSED(pApp);
 
   Ref<LevelEditor> pLevelEditor = pApp->findSubsystem<LevelEditor>();
-  pLevelEditor->addComponentEditor<VehicleCameraControllerEditor>();
-  pLevelEditor->addComponentEditor<VehicleControllerEditor>();
-  pLevelEditor->addComponentEditor<VehicleVelocityEditor>();
+  pLevelEditor->addPropertyEditor<VehicleCameraControllerEditor>();
+  pLevelEditor->addPropertyEditor<VehicleControllerEditor>();
+  pLevelEditor->addPropertyEditor<VehicleVelocityEditor>();
 
-  pLevelEditor->addComponentEditor<ProceduralPlanetEditor>();
-  pLevelEditor->addComponentEditor<PlanetAtmosphereEditor>();
+  pLevelEditor->addPropertyEditor<ProceduralPlanetEditor>();
+  pLevelEditor->addPropertyEditor<PlanetAtmosphereEditor>();
   return true;
 }

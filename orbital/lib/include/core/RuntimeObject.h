@@ -44,16 +44,16 @@ namespace bfc {
     static RuntimeObject bind(void * pInstance, Type reflection);
     static RuntimeObject construct(Type reflection, Vector<RuntimeObject> const & argList = {});
 
-    Vector<String> const & members();
-    Vector<String> const & methods();
+    Vector<String> const & members() const;
+    Vector<String> const & methods() const;
 
     // Set the value of this object.
     // returns false if there is no copy-assign operator.
     bool assign(RuntimeObject const & value);
     bool assign(RuntimeObject &&value);
 
-    RuntimeObject call(StringView const & name, Vector<RuntimeObject> const & args = {});
-    RuntimeObject get (StringView const & name);
+    RuntimeObject call(StringView const & name, Vector<RuntimeObject> const & args = {}) const;
+    RuntimeObject get(StringView const & name) const;
 
     bfc::type_index     typeInfo() const;
     bfc::template_index templateInfo() const;
