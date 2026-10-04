@@ -64,6 +64,8 @@ namespace components {
     bfc::Ref<void> getImpl() const;
 
   private:
+    bfc::Ref<bfc::Mesh> m_pMesh;
+
     bfc::Ref<void> m_pImpl;
   };
 
