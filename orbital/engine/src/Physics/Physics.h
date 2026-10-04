@@ -13,23 +13,67 @@ namespace bfc {
 
 namespace components {
   struct ColliderCube {
-    bfc::Vec3d size = bfc::Vec3d(0.5);
+  public:
+    ColliderCube(bfc::Vec3d const & size = { 1, 1, 1 });
+
+    bfc::Vec3d getSize() const;
+    void       setSize(bfc::Vec3d const & size);
+
+    bfc::Ref<void> getImpl() const;
+
+  private:
+    bfc::Vec3d m_size;
+    bfc::Ref<void> m_pImpl;
   };
 
-  struct ColliderSphere {
-    double radius = 0.5;
+  class ColliderSphere {
+  public:
+    ColliderSphere(double radius = 0.5);
+
+    double getRadius() const;
+    void setRadius(double radius);
+
+    bfc::Ref<void> getImpl() const;
+
+  private:
+    bfc::Ref<void> m_pImpl;
   };
 
-  struct ColliderCapsule {
-    double height = 1;
-    double radius = 0.125;
+  class ColliderCapsule {
+  public:
+    ColliderCapsule(double height = 1, double radius = 0.125);
+
+    double getHeight() const;
+    void   setHeight(double height);
+
+    double getRadius() const;
+    void   setRadius(double radius);
+
+    void set(double height, double radius);
+
+    bfc::Ref<void> getImpl() const;
+
+  private:
+    double         m_height = 0;
+    double         m_radius = 0;
+    bfc::Ref<void> m_pImpl = nullptr;
   };
 
-  struct ColliderMesh {
+  class ColliderMesh {
+  public:
+    bfc::Ref<void> getImpl() const;
+
+  private:
+    bfc::Ref<void> m_pImpl;
   };
 
-  struct RigidBody {
-    double mass = 1;
+  class RigidBody {
+  public:
+    double getMass() const;
+    void   setMass(double mass);
+
+  private:
+    double m_mass = 1;
   };
 }
 
@@ -54,6 +98,8 @@ namespace engine {
     // static void rayTrace(Level * pLevel);
 
   private:
+    struct LevelData;
+
     Asset<bfc::Mesh> m_pCube;
     Asset<bfc::Mesh> m_pSphere;
   };
@@ -61,40 +107,24 @@ namespace engine {
 
 namespace bfc {
   template<>
-  struct Reflect<components::ColliderCapsule> {
-    static inline constexpr auto get() {
-      return makeReflection<components::ColliderCapsule>(
-        BFC_REFLECT(components::ColliderCapsule, height),
-        BFC_REFLECT(components::ColliderCapsule, radius)
-      );
-    }
-  };
-
-  template<>
   struct Serializer<components::ColliderCapsule> {
     template<typename Context>
     static SerializedObject write(components::ColliderCapsule const & o, Context const &) {
       return SerializedObject::MakeMap({
-        {"height", serialize(o.height)},
-        {"radius", serialize(o.radius)},
+        {"height", serialize(o.getHeight())},
+        {"radius", serialize(o.getRadius())},
       });
     }
 
     template<typename Context>
     static bool read(SerializedObject const & s, components::ColliderCapsule & o, Context const &) {
-      mem::construct(&o);
+      double height, radius;
+      s.get("height").read(height);
+      s.get("radius").read(radius);
 
-      s.get("height").read(o.height);
-      s.get("radius").read(o.radius);
+      mem::construct(&o, height, radius);
 
       return true;
-    }
-  };
-  
-  template<>
-  struct Reflect<components::ColliderCube> {
-    static inline constexpr auto get() {
-      return makeReflection<components::ColliderCube>(BFC_REFLECT(components::ColliderCube, size));
     }
   };
 
@@ -103,24 +133,19 @@ namespace bfc {
     template<typename Context>
     static SerializedObject write(components::ColliderCube const & o, Context const &) {
       return SerializedObject::MakeMap({
-        {"size", serialize(o.size)},
+        {"size", serialize(o.getSize())},
       });
     }
 
     template<typename Context>
     static bool read(SerializedObject const & s, components::ColliderCube & o, Context const &) {
-      mem::construct(&o);
 
-      s.get("size").read(o.size);
+      bfc::Vec3d size = { 1, 1, 1 };
+      s.get("size").read(size);
+
+      mem::construct(&o, size);
 
       return true;
-    }
-  };
-
-  template<>
-  struct Reflect<components::ColliderSphere> {
-    static inline constexpr auto get() {
-      return makeReflection<components::ColliderSphere>(BFC_REFLECT(components::ColliderSphere, radius));
     }
   };
 
@@ -129,28 +154,20 @@ namespace bfc {
     template<typename Context>
     static SerializedObject write(components::ColliderSphere const & o, Context const &) {
       return SerializedObject::MakeMap({
-        {"radius", serialize(o.radius)},
+        {"radius", serialize(o.getRadius())},
       });
     }
 
     template<typename Context>
     static bool read(SerializedObject const & s, components::ColliderSphere & o, Context const &) {
-      mem::construct(&o);
 
-      s.get("radius").read(o.radius);
+      double radius = 0.5;
+      s.get("radius").read(radius);
+      mem::construct(&o, radius);
 
       return true;
     }
   };
-  
-
-  // template<>
-  // struct Reflect<components::ColliderMesh> {
-  //   static inline constexpr auto get() {
-  //     return makeReflection<components::ColliderMesh>(BFC_REFLECT(components::ColliderMesh, mass)
-  //     );
-  //   }
-  // };
 
   template<>
   struct Serializer<components::ColliderMesh> {
@@ -169,20 +186,11 @@ namespace bfc {
   };
 
   template<>
-  struct Reflect<components::RigidBody> {
-    static inline constexpr auto get() {
-      return makeReflection<components::RigidBody>(
-        BFC_REFLECT(components::RigidBody, mass)
-      );
-    }
-  };
-
-  template<>
   struct Serializer<components::RigidBody> {
     template<typename Context>
     static SerializedObject write(components::RigidBody const & o, Context const &) {
       return SerializedObject::MakeMap({
-        {"mass", serialize(o.mass)},
+        {"mass", serialize(o.getMass())},
       });
     }
 
@@ -190,7 +198,10 @@ namespace bfc {
     static bool read(SerializedObject const & s, components::RigidBody & o, Context const &) {
       mem::construct(&o);
 
-      s.get("mass").read(o.mass);
+      double mass = 1;
+      s.get("mass").read(mass);
+
+      o.setMass(mass);
 
       return true;
     }
