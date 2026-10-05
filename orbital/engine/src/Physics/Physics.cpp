@@ -41,6 +41,183 @@ namespace {
     }
     return PHY_UCHAR;
   }
+
+  class BulletMeshInterface : public btStridingMeshInterface {
+  public:
+    BulletMeshInterface() = default;
+    BulletMeshInterface(bfc::GraphicsDevice * pDevice, bfc::Ref<bfc::Mesh> pMesh, int64_t subMesh)
+      : m_pDevice(pDevice)
+      , m_mesh(pMesh)
+      , m_subMesh(subMesh) {}
+
+    virtual void getLockedVertexIndexBase(unsigned char ** vertexbase, int & numverts, PHY_ScalarType & type, int & stride,
+                                          unsigned char ** indexbase, int & indexstride, int & numfaces,
+                                          PHY_ScalarType & indicestype, int subpart = 0) {
+      return lock(bfc::MapAccess_ReadWrite, (void **)vertexbase, numverts, type, stride, (void **)indexbase, indexstride,
+                  numfaces, indicestype, subpart);
+    }
+
+    virtual void getLockedReadOnlyVertexIndexBase(const unsigned char ** vertexbase, int & numverts, PHY_ScalarType & type,
+                                                  int & stride, const unsigned char ** indexbase, int & indexstride,
+                                                  int & numfaces, PHY_ScalarType & indicestype, int subpart = 0) const {
+      return lock(bfc::MapAccess_Read, (void **)vertexbase, numverts, type, stride, (void **)indexbase, indexstride,
+                  numfaces, indicestype, subpart);
+    }
+
+    void lock(bfc::MapAccess access, void ** vertexbase, int & numverts, PHY_ScalarType & type, int & stride,
+              void ** indexbase, int & indexstride, int & numfaces, PHY_ScalarType & indicestype, int subpart = 0) const {
+      auto pCmdList = m_pDevice->createCommandList();
+
+      auto pVA    = m_mesh->getVertexArray();
+      auto layout = pVA->getLayout();
+
+      std::future<void *> mappedVertexBuffer;
+      std::future<void *> mappedIndexBuffer;
+
+      int64_t positionOffset = 0;
+      for (int64_t i = 0; i < layout.getAttributeCount(); ++i) {
+        if (!layout.getAttributeSemantic(i).equals("POSITION0", true))
+          continue;
+        auto & attribute = layout.getAttributeLayout(i);
+        pVA->getVertexBuffer(attribute.slot);
+
+        type           = ToScalarType(attribute.dataType);
+        stride         = (int)attribute.stride;
+        positionOffset = attribute.offset;
+
+        m_pLockedVertexBuffer = pVA->getVertexBuffer(attribute.slot);
+        mappedVertexBuffer    = pCmdList->map(m_pLockedVertexBuffer, access);
+        break;
+      }
+
+      auto &  sm              = m_mesh->getSubMesh(m_subMesh);
+      int64_t indexSize       = bfc::getDataTypeSize(pVA->getIndexType());
+      int64_t indexBufferSize = indexSize * sm.elmCount;
+
+      m_pLockedIndexBuffer = pVA->getIndexBuffer();
+      mappedIndexBuffer    = pCmdList->map(m_pLockedIndexBuffer, sm.elmOffset * indexSize, indexBufferSize, access);
+
+      m_pDevice->submit(std::move(pCmdList));
+
+      numverts    = (int)sm.elmCount;
+      numfaces    = numverts / 3;
+      indicestype = ToScalarType(pVA->getIndexType());
+      indexstride = (int)indexSize;
+
+      *vertexbase = (unsigned char *)mappedVertexBuffer.get() + positionOffset;
+      *indexbase  = (unsigned char *)mappedIndexBuffer.get();
+    }
+
+    virtual void unLockVertexBase(int subpart) {
+      auto pCmdList = m_pDevice->createCommandList();
+      pCmdList->unmap(m_pLockedIndexBuffer);
+      pCmdList->unmap(m_pLockedVertexBuffer);
+      m_pDevice->submit(std::move(pCmdList));
+      m_pLockedVertexBuffer = nullptr;
+      m_pLockedIndexBuffer  = nullptr;
+    }
+
+    virtual void unLockReadOnlyVertexBase(int subpart) const {
+      auto pCmdList = m_pDevice->createCommandList();
+      pCmdList->unmap(m_pLockedIndexBuffer);
+      pCmdList->unmap(m_pLockedVertexBuffer);
+      m_pDevice->submit(std::move(pCmdList));
+      m_pLockedVertexBuffer = nullptr;
+      m_pLockedIndexBuffer  = nullptr;
+    }
+
+    virtual int getNumSubParts() const {
+      return 1;
+    }
+
+    virtual void preallocateVertices(int numverts) {
+      numverts;
+    }
+
+    virtual void preallocateIndices(int numindices) {
+      numindices;
+    }
+
+    bfc::GraphicsDevice * m_pDevice = nullptr;
+    bfc::Ref<bfc::Mesh>   m_mesh;
+    int64_t               m_subMesh = 0;
+
+    mutable bfc::graphics::BufferRef m_pLockedVertexBuffer;
+    mutable bfc::graphics::BufferRef m_pLockedIndexBuffer;
+  };
+
+  class CompoundMeshShape : public btCompoundShape {
+  public:
+    CompoundMeshShape(bfc::GraphicsDevice * pGraphicsDevice, bfc::Ref<bfc::Mesh> pMesh)
+      : btCompoundShape(true, (int)pMesh->getSubmeshCount()) {
+      const int64_t numSubMeshes = pMesh->getSubmeshCount();
+      m_meshes.reserve(numSubMeshes);
+      m_bvhs.reserve(numSubMeshes);
+
+      btTransform identity;
+      identity.setIdentity();
+      for (int64_t i = 0; i < numSubMeshes; ++i) {
+        m_meshes.pushBack(BulletMeshInterface(pGraphicsDevice, pMesh, i));
+        m_bvhs.pushBack(bfc::NewRef<btBvhTriangleMeshShape>(&m_meshes.back(), true));
+
+        addChildShape(identity, m_bvhs.back().get());
+      }
+    }
+
+    bfc::Ref<bfc::Mesh> getMesh() const {
+      return m_pSourceMesh;
+    }
+
+  private:
+    bfc::Ref<bfc::Mesh>                 m_pSourceMesh;
+    bfc::Vector<BulletMeshInterface>    m_meshes;
+    bfc::Vector<bfc::Ref<btBvhTriangleMeshShape>> m_bvhs;
+  };
+
+  // TODO: Implement trait to enable static addresses for level components so we can use btCollisionShape as the component
+  struct PhysicsShape {
+    bfc::Ref<btCollisionShape> shape;
+  };
+
+  // TODO: Implement trait to enable static addresses for level components so we can use btCollisionObject as the component
+  struct PhysicsCollider {
+    bfc::Ref<btCollisionShape>  shape; ///< Shape used by the collider
+    bfc::Ref<btCollisionObject> obj;
+  };
+
+  struct PhysicsMotionSync : public btMotionState {
+    engine::Level *  pLevel;
+    engine::EntityID entity;
+    bfc::Mat4d       previousTransform;
+
+    virtual void getWorldTransform(btTransform & worldTrans) const {
+      auto pTransform = pLevel->tryGet<components::Transform>(entity);
+      if (pTransform == nullptr)
+        return;
+
+      worldTrans = ToBt(pLevel, *pTransform);
+    }
+
+    virtual void setWorldTransform(const btTransform & worldTrans) {
+      auto pTransform = pLevel->tryGet<components::Transform>(entity);
+      if (pTransform == nullptr)
+        return;
+
+      bfc::Vec3d const translation = FromBt(worldTrans.getOrigin());
+      bfc::Mat3d const basis       = FromBt(worldTrans.getBasis());
+
+      pTransform->setGlobalTranslation(pLevel, translation);
+      pTransform->setGlobalOrientation(pLevel, glm::quat_cast(basis));
+
+      previousTransform = pTransform->globalTransform(pLevel);
+    }
+  };
+
+  struct PhysicsRigidBody {
+    bfc::Ref<btCollisionShape>  shape; ///< Shape used by the rigidbody
+    bfc::Ref<btRigidBody>       body;
+    bfc::Ref<PhysicsMotionSync> sync;
+  };
 }
 
 namespace components {
@@ -77,6 +254,25 @@ namespace components {
 
   bfc::Ref<void> ColliderSphere::getImpl() const {
     return m_pImpl;
+  }
+
+  bfc::Ref<void> ColliderMesh::getImpl() const {
+    return m_pImpl;
+  }
+
+  bfc::Ref<bfc::Mesh> ColliderMesh::getMesh() const {
+    auto pShape = std::static_pointer_cast<CompoundMeshShape>(m_pImpl);
+    if (pShape == nullptr)
+      return nullptr;
+    else
+      return pShape->getMesh();
+  }
+
+  void ColliderMesh::setMesh(bfc::GraphicsDevice *pGraphicsDevice, bfc::Ref<bfc::Mesh> const & pMesh) {
+    if (getMesh() == pMesh)
+      return;
+
+    m_pImpl = bfc::NewRef<CompoundMeshShape>(pGraphicsDevice, pMesh);
   }
 
   ColliderCapsule::ColliderCapsule(double height, double radius) {
@@ -119,157 +315,10 @@ namespace components {
 } // namespace components
 
 namespace engine {
-  namespace internal {
-    class BulletMeshInterface : public btStridingMeshInterface {
-    public:
-      BulletMeshInterface(bfc::GraphicsDevice * pDevice, bfc::Ref<bfc::Mesh> pMesh, int64_t subMesh)
-        : m_pDevice(pDevice)
-        , m_mesh(pMesh)
-        , m_subMesh(subMesh) {}
-    
-      virtual void getLockedVertexIndexBase(unsigned char** vertexbase, int& numverts, PHY_ScalarType& type, int& stride,
-        unsigned char** indexbase, int& indexstride, int& numfaces,
-                                            PHY_ScalarType & indicestype, int subpart = 0) {
-        return lock(bfc::MapAccess_ReadWrite, (void **)vertexbase, numverts, type, stride, (void **)indexbase, indexstride,
-                    numfaces, indicestype, subpart);
-      }
-    
-      virtual void getLockedReadOnlyVertexIndexBase(const unsigned char** vertexbase, int& numverts, PHY_ScalarType& type,
-        int& stride, const unsigned char** indexbase, int& indexstride,
-        int& numfaces, PHY_ScalarType& indicestype, int subpart = 0) const {
-        return lock(bfc::MapAccess_Read, (void **)vertexbase, numverts, type, stride, (void **)indexbase, indexstride,
-                    numfaces, indicestype, subpart);
-      }
-    
-      void lock(bfc::MapAccess access, void ** vertexbase, int & numverts, PHY_ScalarType & type, int & stride,
-                void ** indexbase,
-                int & indexstride, int & numfaces, PHY_ScalarType & indicestype, int subpart = 0) const {
-        auto pCmdList = m_pDevice->createCommandList();
-
-        auto pVA    = m_mesh->getVertexArray();
-        auto layout = pVA->getLayout();
-
-        std::future<void *> mappedVertexBuffer;
-        std::future<void *> mappedIndexBuffer;
-
-        int64_t positionOffset = 0;
-        for (int64_t i = 0; i < layout.getAttributeCount(); ++i) {
-          if (!layout.getAttributeSemantic(i).equals("POSITION0", true))
-            continue;
-          auto & attribute = layout.getAttributeLayout(i);
-          pVA->getVertexBuffer(attribute.slot);
-
-          type           = ToScalarType(attribute.dataType);
-          stride         = (int)attribute.stride;
-          positionOffset = attribute.offset;
-
-          m_pLockedVertexBuffer = pVA->getVertexBuffer(attribute.slot);
-          mappedVertexBuffer    = pCmdList->map(m_pLockedVertexBuffer, access);
-          break;
-        }
-
-        auto &  sm              = m_mesh->getSubMesh(m_subMesh);
-        int64_t indexSize       = bfc::getDataTypeSize(pVA->getIndexType());
-        int64_t indexBufferSize = indexSize * sm.elmCount;
-
-        m_pLockedIndexBuffer = pVA->getIndexBuffer();
-        mappedIndexBuffer    = pCmdList->map(m_pLockedIndexBuffer, sm.elmOffset * indexSize, indexBufferSize, access);
-
-        m_pDevice->submit(std::move(pCmdList));
-
-        numverts    = (int)sm.elmCount;
-        numfaces    = numverts / 3;
-        indicestype = ToScalarType(pVA->getIndexType());
-        indexstride = (int)indexSize;
-
-        *vertexbase = (unsigned char *)mappedVertexBuffer.get() + positionOffset;
-        *indexbase  = (unsigned char *)mappedIndexBuffer.get();
-      }
-
-      virtual void unLockVertexBase(int subpart) {
-        auto pCmdList = m_pDevice->createCommandList();
-        pCmdList->unmap(m_pLockedIndexBuffer);
-        pCmdList->unmap(m_pLockedVertexBuffer);
-        m_pDevice->submit(std::move(pCmdList));
-      }
-    
-      virtual void unLockReadOnlyVertexBase(int subpart) const {
-        auto pCmdList = m_pDevice->createCommandList();
-        pCmdList->unmap(m_pLockedIndexBuffer);
-        pCmdList->unmap(m_pLockedVertexBuffer);
-        m_pDevice->submit(std::move(pCmdList));
-      }
-    
-      virtual int getNumSubParts() const {
-        return 1;
-      }
-    
-      virtual void preallocateVertices(int numverts) {
-        numverts;
-      }
-    
-      virtual void preallocateIndices(int numindices) {
-        numindices;
-      }
-    
-      bfc::GraphicsDevice * m_pDevice = nullptr;
-      bfc::Ref<bfc::Mesh>   m_mesh;
-      int64_t m_subMesh = 0;
-
-      mutable bfc::graphics::BufferRef m_pLockedVertexBuffer;
-      mutable bfc::graphics::BufferRef m_pLockedIndexBuffer;
-    };
-
-    // TODO: Implement trait to enable static addresses for level components so we can use btCollisionShape as the component
-    struct PhysicsShape {
-      bfc::Ref<btCollisionShape> shape;
-    };
-
-    // TODO: Implement trait to enable static addresses for level components so we can use btCollisionObject as the component
-    struct PhysicsCollider {
-      bfc::Ref<btCollisionShape>        shape; ///< Shape used by the collider
-      bfc::Ref<btCollisionObject>       obj;
-    };
-
-    struct PhysicsMotionSync : btMotionState {
-      engine::Level *  pLevel;
-      engine::EntityID entity;
-      bfc::Mat4d       previousTransform;
-
-      virtual void getWorldTransform(btTransform & worldTrans) const {
-        auto pTransform = pLevel->tryGet<components::Transform>(entity);
-        if (pTransform == nullptr)
-          return;
-
-        worldTrans = ToBt(pLevel, *pTransform);
-      }
-
-      virtual void setWorldTransform(const btTransform & worldTrans) {
-        auto pTransform = pLevel->tryGet<components::Transform>(entity);
-        if (pTransform == nullptr)
-          return;
-
-        bfc::Vec3d const translation = FromBt(worldTrans.getOrigin());
-        bfc::Mat3d const basis       = FromBt(worldTrans.getBasis());
-
-        pTransform->setGlobalTranslation(pLevel, translation);
-        pTransform->setGlobalOrientation(pLevel, glm::quat_cast(basis));
-
-        previousTransform = pTransform->globalTransform(pLevel);
-      }
-    };
-
-    struct PhysicsRigidBody {
-      bfc::Ref<btCollisionShape>        shape; ///< Shape used by the rigidbody
-      bfc::Ref<btRigidBody>             body;
-      bfc::Ref<PhysicsMotionSync>       sync;
-    };
-  } // namespace internal
-
   struct Physics::LevelData {
     bfc::Map<EntityID, bfc::Ref<btCollisionShape>> entityShapes;
-    bfc::Map<EntityID, internal::PhysicsCollider>  entityColliders;
-    bfc::Map<EntityID, internal::PhysicsRigidBody> entityBodies;
+    bfc::Map<EntityID, PhysicsCollider>  entityColliders;
+    bfc::Map<EntityID, PhysicsRigidBody> entityBodies;
     bfc::Vector<EntityID> staleShapes;
 
     bfc::Ref<btDefaultCollisionConfiguration>     pCollisionConfiguration;
@@ -319,10 +368,10 @@ namespace engine {
       }
 
       for (auto & [mesh] : pLevel->getView<components::ColliderMesh>()) {
-        auto entityId = pLevel->toEntity(&capsule);
+        auto entityId = pLevel->toEntity(&mesh);
 
         bfc::Ref<btCollisionShape> pExistingShape;
-        bfc::Ref<btCollisionShape> pNewShape = std::static_pointer_cast<btCollisionShape>(capsule.getImpl());
+        bfc::Ref<btCollisionShape> pNewShape = std::static_pointer_cast<CompoundMeshShape>(mesh.getImpl());
 
         if (!entityShapes.tryGet(entityId, &pExistingShape) || pExistingShape != pNewShape) {
           entityShapes.addOrSet(entityId, pNewShape);
@@ -332,7 +381,7 @@ namespace engine {
 
       bfc::Vector<EntityID> erasedEntities;
       for (auto & [entityId, pShape] : entityShapes) {
-        if (!pLevel->contains(entityId)) {
+        if (!pLevel->contains(entityId) || pShape == nullptr) {
           erasedEntities.pushBack(entityId);
           continue;
         }
@@ -378,15 +427,17 @@ namespace engine {
       for (auto & entityId : staleShapes) {
         auto pShape = entityShapes[entityId];
 
-        if (auto * pBody = pLevel->tryGet<components::RigidBody>(entityId)) {
-          internal::PhysicsRigidBody & rigidbody = entityBodies[entityId];
-          btVector3                    inertia;
-          pShape->calculateLocalInertia((btScalar)pBody->getMass(), inertia);
-          rigidbody.body->setMassProps((btScalar)pBody->getMass(), inertia);
-          rigidbody.body->setCollisionShape(pShape.get());
-        } else {
-          internal::PhysicsCollider & collider = entityColliders.getOrAdd(entityId);
-          collider.obj->setCollisionShape(pShape.get());
+        if (pShape != nullptr) {
+          if (auto * pBody = pLevel->tryGet<components::RigidBody>(entityId)) {
+            internal::PhysicsRigidBody & rigidbody = entityBodies[entityId];
+            btVector3                    inertia;
+            pShape->calculateLocalInertia((btScalar)pBody->getMass(), inertia);
+            rigidbody.body->setMassProps((btScalar)pBody->getMass(), inertia);
+            rigidbody.body->setCollisionShape(pShape.get());
+          } else {
+            internal::PhysicsCollider & collider = entityColliders.getOrAdd(entityId);
+            collider.obj->setCollisionShape(pShape.get());
+          }
         }
       }
 
@@ -491,5 +542,47 @@ namespace engine {
       bottom.primitiveType = bfc::PrimitiveType_Line;
       meshes.pushBack(bottom);
     }
+  }
+
+  struct CustomRayResultCallback : public btCollisionWorld::RayResultCallback {
+    CustomRayResultCallback(bfc::geometry::Rayd const & ray, std::function<void(Physics::RayCastHit)> const & onHit)
+      : m_ray(ray)
+      , m_onHit(onHit){}
+
+    std::function<void(Physics::RayCastHit)> m_onHit;
+
+    bfc::geometry::Rayd m_ray;
+
+    virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult & rayResult, bool normalInWorldSpace) {
+      m_collisionObject = rayResult.m_collisionObject;
+
+      btVector3 hitNormalWorld;
+      if (normalInWorldSpace) {
+        hitNormalWorld = rayResult.m_hitNormalLocal;
+      } else {
+        /// need to transform normal into worldspace
+        hitNormalWorld = m_collisionObject->getWorldTransform().getBasis() * rayResult.m_hitNormalLocal;
+      }
+
+      Physics::RayCastHit hit;
+      hit.entity;
+      hit.normal   = FromBt(hitNormalWorld);
+      hit.position = m_ray.at(rayResult.m_hitFraction);
+      hit.fraction = rayResult.m_hitFraction;
+
+      m_onHit(hit);
+
+      return m_closestHitFraction;
+    }
+  };
+
+  void Physics::rayTrace(Level * pLevel, bfc::geometry::Rayd const & ray, std::function<void(RayCastHit)> const & onHit) {
+    auto pData = pLevel->getData<LevelData>();
+
+    pData->pWorld->rayTest(ToBt(ray.start), ToBt(ray.end()), CustomRayResultCallback(ray, onHit));
+  }
+
+  std::optional<Physics::RayCastHit> Physics::rayTrace(Level * pLevel, bfc::geometry::Rayd const & ray) {
+
   }
 } // namespace engine

@@ -4,11 +4,11 @@
 #include "Levels/LevelSystem.h"
 #include "Assets/AssetManager.h"
 
-#include "geometry/Box.h"
-#include "geometry/Sphere.h"
+#include "geometry/Ray.h"
 
 namespace bfc {
   class Mesh;
+  class GraphicsDevice;
 }
 
 namespace components {
@@ -63,10 +63,11 @@ namespace components {
   public:
     bfc::Ref<void> getImpl() const;
 
-  private:
-    bfc::Ref<bfc::Mesh> m_pMesh;
+    bfc::Ref<bfc::Mesh> getMesh() const;
+    void                setMesh(bfc::GraphicsDevice * pGraphicsDevice, bfc::Ref<bfc::Mesh> const & pMesh);
 
-    bfc::Ref<void> m_pImpl;
+  private:
+    bfc::Ref<void>  m_pImpl;
   };
 
   class RigidBody {
@@ -97,7 +98,17 @@ namespace engine {
     virtual void stop(Level * pLevel) override;
     virtual void collectRenderData(RenderView * pRenderView, Level const * pLevel) override;
 
-    // static void rayTrace(Level * pLevel);
+    struct RayCastHit {
+      EntityID entity;
+
+      bfc::Vec3d position;
+      bfc::Vec3d normal;
+      double     fraction;
+    };
+
+    static void rayTrace(Level * pLevel, bfc::geometry::Rayd const & ray, std::function<void(RayCastHit)> const & onHit);
+
+    static std::optional<RayCastHit> rayTrace(Level * pLevel, bfc::geometry::Rayd const & ray);
 
   private:
     struct LevelData;

@@ -2,22 +2,26 @@
 #include "Application.h"
 #include "Input.h"
 #include "platform/FileDialog.h"
+#include "platform/Events.h"
+#include "platform/Window.h"
 #include "Assets/AssetManager.h"
-#include "Levels/CoreComponents.h"
-#include "Editor/Components/CoreComponentEditor.h"
 #include "Levels/Level.h"
 #include "Levels/LevelManager.h"
 #include "Levels/LevelSerializer.h"
+
+#include "Levels/CoreComponents.h"
+#include "Editor/Components/CoreComponentEditor.h"
+
+#include "Physics/Physics.h"
+#include "Editor/Components/PhysicsComponentEditor.h"
+
 #include "Rendering/Rendering.h"
+#include "Rendering/DeferredRenderer.h"
+
 #include "Viewport/LevelEditorViewport.h"
-#include "platform/Events.h"
-#include "platform/Window.h"
+#include "Viewport/GameViewport.h"
 #include "ui/Widgets.h"
 #include "util/Log.h"
-#include "Viewport/GameViewport.h"
-#include "platform/OS.h"
-#include "core/File.h"
-#include "Rendering/DeferredRenderer.h"
 
 using namespace bfc;
 
@@ -169,6 +173,12 @@ namespace engine {
     addPropertyEditor<PostProcess_BloomEditor>();
     addPropertyEditor<PostProcess_SSAOEditor>();
     addPropertyEditor<PostProcess_SSREditor>();
+
+    addPropertyEditor<ColliderCubeEditor>();
+    addPropertyEditor<ColliderCapsuleEditor>();
+    addPropertyEditor<ColliderSphereEditor>();
+    addPropertyEditor<ColliderMeshEditor>();
+    addPropertyEditor<RigidBodyEditor>();
 
     pGraphicDevice->submit(std::move(pInitCmdList));
 

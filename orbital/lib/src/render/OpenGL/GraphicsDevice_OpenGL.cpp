@@ -1048,7 +1048,7 @@ namespace bfc {
     std::future<void *> CommandList_OpenGL::map(BufferRef bufferID, int64_t offset, int64_t size, MapAccess access) {
       BFC_ASSERT(bufferID != nullptr, "bufferID is nullptr");
 
-      auto pPromise = bfc::Ref<std::promise<void *>>();
+      auto pPromise = bfc::NewRef<std::promise<void *>>();
 
       impl::OpenGL::Map cmd;
       cmd.pBuffer  = &ToGL(bufferID);
@@ -1076,7 +1076,7 @@ namespace bfc {
     void CommandList_OpenGL::download(BufferRef bufferID, BufferDownloadRef pDownload, int64_t offset, int64_t size) {
       BFC_ASSERT(bufferID != nullptr, "bufferID is nullptr");
 
-      auto pPromise = bfc::Ref<std::promise<void>>();
+      auto pPromise = bfc::NewRef<std::promise<void>>();
 
       impl::OpenGL::Download cmd;
       cmd.pBuffer   = &ToGL(bufferID);
