@@ -15,6 +15,7 @@ namespace engine {
   class Rendering;
   class Level;
   class LevelEditorViewport;
+  class GameViewport;
   class LevelManager;
   class VirtualFileSystem;
 
@@ -120,6 +121,7 @@ namespace engine {
     void drawLevelPanel(bfc::Ref<LevelManager> const & pLevels, bfc::Ref<AssetManager> const & pAssets, bfc::Ref<Rendering> const & pRendering,
                         bfc::Ref<Level> const & pLevel);
     void drawEditorViewportPanel(bfc::Ref<Level> const & pLevel);
+    void drawGameViewportPanel(bfc::Ref<Level> const & pLevel);
     void drawEntityProperties(bfc::Ref<Level> const & pLevel, EntityID entityID);
     void drawEditorSettings();
     void drawCameraProperties(EditorCamera * pCamera);
@@ -127,6 +129,8 @@ namespace engine {
     void drawTransformTree(bfc::Ref<Level> const & pLevel, EntityID entityID);
     void drawEntityComponentProperties(bfc::Ref<Level> const & pLevel, EntityID entityID);
     void drawAddComponentMenu(bfc::Ref<Level> const & pLevel, EntityID targetEntityID);
+
+    void routeInputsToActiveViewport(bfc::Events * pEvents);
 
     class LevelEditorRenderingPlugin : public IRenderingPlugin {
     public:
@@ -148,13 +152,19 @@ namespace engine {
       ImGuizmo::OPERATION op   = ImGuizmo::OPERATION::UNIVERSAL;
     } m_manipulator;
 
-    bfc::Vec2                      m_viewportSize = { 1, 1 };
-
-    bool                           m_viewportWantsInput = false;
+    bfc::Vec2                      m_editorViewportSize = { 1, 1 };
+    bool                           m_editorViewportWantsInput = false;
     bfc::graphics::TextureRef      m_pEditorViewportColour;
     bfc::graphics::TextureRef      m_pEditorViewportDepth;
     bfc::graphics::RenderTargetRef m_pEditorViewportRenderTarget;
     bfc::Ref<LevelEditorViewport>  m_pEditorViewport;
+
+    bfc::Vec2                      m_gameViewportSize     = {1, 1};
+    bool                           m_gameViewportWantsInput = false;
+    bfc::graphics::TextureRef      m_pGameViewportColour;
+    bfc::graphics::TextureRef      m_pGameViewportDepth;
+    bfc::graphics::RenderTargetRef m_pGameViewportRenderTarget;
+    bfc::Ref<GameViewport>         m_pGameViewport;
 
     bfc::Ref<Viewport> m_pActiveViewport = nullptr;
 

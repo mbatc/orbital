@@ -6,13 +6,16 @@
 #include "util/ThreadPool.h"
 #include "Assets/AssetManager.h"
 
+namespace bfc {
+  class GraphicsDevice;
+}
+
 namespace engine {
   using EntityID = uint64_t;
 
   class Level;
   class LevelSerializer;
   class AssetManager;
-
   /// Context that can be specified in Serializer<T>::write to access level serializer.
   struct ComponentSerializeContext : AssetSerializerContext {
     Level const *     pLevel;
@@ -31,7 +34,7 @@ namespace engine {
   public:
     /// Construct a serializer.
     /// @param pManager The asset manager used to read/write assets.
-    LevelSerializer(AssetManager * pManager, bfc::ThreadPool * pThreads = &bfc::ThreadPool::Global());
+    LevelSerializer(bfc::GraphicsDevice * pGraphicsDevice, AssetManager * pManager, bfc::ThreadPool * pThreads = &bfc::ThreadPool::Global());
 
     /// Serialize a level from a URI.
     bool serialize(bfc::URI const & uri, Level const & level);
@@ -50,6 +53,9 @@ namespace engine {
 
     /// Get the asset manager used by this serializer.
     AssetManager * getAssets() const;
+
+    /// Get the graphics device used by this serializer.
+    bfc::GraphicsDevice * getGraphicsDevice() const;
 
     /// Serialize an asset pointer.
     bfc::SerializedObject writeAsset(bfc::Ref<void> const & pAsset);
@@ -112,6 +118,7 @@ namespace engine {
   private:
     AssetManager * m_pManager = nullptr;
     bfc::ThreadPool * m_pThreads = nullptr;
+    bfc::GraphicsDevice * m_pGraphicsDevice = nullptr;
 
     std::mutex                                      m_lock;
     bfc::Vector<std::future<void>>                  m_asyncJobs;

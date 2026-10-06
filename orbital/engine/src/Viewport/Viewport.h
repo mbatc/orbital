@@ -47,6 +47,11 @@ namespace engine {
     /// Get the input devices exposed by this viewport.
     virtual bfc::Map<bfc::String, bfc::InputDevice*> getInputDevices() = 0;
 
+    /// If the viewport wants to keep capturing inputs
+    virtual bool wantsInputCapture() {
+      return false;
+    }
+
   private:
     RenderScene m_renderScene;
 

@@ -6,9 +6,10 @@
 using namespace bfc;
 
 namespace engine {
-  LevelSerializer::LevelSerializer(AssetManager * pManager, ThreadPool * pThreads)
+  LevelSerializer::LevelSerializer(bfc::GraphicsDevice * pGraphicsDevice, AssetManager * pManager, ThreadPool * pThreads)
     : m_pManager(pManager)
-    , m_pThreads(pThreads) {}
+    , m_pThreads(pThreads)
+    , m_pGraphicsDevice(pGraphicsDevice) {}
 
   bool LevelSerializer::serialize(URI const & uri, Level const & level) {
     return m_pManager->getFileSystem()->serialize(uri, serialize(level));
@@ -145,6 +146,10 @@ namespace engine {
 
   AssetManager * LevelSerializer::getAssets() const {
     return m_pManager;
+  }
+
+  bfc::GraphicsDevice * LevelSerializer::getGraphicsDevice() const {
+    return m_pGraphicsDevice;
   }
 
   SerializedObject LevelSerializer::writeAsset(Ref<void> const & pAsset) {

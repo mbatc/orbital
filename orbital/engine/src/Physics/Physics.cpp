@@ -29,6 +29,15 @@ namespace {
     return btTransform(ToBt(glm::mat3_cast(t.globalOrientation(pLevel))), ToBt(t.globalTranslation(pLevel)));
   }
 
+  engine::EntityID getAssignedEntityID(btCollisionObject const * obj){
+    return engine::Level::toEntityID((uint32_t)obj->getUserIndex(), (uint32_t)obj->getUserIndex2());
+  }
+
+  void assignEntityID(btCollisionObject * obj, engine::EntityID const & id) {
+    obj->setUserIndex(engine::Level::indexOf(id));
+    obj->setUserIndex2(engine::Level::versionOf(id));
+  }
+
   PHY_ScalarType ToScalarType(bfc::DataType dt) {
     switch (dt) {
     case bfc::DataType_Float32: return PHY_FLOAT;
@@ -395,10 +404,10 @@ namespace engine {
         pShape->setLocalScaling(ToBt(pTransform->globalScale(pLevel)));
 
         if (auto * pBody = pLevel->tryGet<components::RigidBody>(entityId)) {
-          internal::PhysicsRigidBody &rigidbody = entityBodies.getOrAdd(entityId);
+          PhysicsRigidBody &rigidbody = entityBodies.getOrAdd(entityId);
           if (rigidbody.body == nullptr) {
             rigidbody.shape        = pShape;
-            rigidbody.sync         = bfc::NewRef<internal::PhysicsMotionSync>();
+            rigidbody.sync         = bfc::NewRef<PhysicsMotionSync>();
             rigidbody.sync->pLevel = pLevel;
             rigidbody.sync->entity = entityId;
 
@@ -408,10 +417,11 @@ namespace engine {
             rigidbody.body = bfc::NewRef<btRigidBody>(params);
             rigidbody.body->setWorldTransform(ToBt(pLevel, *pTransform));
 
+            assignEntityID(rigidbody.body.get(), entityId);
             pWorld->addRigidBody(rigidbody.body.get());
           }
         } else {
-          internal::PhysicsCollider & collider = entityColliders.getOrAdd(entityId);
+          PhysicsCollider & collider = entityColliders.getOrAdd(entityId);
           if (collider.obj == nullptr) {
             collider.obj = bfc::NewRef<btCollisionObject>();
             collider.obj->setCollisionShape(pShape.get());
@@ -419,6 +429,7 @@ namespace engine {
             collider.shape = pShape;
 
             pWorld->addCollisionObject(collider.obj.get());
+            assignEntityID(collider.obj.get(), entityId);
             entityColliders.addOrSet(entityId, collider);
           }
         }
@@ -429,13 +440,13 @@ namespace engine {
 
         if (pShape != nullptr) {
           if (auto * pBody = pLevel->tryGet<components::RigidBody>(entityId)) {
-            internal::PhysicsRigidBody & rigidbody = entityBodies[entityId];
+            PhysicsRigidBody & rigidbody = entityBodies[entityId];
             btVector3                    inertia;
             pShape->calculateLocalInertia((btScalar)pBody->getMass(), inertia);
             rigidbody.body->setMassProps((btScalar)pBody->getMass(), inertia);
             rigidbody.body->setCollisionShape(pShape.get());
           } else {
-            internal::PhysicsCollider & collider = entityColliders.getOrAdd(entityId);
+            PhysicsCollider & collider = entityColliders.getOrAdd(entityId);
             collider.obj->setCollisionShape(pShape.get());
           }
         }
@@ -544,45 +555,61 @@ namespace engine {
     }
   }
 
-  struct CustomRayResultCallback : public btCollisionWorld::RayResultCallback {
-    CustomRayResultCallback(bfc::geometry::Rayd const & ray, std::function<void(Physics::RayCastHit)> const & onHit)
-      : m_ray(ray)
-      , m_onHit(onHit){}
-
-    std::function<void(Physics::RayCastHit)> m_onHit;
-
-    bfc::geometry::Rayd m_ray;
-
-    virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult & rayResult, bool normalInWorldSpace) {
-      m_collisionObject = rayResult.m_collisionObject;
-
-      btVector3 hitNormalWorld;
-      if (normalInWorldSpace) {
-        hitNormalWorld = rayResult.m_hitNormalLocal;
-      } else {
-        /// need to transform normal into worldspace
-        hitNormalWorld = m_collisionObject->getWorldTransform().getBasis() * rayResult.m_hitNormalLocal;
-      }
-
-      Physics::RayCastHit hit;
-      hit.entity;
-      hit.normal   = FromBt(hitNormalWorld);
-      hit.position = m_ray.at(rayResult.m_hitFraction);
-      hit.fraction = rayResult.m_hitFraction;
-
-      m_onHit(hit);
-
-      return m_closestHitFraction;
-    }
-  };
-
   void Physics::rayTrace(Level * pLevel, bfc::geometry::Rayd const & ray, std::function<void(RayCastHit)> const & onHit) {
+    struct CustomRayResultCallback : public btCollisionWorld::RayResultCallback {
+      CustomRayResultCallback(bfc::geometry::Rayd const & ray, std::function<void(Physics::RayCastHit)> const & onHit)
+        : m_ray(ray)
+        , m_onHit(onHit) {}
+
+      std::function<void(Physics::RayCastHit)> m_onHit;
+
+      bfc::geometry::Rayd m_ray;
+
+      virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult & rayResult, bool normalInWorldSpace) {
+        m_collisionObject = rayResult.m_collisionObject;
+
+        btVector3 hitNormalWorld = {};
+        hitNormalWorld.setZero();
+        if (normalInWorldSpace) {
+          hitNormalWorld = rayResult.m_hitNormalLocal;
+        } else {
+          /// need to transform normal into worldspace
+          hitNormalWorld = m_collisionObject->getWorldTransform().getBasis() * rayResult.m_hitNormalLocal;
+        }
+
+        Physics::RayCastHit hit = {};
+        hit.entity   = getAssignedEntityID(m_collisionObject);
+        hit.normal   = FromBt(hitNormalWorld);
+        hit.position = m_ray.at(rayResult.m_hitFraction);
+        hit.fraction = rayResult.m_hitFraction;
+
+        m_onHit(hit);
+
+        return m_closestHitFraction;
+      }
+    };
+
     auto pData = pLevel->getData<LevelData>();
 
     pData->pWorld->rayTest(ToBt(ray.start), ToBt(ray.end()), CustomRayResultCallback(ray, onHit));
   }
 
   std::optional<Physics::RayCastHit> Physics::rayTrace(Level * pLevel, bfc::geometry::Rayd const & ray) {
+    btCollisionWorld::ClosestRayResultCallback closest(ToBt(ray.start), ToBt(ray.end()));
 
+    auto pData = pLevel->getData<LevelData>();
+
+    pData->pWorld->rayTest(ToBt(ray.start), ToBt(ray.end()), closest);
+
+    if (!closest.hasHit()) {
+      return std::nullopt;
+    }
+
+    Physics::RayCastHit hit;
+    hit.normal   = FromBt(closest.m_hitNormalWorld);
+    hit.position = FromBt(closest.m_hitPointWorld);
+    hit.fraction = closest.m_closestHitFraction;
+    hit.entity   = getAssignedEntityID(closest.m_collisionObject);
+    return hit;
   }
 } // namespace engine

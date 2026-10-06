@@ -43,8 +43,6 @@ namespace engine {
     auto pLevels     = pApp->findSubsystem<LevelManager>();
     auto pFileSystem = pApp->findSubsystem<VirtualFileSystem>();
 
-    Ref<Input> pInputs = pApp->findSubsystem<Input>();
-
     settings.startupLevel     = pApp->addSetting("level-editor/startup-level",     URI::File("game:levels/main.level"));
     settings.camera.fov       = pApp->addSetting("level-editor/camera/fov",        glm::radians(60.0f));
     settings.camera.farPlane  = pApp->addSetting("level-editor/camera/far-plane",  0.1f);
@@ -74,19 +72,27 @@ namespace engine {
     } else {
       pLevels->setActiveLevel(pLevels->load(settings.startupLevel.get()));
     }
-    
+
+    GraphicsDevice * pGraphicDevice = pRendering->getDevice();
+
     // Create an editor viewport and render the active level.
     {
-      auto pInitCmdList = pRendering->getDevice()->createCommandList();
+      auto pInitCmdList = pGraphicDevice->createCommandList();
 
       auto pRenderer = bfc::NewRef<DeferredRenderer>(pInitCmdList.get(), pAssets.get());
       pRendering->registerRenderer(pRenderer);
-
       m_pEditorViewport = NewRef<LevelEditorViewport>(pRenderer);
-      pRendering->getDevice()->submit(std::move(pInitCmdList));
+
+      auto pGameRenderer = bfc::NewRef<DeferredRenderer>(pInitCmdList.get(), pAssets.get());
+      pRendering->registerRenderer(pGameRenderer);
+      m_pGameViewport = NewRef<GameViewport>(pGameRenderer);
+
+      pGraphicDevice->submit(std::move(pInitCmdList));
     }
+    m_pGameViewport->setLevel(pLevels->getActiveLevel());
     m_pEditorViewport->setLevel(pLevels->getActiveLevel());
-    m_pEditorViewportRenderTarget = pRendering->getDevice()->createRenderTarget(RenderTargetType_Texture);
+    m_pEditorViewportRenderTarget = pGraphicDevice->createRenderTarget(RenderTargetType_Texture);
+    m_pGameViewportRenderTarget   = pGraphicDevice->createRenderTarget(RenderTargetType_Texture);
     pRendering->registerPlugin(bfc::NewRef<LevelEditorRenderingPlugin>(this));
 
     m_pViewportListener = m_pEditorViewport->getEvents()->addListener();
@@ -115,9 +121,8 @@ namespace engine {
       // TODO: May not want to always sync the editor level with the active level.
       //       e.g. editing a sub-level in an external window?
       m_pEditorViewport->setLevel(e.pLevel);
+      m_pGameViewport->setLevel(e.pLevel);
     });
-
-    GraphicsDevice *pGraphicDevice = pRendering->getDevice();
 
     auto pInitCmdList = pGraphicDevice->createCommandList();
     pInitCmdList->setDebugName("LevelEditor init");
@@ -204,19 +209,12 @@ namespace engine {
 
     m_pDrawData = ImGui::GetDrawData();
 
-    if (!m_pEditorViewport->camera.wantMouseCapture()) {
-      if (!m_viewportWantsInput || ImGui::GetIO().WantCaptureKeyboard) {
-        m_pEditorViewport->getEvents()->stopListening(pRendering->getMainWindow()->getEvents());
-      } else {
-        m_pEditorViewport->getEvents()->listenTo(pRendering->getMainWindow()->getEvents());
-      }
-    }
+    // Route inputs to active viewport
+    routeInputsToActiveViewport(pRendering->getMainWindow()->getEvents());
 
     // Apply camera controls
     m_pEditorViewport->camera.update(pApp->getDeltaTime());
-
     Keyboard & kbd = m_pEditorViewport->getKeyboard();
-
     if (kbd.isDown(KeyCode_Control)) {
       if (kbd.isPressed(KeyCode_S)) {
         URI levelPath = settings.startupLevel.get();
@@ -253,6 +251,25 @@ namespace engine {
 
     if (kbd.isPressed(KeyCode_U)) {
       m_manipulator.op = ImGuizmo::UNIVERSAL;
+    }
+  }
+
+  void LevelEditor::routeInputsToActiveViewport(Events * pEvents) {
+    bool viewportWantsInput = false;
+    if (m_gameViewportWantsInput) {
+      activateViewport(m_pGameViewport);
+      viewportWantsInput = m_gameViewportWantsInput;
+    } else if (m_editorViewportWantsInput) {
+      activateViewport(m_pEditorViewport);
+      viewportWantsInput = m_editorViewportWantsInput;
+    }
+
+    if (!m_pActiveViewport->wantsInputCapture()) {
+      if (!viewportWantsInput || ImGui::GetIO().WantCaptureKeyboard) {
+        m_pActiveViewport->getEvents()->stopListening(pEvents);
+      } else {
+        m_pActiveViewport->getEvents()->listenTo(pEvents);
+      }
     }
   }
 
@@ -372,6 +389,10 @@ namespace engine {
   }
 
   void LevelEditor::activateViewport(bfc::Ref<Viewport> pNewViewport) {
+    if (m_pActiveViewport == pNewViewport) {
+      return;
+    }
+
     BFC_LOG_INFO("LevelEditor", "Mapping input devices from new viewport to the input subsystem");
 
     auto pInputs = getApp()->findSubsystem<Input>();
@@ -392,17 +413,27 @@ namespace engine {
   }
 
   void LevelEditor::onRenderFrame(bfc::graphics::CommandList * pCmdList, bfc::graphics::RenderTargetRef renderTarget) {
-    if (m_pEditorViewportRenderTarget->getSize() != m_viewportSize) {
-      bfc::graphics::loadTexture2D(pCmdList, &m_pEditorViewportColour, m_viewportSize,
+    if (m_pEditorViewportRenderTarget->getSize() != m_editorViewportSize) {
+      bfc::graphics::loadTexture2D(pCmdList, &m_pEditorViewportColour, m_editorViewportSize,
                                    PixelFormat_RGBAf16);
-      bfc::graphics::loadTexture2D(pCmdList, &m_pEditorViewportDepth, m_viewportSize,
+      bfc::graphics::loadTexture2D(pCmdList, &m_pEditorViewportDepth, m_editorViewportSize,
                                    DepthStencilFormat_D24S8);
       m_pEditorViewportRenderTarget->attachColour(m_pEditorViewportColour);
       m_pEditorViewportRenderTarget->attachDepth(m_pEditorViewportDepth);
     }
 
-    m_pActiveViewport->setSize(pCmdList, m_pEditorViewportRenderTarget->getSize());
-    m_pActiveViewport->render(pCmdList, m_pEditorViewportRenderTarget);
+    m_pEditorViewport->setSize(pCmdList, m_pEditorViewportRenderTarget->getSize());
+    m_pEditorViewport->render(pCmdList, m_pEditorViewportRenderTarget);
+
+    if (m_pGameViewportRenderTarget->getSize() != m_gameViewportSize) {
+      bfc::graphics::loadTexture2D(pCmdList, &m_pGameViewportColour, m_gameViewportSize, PixelFormat_RGBAf16);
+      bfc::graphics::loadTexture2D(pCmdList, &m_pGameViewportDepth, m_gameViewportSize, DepthStencilFormat_D24S8);
+      m_pGameViewportRenderTarget->attachColour(m_pGameViewportColour);
+      m_pGameViewportRenderTarget->attachDepth(m_pGameViewportDepth);
+    }
+
+    m_pGameViewport->setSize(pCmdList, m_pGameViewportRenderTarget->getSize());
+    m_pGameViewport->render(pCmdList, m_pGameViewportRenderTarget);
 
     pCmdList->bindRenderTarget(renderTarget);
 
@@ -424,6 +455,7 @@ namespace engine {
     drawEditorSettings();
     drawAssetsPanel(pFileSystem, pLevels);
     drawEditorViewportPanel(pLevel);
+    drawGameViewportPanel(pLevel);
   }
 
   void LevelEditor::drawViewportGizmo(bfc::Ref<Level> const & pLevel, EntityID entityID, ImVec2 vpMin, ImVec2 vpMax) {
@@ -443,17 +475,32 @@ namespace engine {
   void LevelEditor::drawEditorViewportPanel(bfc::Ref<Level> const & pLevel) {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::Begin("Scene");
-    m_viewportSize = ImGui::GetContentRegionAvail();
-    if (m_viewportSize.x <= 0) m_viewportSize.x = 1;
-    if (m_viewportSize.y <= 0) m_viewportSize.y = 1;
-    ImGui::Image(m_pEditorViewportRenderTarget->getColour(0).texture, m_viewportSize, ImVec2(0, 1), ImVec2(1, 0));
-    m_viewportWantsInput = ImGui::IsWindowHovered();
+    m_editorViewportSize = ImGui::GetContentRegionAvail();
+    if (m_editorViewportSize.x <= 0) m_editorViewportSize.x = 1;
+    if (m_editorViewportSize.y <= 0) m_editorViewportSize.y = 1;
+    ImGui::Image(m_pEditorViewportRenderTarget->getColour(0).texture, m_editorViewportSize, ImVec2(0, 1), ImVec2(1, 0));
+
+    m_editorViewportWantsInput = ImGui::IsWindowHovered();
 
     ImVec2 vpMin = ImGui::GetItemRectMin();
     ImVec2 vpMax = ImGui::GetItemRectMax();
 
     drawViewportGizmo(pLevel, m_selected, vpMin, vpMax);
 
+    ImGui::End();
+    ImGui::PopStyleVar();
+  }
+
+  void LevelEditor::drawGameViewportPanel(bfc::Ref<Level> const & pLevel) {
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    ImGui::Begin("Game");
+    m_gameViewportSize = ImGui::GetContentRegionAvail();
+    if (m_gameViewportSize.x <= 0)
+      m_gameViewportSize.x = 1;
+    if (m_gameViewportSize.y <= 0)
+      m_gameViewportSize.y = 1;
+    ImGui::Image(m_pGameViewportRenderTarget->getColour(0).texture, m_gameViewportSize, ImVec2(0, 1), ImVec2(1, 0));
+    m_gameViewportWantsInput = ImGui::IsWindowHovered();
     ImGui::End();
     ImGui::PopStyleVar();
   }

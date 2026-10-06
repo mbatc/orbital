@@ -71,6 +71,8 @@ namespace engine {
 
     bool manipulate(bfc::Mat4 *pTransform, ImGuizmo::OPERATION op, ImGuizmo::MODE mode);
 
+    bool wantsInputCapture() override;
+
     EditorCamera camera;
 
   private:

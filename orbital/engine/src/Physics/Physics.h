@@ -99,11 +99,11 @@ namespace engine {
     virtual void collectRenderData(RenderView * pRenderView, Level const * pLevel) override;
 
     struct RayCastHit {
-      EntityID entity;
+      EntityID entity = 0;
 
-      bfc::Vec3d position;
-      bfc::Vec3d normal;
-      double     fraction;
+      bfc::Vec3d position = bfc::Vec3d(0);
+      bfc::Vec3d normal   = bfc::Vec3d(0);
+      double     fraction = 0;
     };
 
     static void rayTrace(Level * pLevel, bfc::geometry::Rayd const & ray, std::function<void(RayCastHit)> const & onHit);

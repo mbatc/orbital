@@ -166,4 +166,8 @@ namespace engine {
     bfc::Mat4 proj = camera.projectionMat((float)getSize().x / getSize().y);
     return ImGuizmo::Manipulate(bfc::math::begin(view), bfc::math::begin(proj), op, mode, bfc::math::begin(*pTransform));
   }
+
+  bool LevelEditorViewport::wantsInputCapture() {
+    return camera.wantMouseCapture();
+  }
 } // namespace engine

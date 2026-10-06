@@ -1,6 +1,6 @@
 #include "GameViewport.h"
-#include "Levels/Level.h"
 #include "Levels/CoreComponents.h"
+#include "Levels/Level.h"
 #include "Rendering/DeferredRenderer.h"
 
 using namespace bfc;
@@ -36,7 +36,7 @@ namespace engine {
         view.renderTarget = camera.renderTarget;
       }
 
-      view.viewport         = { camera.viewportPosition, camera.viewportSize };
+      view.viewport = {camera.viewportPosition, camera.viewportSize};
 
       ret.pushBack(view);
     }
