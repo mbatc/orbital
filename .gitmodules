@@ -22,3 +22,6 @@
 [submodule "vendor/OpenCL"]
 	path = vendor/OpenCL
 	url = https://github.com/KhronosGroup/OpenCL-Headers.git
+[submodule "vendor/sol2"]
+	path = vendor/sol2
+	url = https://github.com/ThePhD/sol2.git

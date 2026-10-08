@@ -124,7 +124,6 @@ namespace engine {
     bfc::Vector<std::future<void>>                  m_asyncJobs;
     bfc::Vector<std::function<void(Level & level)>> m_deferred;
   };
-
 } // namespace engine
 
 namespace bfc {
