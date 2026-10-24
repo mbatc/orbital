@@ -14,6 +14,8 @@ includedirs {
 
   ORBITAL_ROOT .. "vendor/glm/",
   ORBITAL_ROOT .. "vendor/bullet3/src",
+  ORBITAL_ROOT .. "vendor/sol2/include",
+  ORBITAL_ROOT .. "vendor/lua",
 }
 
 dependson {
