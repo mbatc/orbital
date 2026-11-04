@@ -104,7 +104,7 @@ namespace engine {
   }
 
   bool LevelManager::load(bfc::URI const & uri, Level * pDst, bool merge) const {
-    return LevelSerializer(m_pAssets.get()).deserialize(uri, *pDst);
+    return LevelSerializer(m_pRendering->getDevice(), m_pAssets.get()).deserialize(uri, *pDst);
   }
 
   Ref<Level> LevelManager::load(bfc::URI const & uri) const {
@@ -114,7 +114,7 @@ namespace engine {
   }
 
   bool LevelManager::save(bfc::URI const & uri, Level const & level) const {
-    return LevelSerializer(m_pAssets.get()).serialize(uri, level);
+    return LevelSerializer(m_pRendering->getDevice(), m_pAssets.get()).serialize(uri, level);
   }
 
   bfc::Ref<Level> LevelManager::getActiveLevel() const {

@@ -25,7 +25,8 @@ dependson {
 
 links {
   "lib",
-  "bullet3.lib"
+  "bullet3.lib",
+  "lua"
 }
 
 files {

@@ -220,7 +220,7 @@ namespace engine {
         URI levelPath = settings.startupLevel.get();
 
         BFC_LOG_INFO("LevelEditor", "Saving level to %s", levelPath);
-        LevelSerializer(pAssets.get()).serialize(levelPath, *pLevels->getActiveLevel());
+        LevelSerializer(pRendering->getDevice(), pAssets.get()).serialize(levelPath, *pLevels->getActiveLevel());
       }
 
       if (kbd.isPressed(KeyCode_1)) {
