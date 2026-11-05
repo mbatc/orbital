@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Editor/LevelEditor.h"
-#include "Physics/Physics.h"
+#include "Physics.h"
 
 namespace engine {
   class ColliderCapsuleEditor : public LevelEditor::ComponentEditor<components::ColliderCapsule> {

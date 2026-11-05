@@ -12,8 +12,11 @@
 #include "Levels/CoreComponents.h"
 #include "Editor/Components/CoreComponentEditor.h"
 
-#include "Physics/Physics.h"
+#include "Physics.h"
 #include "Editor/Components/PhysicsComponentEditor.h"
+
+#include "LuaScripting.h"
+#include "Editor/Components/LuaScriptsComponentEditor.h"
 
 #include "Rendering/Rendering.h"
 #include "Rendering/DeferredRenderer.h"
@@ -184,6 +187,8 @@ namespace engine {
     addPropertyEditor<ColliderSphereEditor>();
     addPropertyEditor<ColliderMeshEditor>();
     addPropertyEditor<RigidBodyEditor>();
+
+    addPropertyEditor<LuaScriptsEditor>();
 
     pGraphicDevice->submit(std::move(pInitCmdList));
 
@@ -867,7 +872,7 @@ namespace engine {
     if (instance.isEmpty())
       return;
 
-    Ref<IComponentEditor> pEditor = m_propertyEditors.getOr(instance.typeInfo(), nullptr);
+    Ref<IPropertyEditor> pEditor = m_propertyEditors.getOr(instance.typeInfo(), nullptr);
     if (pEditor != nullptr) {
       pEditor->_draw(this, pLevel, entityID, instance.data());
     } else {

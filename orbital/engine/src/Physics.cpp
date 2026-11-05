@@ -1,5 +1,5 @@
 #include "Physics.h"
-#include "../../../../vendor/bullet3/src/btBulletDynamicsCommon.h"
+#include "../../../vendor/bullet3/src/btBulletDynamicsCommon.h"
 #include "Levels/CoreComponents.h"
 #include "Assets/BuiltinAssets.h"
 #include "Rendering/Renderer.h"
@@ -34,8 +34,8 @@ namespace {
   }
 
   void assignEntityID(btCollisionObject * obj, engine::EntityID const & id) {
-    obj->setUserIndex(engine::Level::indexOf(id));
-    obj->setUserIndex2(engine::Level::versionOf(id));
+    obj->setUserIndex((int)engine::Level::indexOf(id));
+    obj->setUserIndex2((int)engine::Level::versionOf(id));
   }
 
   PHY_ScalarType ToScalarType(bfc::DataType dt) {

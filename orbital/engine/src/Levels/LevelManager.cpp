@@ -10,7 +10,7 @@
 #include "Rendering/Rendering.h"
 #include "Assets/AssetManager.h"
 
-#include "Physics/Physics.h"
+#include "Physics.h"
 
 #include "mesh/Mesh.h"
 #include "platform/Window.h"

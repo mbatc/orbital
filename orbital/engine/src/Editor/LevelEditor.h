@@ -38,14 +38,14 @@ namespace engine {
     virtual void loop(Application * pApp) override;
 
     // Component editors
-    class IComponentEditor {
+    class IPropertyEditor {
     public:
       virtual bfc::type_index type()                                                                                                   = 0;
       virtual void            _draw(LevelEditor * pEditor, bfc::Ref<Level> const & pLevel, EntityID entityID, void const * pComponent) = 0;
     };
 
     template<typename T>
-    class ComponentEditor : public IComponentEditor {
+    class ComponentEditor : public IPropertyEditor {
     public:
       virtual bfc::type_index type() override final {
         return bfc::TypeID<T>();
@@ -59,18 +59,25 @@ namespace engine {
       }
     };
 
-    template<typename T>
-    class DefaultComponentEditor : public IComponentEditor {
-
-    };
-
     template<typename Editor, typename... Args>
     void addPropertyEditor(Args &&... args) {
-      bfc::Ref<IComponentEditor> pEditor = bfc::NewRef<Editor>(std::forward<Args>(args)...);
+      bfc::Ref<IPropertyEditor> pEditor = bfc::NewRef<Editor>(std::forward<Args>(args)...);
       m_propertyEditors.add(pEditor->type(), pEditor);
     }
 
     static bool drawEntitySelector(bfc::StringView const & name, EntityID * pEntityID, Level * pLevel);
+
+    template<typename T>
+    bool drawAssetSelector(bfc::StringView const & name, bfc::Ref<T> * ppAsset) {
+      return drawAssetSelector(name, ppAsset, getApp()->findSubsystem<AssetManager>().get(),
+                               getApp()->findSubsystem<VirtualFileSystem>().get());
+    }
+
+    template<typename T>
+    bool drawAssetSelector(bfc::StringView const & name, engine::Asset<T> * pAsset) {
+      return drawAssetSelector(name, pAsset, getApp()->findSubsystem<AssetManager>().get(),
+                               getApp()->findSubsystem<VirtualFileSystem>().get());
+    }
 
     template<typename T>
     static bool drawAssetSelector(bfc::StringView const & name, bfc::Ref<T> * ppAsset, AssetManager * pManager, VirtualFileSystem * pFileSystem) {
@@ -94,6 +101,7 @@ namespace engine {
       }
       return result;
     }
+
 
     static bool drawAssetSelector(bfc::StringView const & name, bfc::Ref<void> * ppAsset, bfc::type_index const & assetType, AssetManager * pManager,
                                   VirtualFileSystem * pFileSystem);
@@ -168,7 +176,7 @@ namespace engine {
 
     bfc::Ref<Viewport> m_pActiveViewport = nullptr;
 
-    bfc::Map<bfc::type_index, bfc::Ref<IComponentEditor>> m_propertyEditors;
+    bfc::Map<bfc::type_index, bfc::Ref<IPropertyEditor>> m_propertyEditors;
 
     bfc::URI m_selectedAssetPath;
 

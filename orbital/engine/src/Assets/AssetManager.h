@@ -313,6 +313,16 @@ namespace engine {
       return instance().get();
     }
 
+    bool operator==(Asset const & rhs) const
+    {
+      return (m_pManager != nullptr && m_handle == rhs.m_handle && m_pManager == rhs.m_pManager) || m_pInstance == rhs.m_pInstance;
+    }
+
+    bool operator!=(Asset const & rhs) const
+    {
+      return !(*this == rhs);
+    }
+
   private:
     mutable bfc::Ref<T> m_pInstance       = nullptr;
     mutable uint64_t    m_loadedVersion   = 0;

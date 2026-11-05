@@ -91,8 +91,7 @@ namespace engine {
     return true;
   }
 
-  void AssetManager::shutdown() {
-  }
+  void AssetManager::shutdown() {}
 
   bool AssetManager::registerLoader(StringView const & name, Ref<IAssetLoader> const & pLoader) {
     std::scoped_lock guard{m_loaderLock};
