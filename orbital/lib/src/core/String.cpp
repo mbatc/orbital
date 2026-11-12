@@ -389,6 +389,10 @@ namespace bfc {
     return getView();
   }
 
+  String::operator std::string() const {
+    return std::string(begin(), end());
+  }
+
   char & String::operator[](int64_t index) {
     return m_data[index];
   }

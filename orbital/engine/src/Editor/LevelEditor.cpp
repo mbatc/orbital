@@ -15,8 +15,8 @@
 #include "Physics.h"
 #include "Editor/Components/PhysicsComponentEditor.h"
 
-#include "LuaScripting.h"
-#include "Editor/Components/LuaScriptsComponentEditor.h"
+#include "Behaviours.h"
+#include "Editor/Components/BehavioursComponentEditor.h"
 
 #include "Rendering/Rendering.h"
 #include "Rendering/DeferredRenderer.h"
@@ -188,7 +188,7 @@ namespace engine {
     addPropertyEditor<ColliderMeshEditor>();
     addPropertyEditor<RigidBodyEditor>();
 
-    addPropertyEditor<LuaScriptsEditor>();
+    addPropertyEditor<BehavioursEditor>();
 
     pGraphicDevice->submit(std::move(pInitCmdList));
 

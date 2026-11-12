@@ -143,6 +143,7 @@ namespace bfc {
     char const* data() const;
 
     operator StringView() const;
+    operator std::string() const;
 
     char& operator[](int64_t index);
 
