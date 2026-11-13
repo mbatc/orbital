@@ -8,6 +8,31 @@
 #include "core/RuntimeObject.h"
 #include "LevelSerializer.h"
 
+// Level components can be any type.
+// There are some traits that a component can implement either specializing on or more super classes of LevelComponentHooks.
+// Alternatively, define methods inside a nested ComponentTraits struct.
+//
+// e.g.
+//
+//   struct MyComponent {
+//     struct Serialization {
+//       static SerializedObject write(components::Behaviours const & o, engine::ComponentSerializeContext const & ctx);
+//       
+//       static bool read(SerializedObject const & s, components::Behaviours & o, engine::ComponentDeserializeContext const & ctx);
+//     }
+// 
+//     struct ComponentTraits {
+//       static bool copy(engine::LevelCopyContext * pContext, engine::Level * pDstLevel, engine::EntityID dstEntity,
+//                        engine::Level const & srcLevel, Behaviours const & component);
+//
+//       static bool preErase(Behaviours * pComponent, engine::Level * pLevel);
+//
+//       static bool postAdd(Behaviours * pComponent, engine::Level * pLevel);
+//     };
+//   };
+//
+// The default "hooks" will call these methods if they exist
+
 namespace engine {
   using EntityID = uint64_t;
 
@@ -67,24 +92,58 @@ namespace engine {
     virtual void * addComponent(Level * pDstLevel, EntityID entity) const = 0;
   };
 
+  namespace meta {
+    namespace component {
+      template<typename T, typename = void>
+      struct has_copy : std::false_type {};
+      template<typename T>
+      struct has_copy<T, std::void_t<decltype(T::ComponentTraits::copy)>> : std::true_type {};
+      template<typename T>
+      inline constexpr bool has_copy_v = has_copy<T>::value;
+
+      template<typename T, typename = void>
+      struct has_pre_erase : std::false_type {};
+      template<typename T>
+      struct has_pre_erase<T, std::void_t<decltype(T::ComponentTraits::preErase)>> : std::true_type {};
+      template<typename T>
+      inline constexpr bool has_pre_erase_v = has_pre_erase<T>::value;
+
+      template<typename T, typename = void>
+      struct has_post_add : std::false_type {};
+      template<typename T>
+      struct has_post_add<T, std::void_t<decltype(T::ComponentTraits::postAdd)>> : std::true_type {};
+      template<typename T>
+      inline constexpr bool has_post_add_v = has_post_add<T>::value;
+    } // namespace detail
+  }
+
   template<typename T>
   struct LevelComponent_OnCopy {
     inline static void onCopy(LevelCopyContext * pContext, Level * pDstLevel, EntityID dstEntity, Level const & srcLevel, T const & component) {
       BFC_UNUSED(pContext, srcLevel);
-      pDstLevel->replace<T>(dstEntity, component);
+      if constexpr (meta::component::has_copy_v<T>)
+        T::ComponentTraits::copy(pContext, pDstLevel, dstEntity, srcLevel, component);
+      else
+        pDstLevel->replace<T>(dstEntity, component);
     }
   };
 
   /// Specialize this to implement logic before a component is removed from a scene.
   template<typename T>
   struct LevelComponent_OnPreErase {
-    inline static void onPreErase(T * pComponent, Level * pLevel) {}
+    inline static void onPreErase(T * pComponent, Level * pLevel) {
+      if constexpr (meta::component::has_pre_erase_v<T>)
+        T::ComponentTraits::preErase(pComponent, pLevel);
+    }
   };
 
   /// Specialize this to implement logic after a component is added to a scene.
   template<typename T>
   struct LevelComponent_OnPostAdd {
-    inline static void onPostAdd(T * pComponent, Level * pLevel) {}
+    inline static void onPostAdd(T * pComponent, Level * pLevel) {
+      if constexpr (meta::component::has_post_add_v<T>)
+        T::ComponentTraits::postAdd(pComponent, pLevel);
+    }
   };
 
   template<typename T>

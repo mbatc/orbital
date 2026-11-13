@@ -52,37 +52,37 @@ namespace engine {
     /// Call the scripts activate method
     void activate(engine::Level * pLevel) override {
       if (m_activate)
-        m_activate(pLevel);
+        m_activate(m_instance, pLevel);
     }
 
     /// Call the scripts deactivate method
     void deactivate(engine::Level * pLevel) override {
       if (m_deactivate)
-        m_deactivate(pLevel);
+        m_deactivate(m_instance, pLevel);
     }
 
     /// Call the scripts update method
     void update(engine::Level * pLevel, bfc::Timestamp dt) override {
       if (m_update)
-        m_update(pLevel, dt.secs());
+        m_update(m_instance, pLevel, dt.secs());
     }
 
     /// Call the scripts stop method
     void stop(engine::Level * pLevel) override {
       if (m_stop)
-        m_stop(pLevel);
+        m_stop(m_instance, pLevel);
     }
 
     /// Call the scripts pause method
     void pause(engine::Level * pLevel) override {
       if (m_pause)
-        m_pause(pLevel);
+        m_pause(m_instance, pLevel);
     }
 
     /// Call the scripts destroy method
     void destroyed(engine::Level * pLevel) override {
       if (m_destroyed)
-        m_destroyed(pLevel);
+        m_destroyed(m_instance, pLevel);
     }
 
     /// Get the class that created this instance
@@ -90,7 +90,6 @@ namespace engine {
       return m_pClass;
     }
 
-  private:
     sol::protected_function m_update;
     sol::protected_function m_activate;
     sol::protected_function m_deactivate;
@@ -104,13 +103,14 @@ namespace engine {
 
   class LuaBehaviourClass : public BehaviourClass {
   public:
-    LuaBehaviourClass(sol::state * pLua, sol::table classTable) {
-      m_class = classTable;
-      m_new   = m_class["new"];
+    LuaBehaviourClass(sol::state * pLua, sol::table classTable, sol::protected_function bindToEntity) {
+      m_bindToEntity = bindToEntity;
+      m_class        = classTable;
+      m_new          = m_class.as<sol::protected_function>();
     }
 
     /// Create an instance of this behaviour class.
-    virtual bfc::Ref<BehaviourInstance> instantiate() {
+    virtual bfc::Ref<BehaviourInstance> instantiate(engine::Level * pLevel, engine::EntityID entity) {
       auto result = m_new();
       if (!result.valid()) {
         sol::error err = result;
@@ -118,7 +118,11 @@ namespace engine {
         return nullptr;
       }
 
-      return bfc::NewRef<LuaBehaviourInstance>(this, result.get<sol::table>());
+      auto table = result.get<sol::table>();
+      if (!m_bindToEntity(table, pLevel, entity))
+        return nullptr;
+
+      return bfc::NewRef<LuaBehaviourInstance>(this, table);
     }
 
     /// Serialize an instance of this behaviour class.
@@ -133,6 +137,7 @@ namespace engine {
 
     sol::table              m_class;
     sol::protected_function m_new;
+    sol::protected_function m_bindToEntity;
   };
 
   LuaScripting::LuaScripting()
@@ -172,6 +177,7 @@ namespace engine {
     lua.set_exception_handler(impl::luaExceptionHandler);
     lua.open_libraries(
       sol::lib::base,
+      sol::lib::table,
       sol::lib::package,
       sol::lib::coroutine,
       sol::lib::io,
@@ -183,12 +189,11 @@ namespace engine {
     if (!m_pFileSystem->readText("file:///engine:lua/entry.lua", &entryScript)) {
       return;
     }
+    // Run core script
+    lua.script({entryScript.begin(), (size_t)entryScript.length()});
 
-    sol::table engine = lua.create_table("Engine");
-
-    engine["addBehaviour"] = [=](bfc::String identifier, sol::table luaClass) {
-      return BehaviourClass::Registry::add(identifier, bfc::NewRef<LuaBehaviourClass>(&lua, luaClass));
-    };
+    sol::table engine = lua["Engine"];
+    sol::table detail = engine["detail"];
 
     engine["resolveModuleURI"] = [=](bfc::String name) {
       if (name.find("://") != bfc::npos)
@@ -198,17 +203,21 @@ namespace engine {
     };
 
     engine["resolveRelativeReference"] = [=](bfc::String base, bfc::String ref) {
-      if (name.find("://") != bfc::npos)
-        return m_pFileSystem->resolveUri(bfc::URI(name)).str();
+      if (ref.find("://") != bfc::npos)
+        return m_pFileSystem->resolveUri(bfc::URI(ref)).str();
       else
-        return m_pFileSystem->resolveUri(bfc::URI::File(name.replace(".", "/"))).path().operator bfc::String();
+        return bfc::URI::File(bfc::Filename::parent(base)).resolveRelativeReference(ref).path().operator bfc::String();
     };
 
-    engine["removeBehaviour"] = [=](bfc::String identifier) {
-      return BehaviourClass::Registry::remove(identifier);
+    detail["addBehaviour"] = [=](bfc::String identifier, sol::table luaClass) {
+      return BehaviourClass::Registry::add(identifier,
+                                           bfc::NewRef<LuaBehaviourClass>(&lua, luaClass));
     };
 
-    lua.script({entryScript.begin(), (size_t)entryScript.length()});
+    detail["removeBehaviour"] = [=](bfc::String identifier) { return BehaviourClass::Registry::remove(identifier); };
+
+    // Call lua entry point
+    engine["startup"]();
   }
 } // namespace engine
 

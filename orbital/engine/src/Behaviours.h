@@ -4,6 +4,7 @@
 #include "core/Timestamp.h"
 #include "core/Serialize.h"
 #include "Levels/LevelSystem.h"
+#include "Levels/LevelSerializer.h"
 #include <optional>
 
 namespace engine {
@@ -28,6 +29,9 @@ namespace engine {
 
     /// Call the behaviours destroy method
     virtual void destroyed(Level * pLevel) = 0;
+
+    /// Bind this instance to an entity
+    virtual bool bind(engine::Level * pLevel, engine::EntityID entity) = 0;
 
     /// Get the class that created this instance
     virtual BehaviourClass* getClass() const = 0;
@@ -65,8 +69,8 @@ namespace components {
   class Behaviours {
   public:
     bool has(engine::BehaviourClass const * pClass) const;
-    bool add(engine::BehaviourClass * pBehaviour);
-    bool add(bfc::Ref<engine::BehaviourInstance> pInstance);
+    bool add(engine::Level * pLevel, engine::EntityID entity, engine::BehaviourClass * pBehaviour);
+    bool add(engine::Level * pLevel, engine::EntityID entity, bfc::Ref<engine::BehaviourInstance> pInstance);
     bool remove(engine::BehaviourClass * pClass);
     bfc::Vector<bfc::Ref<engine::BehaviourInstance>> const & instances() const;
 
@@ -105,8 +109,7 @@ namespace engine {
 namespace bfc {
   template<>
   struct Serializer<components::Behaviours> {
-    template<typename Context>
-    static SerializedObject write(components::Behaviours const & o, Context const & ctx) {
+    static SerializedObject write(components::Behaviours const & o, engine::ComponentSerializeContext const & ctx) {
       Map<String, SerializedObject> instances;
       for (auto& pInstance : o.instances()) {
         instances.add(engine::BehaviourClass::Registry::identifierOf(pInstance.get()), pInstance->serialize());
@@ -117,8 +120,8 @@ namespace bfc {
       });
     }
 
-    template<typename Context>
-    static bool read(SerializedObject const & s, components::Behaviours & o, Context const & ctx) {
+    static bool read(SerializedObject const & s, components::Behaviours & o,
+                     engine::ComponentDeserializeContext const & ctx) {
       mem::construct(&o);
 
       SerializedObject const & instances = s.get("instances");
@@ -133,7 +136,7 @@ namespace bfc {
 
         auto pInstance = pBehaviourClass->deserialize(serialization);
         if (pInstance != nullptr) {
-          o.add(pInstance);
+          o.add(ctx.pLevel, ctx.entity, pInstance);
         }
       }
 

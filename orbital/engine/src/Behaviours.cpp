@@ -8,7 +8,6 @@ namespace engine {
     bfc::Map<engine::BehaviourClass const *, bfc::String> behaviourToName;
   }
 
-
   bool BehaviourClass::Registry::add(bfc::StringView const & identifier, bfc::Ref<BehaviourClass> pClass) {
     return impl::behaviours.tryAdd(identifier, pClass);
   }
@@ -39,15 +38,18 @@ namespace components {
     return m_instances.find([pClass](auto pInstance) { return pInstance->getClass() == pClass; }) != -1;
   }
 
-  bool Behaviours::add(engine::BehaviourClass * pBehaviour) {
+  bool Behaviours::add(engine::Level * pLevel, engine::EntityID entity, engine::BehaviourClass * pBehaviour) {
     if (has(pBehaviour))
       return false;
-    m_instances.pushBack(pBehaviour->instantiate());
+    auto pInstance = pBehaviour->instantiate();
+    if (!pInstance->bind(pLevel, entity))
+      return false;
+    m_instances.pushBack(pInstance);
     return true;
   }
 
-  bool Behaviours::add(bfc::Ref<engine::BehaviourInstance> pInstance) {
-    if (has(pInstance->getClass()))
+  bool Behaviours::add(engine::Level * pLevel, engine::EntityID entity, bfc::Ref<engine::BehaviourInstance> pInstance) {
+    if (has(pInstance->getClass()) || !pInstance->bind(pLevel, entity))
       return false;
     m_instances.pushBack(pInstance);
     return true;
