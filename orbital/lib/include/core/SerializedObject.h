@@ -29,6 +29,7 @@ namespace bfc {
 
     enum Type {
       Type_Empty,
+      Type_Bool,
       Type_Int,
       Type_Float,
       Type_Text,
@@ -80,6 +81,7 @@ namespace bfc {
     bool isMap() const;
     bool isFloat() const;
     bool isInt() const;
+    bool isBool() const;
     bool isText() const;
     bool isEmpty() const;
 
@@ -91,6 +93,7 @@ namespace bfc {
     Vector<SerializedObject> &      asArray();
     Map<String, SerializedObject> & asMap();
 
+    bool       asBool() const;
     int64_t    asInt() const;
     double     asFloat() const;
     StringView asText() const;
@@ -123,9 +126,6 @@ namespace bfc {
   class BFC_API SerializedObject : public SerializedObjectProxy {
     friend SerializedObjectProxy;
 
-    SerializedObject(Vector<SerializedObject> const & arr);
-    SerializedObject(Map<String, SerializedObject> const & map);
-
     virtual SerializedObject const & get() const override {
       return *this;
     }
@@ -145,26 +145,31 @@ namespace bfc {
   public:
     using SerializedObjectProxy::get;
 
-    static SerializedObject MakeArray(Vector<SerializedObject> const & arr = {});
-    static SerializedObject MakeMap(Map<String, SerializedObject> const & map = {});
-    static SerializedObject MakeText(String const & value);
-    static SerializedObject MakeInt(int64_t const & value);
-    static SerializedObject MakeFloat(double const & value);
+    static SerializedObject MakeArray(Vector<SerializedObject> arr = {});
+    static SerializedObject MakeMap(Map<String, SerializedObject> map = {});
+    static SerializedObject MakeText(String value);
+    static SerializedObject MakeInt(int64_t value);
+    static SerializedObject MakeFloat(double value);
+    static SerializedObject MakeBool(bool value);
     static SerializedObject Empty();
 
     SerializedObject();
-    SerializedObject(int64_t const & value);
-    SerializedObject(double const & value);
-    SerializedObject(String const & text);
+    SerializedObject(int64_t value);
+    SerializedObject(double value);
+    SerializedObject(bool value);
+    SerializedObject(String value);
+    SerializedObject(char const * value);
+    SerializedObject(Vector<SerializedObject> arr);
+    SerializedObject(Map<String, SerializedObject> map);
 
     template<typename T, typename Context = DefaultSerializerContext>
     explicit SerializedObject(T const & o, Context const & ctx = {})
       : SerializedObject(Serializer<T>::write(o, ctx)) {}
 
-    SerializedObject(SerializedObject && rhs);
+    SerializedObject(SerializedObject && rhs) noexcept;
     SerializedObject(SerializedObject const & rhs);
     SerializedObject & operator=(SerializedObject const & o);
-    SerializedObject & operator=(SerializedObject && rhs);
+    SerializedObject & operator=(SerializedObject && rhs) noexcept;
 
     ~SerializedObject();
 
@@ -179,11 +184,12 @@ namespace bfc {
 
     union Field {
       Field();
-      Field(Map<String, SerializedObject> const & map);
-      Field(Vector<SerializedObject> const & vec);
-      Field(int64_t const & value);
-      Field(double const & value);
-      Field(String const & value);
+      Field(Map<String, SerializedObject> map);
+      Field(Vector<SerializedObject> vec);
+      Field(String value);
+      Field(int64_t value);
+      Field(double value);
+      Field(bool value);
       ~Field();
 
       Map<String, SerializedObject> map;
@@ -192,6 +198,7 @@ namespace bfc {
       int64_t i64;
       double  f64;
       String  text;
+      bool    b;
     } m_field;
 
     int64_t m_version = 0;

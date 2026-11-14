@@ -7,6 +7,7 @@
 #include "Util/log.h"
 
 #include "Behaviours.h"
+#include "LuaBehaviours.h"
 
 namespace engine {
   namespace impl {
@@ -16,129 +17,6 @@ namespace engine {
       return 1;
     }
   } // namespace impl
-
-  class LuaBehaviourInstance : public BehaviourInstance {
-  public:
-    LuaBehaviourInstance(BehaviourClass * pClass, sol::table instance)
-      : m_pClass(pClass)
-      , m_instance(instance) 
-      , m_update(instance["update"])
-      , m_activate(instance["activate"])
-      , m_deactivate(instance["deactivate"])
-      , m_pause(instance["pause"])
-      , m_stop(instance["stop"])
-      , m_destroyed(instance["destroyed"]) 
-    {}
-
-    /// Call a method on this script
-    template<typename... Args>
-    sol::protected_function_result call(bfc::StringView const & name, Args &&... args) const {
-      if (!m_instance.has_value())
-        return nullptr;
-
-      sol::protected_function func = m_instance.value()[name];
-      return func(m_instance.value(), std::forward<Args>(args)...);
-    }
-
-    template<typename... Args>
-    sol::protected_function_result callStatic(bfc::StringView const & name, Args &&... args) const {
-      if (!m_instance.has_value())
-        return nullptr;
-
-      sol::protected_function func = m_instance.value()[name];
-      return func(std::forward<Args>(args)...);
-    }
-
-    /// Call the scripts activate method
-    void activate(engine::Level * pLevel) override {
-      if (m_activate)
-        m_activate(m_instance, pLevel);
-    }
-
-    /// Call the scripts deactivate method
-    void deactivate(engine::Level * pLevel) override {
-      if (m_deactivate)
-        m_deactivate(m_instance, pLevel);
-    }
-
-    /// Call the scripts update method
-    void update(engine::Level * pLevel, bfc::Timestamp dt) override {
-      if (m_update)
-        m_update(m_instance, pLevel, dt.secs());
-    }
-
-    /// Call the scripts stop method
-    void stop(engine::Level * pLevel) override {
-      if (m_stop)
-        m_stop(m_instance, pLevel);
-    }
-
-    /// Call the scripts pause method
-    void pause(engine::Level * pLevel) override {
-      if (m_pause)
-        m_pause(m_instance, pLevel);
-    }
-
-    /// Call the scripts destroy method
-    void destroyed(engine::Level * pLevel) override {
-      if (m_destroyed)
-        m_destroyed(m_instance, pLevel);
-    }
-
-    /// Get the class that created this instance
-    virtual BehaviourClass* getClass() const override {
-      return m_pClass;
-    }
-
-    sol::protected_function m_update;
-    sol::protected_function m_activate;
-    sol::protected_function m_deactivate;
-    sol::protected_function m_pause;
-    sol::protected_function m_stop;
-    sol::protected_function m_destroyed;
-
-    sol::table       m_instance;
-    BehaviourClass * m_pClass = nullptr;
-  };
-
-  class LuaBehaviourClass : public BehaviourClass {
-  public:
-    LuaBehaviourClass(sol::state * pLua, sol::table classTable, sol::protected_function bindToEntity) {
-      m_bindToEntity = bindToEntity;
-      m_class        = classTable;
-      m_new          = m_class.as<sol::protected_function>();
-    }
-
-    /// Create an instance of this behaviour class.
-    virtual bfc::Ref<BehaviourInstance> instantiate(engine::Level * pLevel, engine::EntityID entity) {
-      auto result = m_new();
-      if (!result.valid()) {
-        sol::error err = result;
-        BFC_LOG_ERROR("lua", "Function error: %s", err.what());
-        return nullptr;
-      }
-
-      auto table = result.get<sol::table>();
-      if (!m_bindToEntity(table, pLevel, entity))
-        return nullptr;
-
-      return bfc::NewRef<LuaBehaviourInstance>(this, table);
-    }
-
-    /// Serialize an instance of this behaviour class.
-    virtual bfc::SerializedObject serialize(BehaviourInstance * pSerialize) {
-      return bfc::SerializedObject::Empty();
-    }
-
-    /// Deserialize an instance of this behaviour class.
-    virtual bfc::Ref<BehaviourInstance> deserialize(bfc::SerializedObject const & serialization) {
-      return nullptr;
-    }
-
-    sol::table              m_class;
-    sol::protected_function m_new;
-    sol::protected_function m_bindToEntity;
-  };
 
   LuaScripting::LuaScripting()
     : Subsystem(bfc::TypeID<LuaScripting>(), "Scripting") {}
@@ -154,6 +32,8 @@ namespace engine {
   }
 
   void LuaScripting::shutdown() {
+    if (lua["Engine"].valid())
+      lua["Engine"]["shutdown"]();
     lua = {};
   }
 
@@ -167,6 +47,8 @@ namespace engine {
   }
 
   void LuaScripting::reload() {
+    if (lua["Engine"].valid())
+      lua["Engine"]["shutdown"]();
     lua = {};
     lua.add_package_loader([this](bfc::String const & str) -> sol::object {
       bfc::String content;
@@ -175,26 +57,39 @@ namespace engine {
       return lua.load_buffer(content.begin(), content.length(), str.begin()).get<sol::object>();
     });
     lua.set_exception_handler(impl::luaExceptionHandler);
-    lua.open_libraries(
-      sol::lib::base,
-      sol::lib::table,
-      sol::lib::package,
-      sol::lib::coroutine,
-      sol::lib::io,
-      sol::lib::debug,
-      sol::lib::math
-    );
+    lua.open_libraries(sol::lib::base, sol::lib::table, sol::lib::package, sol::lib::coroutine, sol::lib::io,
+                       sol::lib::debug, sol::lib::math);
 
+    // lua.new_usertype<bfc::SerializedObject>("SerializedObject",
+    //   "new", &sol::no_constructor,
+    //   "MakeMap", &bfc::SerializedObject::MakeMap,
+    //   "MakeArray", &bfc::SerializedObject::MakeArray,
+    //   "MakeFloat", &bfc::SerializedObject::MakeFloat,
+    //   "MakeInt", &bfc::SerializedObject::MakeInt,
+    //   "MakeText", &bfc::SerializedObject::MakeText,
+    //   "asArray", sol::resolve<bfc::Vector<bfc::SerializedObject> &()>(&bfc::SerializedObject::asArray),
+    //   "asMap", sol::resolve<bfc::Map<bfc::String, bfc::SerializedObject> &()>(&bfc::SerializedObject::asMap),
+    //   "asInt", &bfc::SerializedObject::asInt,
+    //   "asFloat", &bfc::SerializedObject::asFloat,
+    //   "asText", &bfc::SerializedObject::asText,
+    //   "add", &bfc::SerializedObject::add,
+    //   "pushFront", &bfc::SerializedObject::pushFront,
+    //   "pushBack", &bfc::SerializedObject::pushBack,
+    //   "pushBack", &bfc::SerializedObject::pushBack
+    // );
+
+    bfc::URI    entryScriptUri = "file:///engine:lua/entry.lua";
     bfc::String entryScript;
-    if (!m_pFileSystem->readText("file:///engine:lua/entry.lua", &entryScript)) {
+    if (!m_pFileSystem->readText(entryScriptUri, &entryScript)) {
       return;
     }
+
     // Run core script
-    lua.script({entryScript.begin(), (size_t)entryScript.length()});
+    lua.script({entryScript.begin(), (size_t)entryScript.length()}, entryScriptUri.c_str());
 
-    sol::table engine = lua["Engine"];
+    // Set up remaining bindings
+    sol::table engine = lua[sol::create_if_nil]["Engine"];
     sol::table detail = engine["detail"];
-
     engine["resolveModuleURI"] = [=](bfc::String name) {
       if (name.find("://") != bfc::npos)
         return m_pFileSystem->resolveUri(bfc::URI(name)).str();
@@ -209,9 +104,13 @@ namespace engine {
         return bfc::URI::File(bfc::Filename::parent(base)).resolveRelativeReference(ref).path().operator bfc::String();
     };
 
+    auto pBehaviourContext = bfc::NewRef<LuaBehaviourClass::Shared>();
+    pBehaviourContext->bind      = engine["bindEntity"].get<sol::protected_function>();
+    pBehaviourContext->unbind    = engine["unbindEntity"].get<sol::protected_function>();
+    pBehaviourContext->nullValue = engine["Null"].get<sol::object>();
+
     detail["addBehaviour"] = [=](bfc::String identifier, sol::table luaClass) {
-      return BehaviourClass::Registry::add(identifier,
-                                           bfc::NewRef<LuaBehaviourClass>(&lua, luaClass));
+      return BehaviourClass::Registry::add(identifier, bfc::NewRef<LuaBehaviourClass>(&lua, luaClass, pBehaviourContext));
     };
 
     detail["removeBehaviour"] = [=](bfc::String identifier) { return BehaviourClass::Registry::remove(identifier); };

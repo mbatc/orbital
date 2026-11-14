@@ -16,18 +16,18 @@
 //
 //   struct MyComponent {
 //     struct Serialization {
-//       static SerializedObject write(components::Behaviours const & o, engine::ComponentSerializeContext const & ctx);
+//       static SerializedObject write(Type const & o, engine::ComponentSerializeContext const & ctx);
 //       
-//       static bool read(SerializedObject const & s, components::Behaviours & o, engine::ComponentDeserializeContext const & ctx);
+//       static bool read(SerializedObject const & s, Type & o, engine::ComponentDeserializeContext const & ctx);
 //     }
 // 
 //     struct ComponentTraits {
 //       static bool copy(engine::LevelCopyContext * pContext, engine::Level * pDstLevel, engine::EntityID dstEntity,
-//                        engine::Level const & srcLevel, Behaviours const & component);
+//                        engine::Level const & srcLevel, Type const & component);
 //
-//       static bool preErase(Behaviours * pComponent, engine::Level * pLevel);
+//       static bool preErase(Type * pComponent, engine::Level * pLevel);
 //
-//       static bool postAdd(Behaviours * pComponent, engine::Level * pLevel);
+//       static bool postAdd(Type * pComponent, engine::Level * pLevel);
 //     };
 //   };
 //

@@ -10,7 +10,10 @@ namespace bfc {
   template <typename T>
   class Vector {
   public:
-    using ElementType = T;
+    using value_type     = T;
+    using iterator       = T*;
+    using const_iterator = T const *;
+    using size_type      = int64_t;
 
     Vector() = default;
 
@@ -155,10 +158,6 @@ namespace bfc {
       insert(m_size, first, last);
     }
 
-    //void pushBack(Span<T> const & items) {
-    //  insert(size(), items);
-    //}
-
     void pushBack(Span<const T> const & items) {
       insert(m_size, items);
     }
@@ -170,6 +169,14 @@ namespace bfc {
 
     void pushBack(std::initializer_list<T> const& il) {
       insert(m_size, il);
+    }
+
+    void push_back(T && value) {
+      return pushBack(std::move(value));
+    }
+
+    void push_back(T const & value) {
+      return pushBack(std::move(value));
     }
 
     void pushBackMove(T* first, T* last) {
@@ -444,12 +451,6 @@ namespace bfc {
     }
 
   private:
-    bool tryReserve(int64_t newCapacity) {
-      if (m_capacity < newCapacity) {
-        return reallocate(newCapacity)
-      }
-    }
-
     bool reallocate(int64_t newCapacity) {
       if (newCapacity == m_capacity)
         return false; // Don't reallocate - already enough space

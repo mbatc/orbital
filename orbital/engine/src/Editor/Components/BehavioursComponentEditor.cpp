@@ -5,12 +5,14 @@
 namespace engine {
   void BehavioursEditor::draw(LevelEditor * pEditor, bfc::Ref<Level> const & pLevel, EntityID entityID,
                                 components::Behaviours * pScripts) {
+    bfc::Ref<BehaviourInstance> pToRemove; 
     auto pAssets = pEditor->getApp()->findSubsystem<AssetManager>();
     for (auto & pInstance : pScripts->instances()) {
       const bfc::String identifier = BehaviourClass::Registry::identifierOf(pInstance.get());
       bool keep = true;
       ImGui::CollapsingHeader(identifier.c_str(), &keep);
       if (!keep) {
+        pToRemove = pInstance;
         ImGui::OpenPopup("Remove Behaviour");
       }
     }
@@ -20,7 +22,9 @@ namespace engine {
       ImGui::NewLine();
       ImGui::Button("Cancel");
       ImGui::SameLine();
-      ImGui::Button("Confirm");
+      if (ImGui::Button("Confirm")) {
+        pScripts->remove(pToRemove->getClass());
+      }
       ImGui::EndPopup();
     }
 
@@ -31,7 +35,7 @@ namespace engine {
           continue;
 
         if (ImGui::MenuItem(name.c_str()))
-          pScripts->add(pClass.get());
+          pScripts->add(pLevel.get(), entityID, pClass.get());
       }
       ImGui::EndMenu();
     }

@@ -9,6 +9,9 @@ namespace bfc {
   template<typename Key, typename Value>
   class Pair {
   public:
+    using first_type  = Key;
+    using second_type = Value;
+
     inline constexpr Pair(Key && fst, Value && sec)
       : first(std::move(fst))
       , second(std::move(sec)) {}

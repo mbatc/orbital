@@ -7,11 +7,17 @@ namespace bfc {
   template <typename Key, typename Value>
   class Map {
   public:
-    using KeyType = Key;
-    using ValueType = Value;
+    class Iterator;
+    class ConstIterator;
 
     using Item = Pair<Key, Value>;
     using Bucket = Vector<Item>;
+
+    using key_type = Key;
+    using mapped_type = Value;
+    using value_type = Item;
+    using iterator = Iterator;
+    using const_iterator = ConstIterator;
 
     constexpr static int64_t BucketSize = 16ll;
 
@@ -210,6 +216,30 @@ namespace bfc {
       return get(key);
     }
 
+    template<typename Callable>
+    auto map(Callable const & callback) const {
+      using KVP = decltype(callback(std::declval<Item>().first, std::declval<Item>().second));
+      using NewKey = typename KVP::first_type;
+      using NewValue = typename KVP::second_type;
+      Map<NewKey, NewValue> ret;
+      for (const auto &[key, value] : *this) {
+        ret.add(callback(key, value));
+      }
+      return ret;
+    }
+
+    template<typename Callable>
+    auto map(Callable const & callback) {
+      using KVP      = decltype(callback(std::declval<Item>().first, std::declval<Item>().second));
+      using NewKey   = typename KVP::first_type;
+      using NewValue = typename KVP::second_type;
+      Map<NewKey, NewValue> ret;
+      for (auto &[key, value] : *this) {
+        ret.add(callback(key, value));
+      }
+      return ret;
+    }
+
     int64_t capacity() const {
       return getBucketCount() * BucketSize;
     }
@@ -253,6 +283,12 @@ namespace bfc {
 
     class Iterator {
     public:
+      using iterator_category = std::forward_iterator_tag;
+      using difference_type   = std::ptrdiff_t;
+      using value_type        = Item;
+      using pointer           = Item*;
+      using reference         = Item&;
+
       Iterator(Bucket* pBucket, Item* pItem, Bucket* pEndBucket)
           : m_pBucket(pBucket), m_pItem(pItem), m_pEndBucket(pEndBucket) {}
 
@@ -293,6 +329,12 @@ namespace bfc {
 
     class ConstIterator : public Iterator {
     public:
+      using iterator_category = std::forward_iterator_tag;
+      using difference_type   = std::ptrdiff_t;
+      using value_type        = Item const;
+      using pointer           = value_type *;
+      using reference         = value_type &;
+
       ConstIterator(Bucket const* pBucket, Item const* pItem, Bucket const* pEnd)
           : Iterator((Bucket*)pBucket, (Item*)pItem, (Bucket*)pEnd) {}
 

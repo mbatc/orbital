@@ -269,23 +269,27 @@ namespace bfc {
     return m_pParent->add(m_key, {});
   }
 
-  SerializedObject SerializedObject::MakeArray(Vector<SerializedObject> const & arr) {
-    return SerializedObject(arr);
+  SerializedObject SerializedObject::MakeArray(Vector<SerializedObject> arr) {
+    return SerializedObject(std::move(arr));
   }
 
-  SerializedObject SerializedObject::MakeMap(Map<String, SerializedObject> const & map) {
-    return SerializedObject(map);
+  SerializedObject SerializedObject::MakeMap(Map<String, SerializedObject> map) {
+    return SerializedObject(std::move(map));
   }
 
-  SerializedObject SerializedObject::MakeText(String const & value) {
+  SerializedObject SerializedObject::MakeText(String value) {
+    return SerializedObject(std::move(value));
+  }
+
+  SerializedObject SerializedObject::MakeInt(int64_t value) {
     return SerializedObject(value);
   }
 
-  SerializedObject SerializedObject::MakeInt(int64_t const & value) {
+  SerializedObject SerializedObject::MakeFloat(double value) {
     return SerializedObject(value);
   }
 
-  SerializedObject SerializedObject::MakeFloat(double const & value) {
+  SerializedObject SerializedObject::MakeBool(bool value) {
     return SerializedObject(value);
   }
 
@@ -297,27 +301,34 @@ namespace bfc {
     : m_field()
     , m_type(Type_Empty) {}
 
-  SerializedObject::SerializedObject(int64_t const & value)
+  SerializedObject::SerializedObject(int64_t value)
     : m_field(value)
     , m_type(Type_Int) {}
 
-  SerializedObject::SerializedObject(double const & value)
+  SerializedObject::SerializedObject(double value)
     : m_field(value)
     , m_type(Type_Float) {}
 
-  SerializedObject::SerializedObject(String const & text)
-    : m_field(text)
+  SerializedObject::SerializedObject(bool value)
+    : m_field(value)
+    , m_type(Type_Bool) {}
+
+  SerializedObject::SerializedObject(String text)
+    : m_field(std::move(text))
     , m_type(Type_Text) {}
 
-  SerializedObject::SerializedObject(Vector<SerializedObject> const & arr)
-    : m_field(arr)
+  SerializedObject::SerializedObject(char const * value)
+    : SerializedObject(String(value)) {}
+
+  SerializedObject::SerializedObject(Vector<SerializedObject> arr)
+    : m_field(std::move(arr))
     , m_type(Type_Array) {}
 
-  SerializedObject::SerializedObject(Map<String, SerializedObject> const & map)
-    : m_field(map)
+  SerializedObject::SerializedObject(Map<String, SerializedObject> map)
+    : m_field(std::move(map))
     , m_type(Type_Map) {}
 
-  SerializedObject::SerializedObject(SerializedObject && rhs)
+  SerializedObject::SerializedObject(SerializedObject && rhs) noexcept
     : SerializedObject() {
     *this = std::move(rhs);
   }
@@ -331,7 +342,7 @@ namespace bfc {
     return SerializedObjectProxy::operator=(o);
   }
 
-  SerializedObject & SerializedObject::operator=(SerializedObject && o) {
+  SerializedObject & SerializedObject::operator=(SerializedObject && o) noexcept {
     return SerializedObjectProxy::operator=(std::move(o));
   }
 
@@ -348,6 +359,7 @@ namespace bfc {
     case Type_Empty: break;
     case Type_Int: break;
     case Type_Float: break;
+    case Type_Bool: break;
     case Type_Text: mem::construct(&m_field.text); break;
     case Type_Array: mem::construct(&m_field.arr); break;
     case Type_Map: mem::construct(&m_field.map); break;
@@ -361,6 +373,7 @@ namespace bfc {
     case Type_Empty: break;
     case Type_Int: break;
     case Type_Float: break;
+    case Type_Bool: break;
     case Type_Text: mem::destruct(&m_field.text); break;
     case Type_Array: mem::destruct(&m_field.arr); break;
     case Type_Map: mem::destruct(&m_field.map); break;
@@ -375,20 +388,23 @@ namespace bfc {
 
   SerializedObject::Field::~Field() {}
 
-  SerializedObject::Field::Field(Map<String, SerializedObject> const & map)
-    : map(map) {}
+  SerializedObject::Field::Field(Map<String, SerializedObject> map)
+    : map(std::move(map)) {}
 
-  SerializedObject::Field::Field(Vector<SerializedObject> const & vec)
-    : arr(vec) {}
+  SerializedObject::Field::Field(Vector<SerializedObject> vec)
+    : arr(std::move(vec)) {}
 
-  SerializedObject::Field::Field(int64_t const & value)
+  SerializedObject::Field::Field(int64_t value)
     : i64(value) {}
 
-  SerializedObject::Field::Field(double const & value)
+  SerializedObject::Field::Field(double value)
     : f64(value) {}
 
-  SerializedObject::Field::Field(String const & value)
-    : text(value) {}
+  SerializedObject::Field::Field(bool value)
+    : b(value) {}
+
+  SerializedObject::Field::Field(String value)
+    : text(std::move(value)) {}
 
   int64_t write(Stream * pStream, SerializedObject const * pValues, int64_t count) {
     for (int64_t i = 0; i < count; ++i) {
@@ -399,6 +415,7 @@ namespace bfc {
       bool success = true;
       switch (pValues[i].m_type) {
       case SerializedObjectProxy::Type_Text: success = pStream->write(pValues[i].m_field.text); break;
+      case SerializedObjectProxy::Type_Bool: success = pStream->write(pValues[i].m_field.b); break;
       case SerializedObjectProxy::Type_Int: success = pStream->write(pValues[i].m_field.i64); break;
       case SerializedObjectProxy::Type_Float: success = pStream->write(pValues[i].m_field.f64); break;
       case SerializedObjectProxy::Type_Array: success = pStream->write(pValues[i].m_field.arr); break;
@@ -423,13 +440,15 @@ namespace bfc {
       bool success = true;
       switch (pValues[i].m_type) {
       case SerializedObjectProxy::Type_Text: success = pStream->read(&pValues[i].m_field.text); break;
+      case SerializedObjectProxy::Type_Bool: success = pStream->read(&pValues[i].m_field.b); break;
       case SerializedObjectProxy::Type_Int: success = pStream->read(&pValues[i].m_field.i64); break;
       case SerializedObjectProxy::Type_Float: success = pStream->read(&pValues[i].m_field.f64); break;
       case SerializedObjectProxy::Type_Array: success = pStream->read(&pValues[i].m_field.arr); break;
       case SerializedObjectProxy::Type_Map: success = pStream->read(&pValues[i].m_field.map); break;
       default:
         pValues[i].m_type = SerializedObjectProxy::Type_Empty;
-        success = false; break;
+        success           = false;
+        break;
       }
 
       if (!success) {

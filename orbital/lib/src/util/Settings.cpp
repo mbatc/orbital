@@ -1,6 +1,5 @@
 #include "util/Settings.h"
 #include "util/Log.h"
-
 #include "core/Map.h"
 #include "core/Timestamp.h"
 #include "core/URI.h"

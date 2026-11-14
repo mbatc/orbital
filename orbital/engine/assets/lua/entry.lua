@@ -14,8 +14,15 @@ function Engine.shutdown()
 end
 
 function Engine.bindEntity(component, levelHandle, entityId)
-  component.entity = Entity(levelHandle, entityId)
-  component.level  = Level(levelHandle)
+  component.entity = Engine.Entity(levelHandle, entityId)
+  component.level  = Engine.Level(levelHandle)
+  return true
+end
+
+function Engine.unbindEntity(component)
+  component.entity = nil
+  component.level  = nil
+  return true
 end
 
 function Engine.addBehaviour(type)
@@ -23,7 +30,7 @@ function Engine.addBehaviour(type)
   local name       = type.__name
 
   if registered[name] ~= nil then
-    Engine.error(("Behaviour name already registered: %s"):format(name)
+    Engine.error(("Behaviour name already registered: %s"):format(name))
   else
     -- TODO: check success? Other systems/languages might add behaviours
     Engine.detail.addBehaviour(name, type)
@@ -35,7 +42,7 @@ function Engine.removeBehaviour(name)
   local registered = Engine.detail.registeredBehaviours
   local name       = type.__name
   if registered[name] == nil then
-    Engine.error(("Behaviour name is not registered: %s"):format(name)
+    Engine.error(("Behaviour name is not registered: %s"):format(name))
   else
     Engine.detail.removeBehaviour(name)
     registered[name] = nil
@@ -46,12 +53,13 @@ function Engine.isBehaviour(type)
   return Engine.detail.registeredBehaviours[type.__name] ~= nil 
 end
 
+function Engine.serialize(instance)
+
+end
+
 Engine.detail = {
-  require_stack = {},
-
-  bindToEntity = function(level, entityId)
-
-  end,
+  requireStack = {},
+  registeredBehaviours = {},
 
   -- methods provided by the runtime
   addBehaviour = {},
@@ -65,22 +73,18 @@ function require(name)
   local original_path = package.path
 
   uri = Engine.resolveModuleURI(name)
-
-  print(Engine.detail.require_stack)
-  print(#Engine.detail.require_stack)
-  
-  if (#Engine.detail.require_stack == 0) then
-    print("Patch package.path")
+ 
+  if (#Engine.detail.requireStack == 0) then
     package.path = "?.lua;" .. package.path
   else
-    uri = Engine.resolveRelativeReference(Engine.detail.require_stack[#Engine.detail.require_stack], uri)
+    uri = Engine.resolveRelativeReference(Engine.detail.requireStack[#Engine.detail.requireStack], uri)
   end
 
-  table.insert(Engine.detail.require_stack, uri)
+  table.insert(Engine.detail.requireStack, uri)
   loaded = Engine.detail.require(uri)
-  table.remove(Engine.detail.require_stack)
+  table.remove(Engine.detail.requireStack)
 
-  if (#Engine.detail.require_stack == 0) then
+  if (#Engine.detail.requireStack == 0) then
     package.path = original_path
   end
 
@@ -108,7 +112,7 @@ end
 function Class(meta)
   local type = meta.static or {}
   
-  type._meta = {
+  type._class = {
     public = meta.public,
     new = meta.new,
     name = meta.name
@@ -126,8 +130,8 @@ function Class(meta)
   
   local function create(type, args)
     local instance = nil
-    if type._meta.public ~= nil then
-      instance = BasicDeepCopy(type._meta.public)
+    if type._class.public ~= nil then
+      instance = BasicDeepCopy(type._class.public)
     else
       instance = {}
     end
@@ -137,10 +141,10 @@ function Class(meta)
   end
 
   local newable = {}
-  if type._meta.new ~= nil then
+  if type._class.new ~= nil then
     newable.__call = function(self, ...)
       instance = create(type)
-      type._meta.new(instance, ...)
+      type._class.new(instance, ...)
       return instance
     end
   else

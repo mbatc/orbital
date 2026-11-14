@@ -77,10 +77,27 @@ namespace bfc {
   };
   BFC_DEFINE_MEMBER_CHECK(mapping);
   BFC_DEFINE_MEMBER_CHECK(__testIsDefaultSerializer);
-
   /// Test if a type has a custom serializer implemented.
   template<typename T>
   inline static constexpr bool has_custom_serializer_v = !BFC_HAS_MEMBER(Serializer<T>, __testIsDefaultSerializer);
+
+  namespace detail {
+    template<typename T, typename U = void>
+    struct has_serialize_intrusive_write : std::false_type {};
+    template<typename T>
+    struct has_serialize_intrusive_write<T, std::void_t<decltype(T::Serialization::write)>> : std::true_type {};
+
+    template<typename T, typename U = void>
+    struct has_serialize_intrusive_read : std::false_type {};
+    template<typename T>
+    struct has_serialize_intrusive_read<T, std::void_t<decltype(T::Serialization::read)>> : std::true_type {};
+  }
+
+  template<typename T>
+  inline static constexpr bool has_serialize_intrusive_write = detail::has_serialize_intrusive_write<T>::value;
+  
+  template<typename T>
+  inline static constexpr bool has_serialize_intrusive_read  = detail::has_serialize_intrusive_read<T>::value;
 
   template<typename T>
   struct Serializer {
@@ -127,6 +144,8 @@ namespace bfc {
       if constexpr (bfc::has_reflect_v<T>) {
         auto reflection = reflect<T>();
         return writeMembers(o, ctx, reflection, std::make_integer_sequence<int64_t, reflection.size()>{});
+      } else if constexpr (bfc::has_serialize_intrusive_write<T>) {
+        return T::Serialization::write(o, ctx);
       } else {
         static_assert(false, "write() is not implemented for type T. To enable serialization implement a Serializer or the `reflect<T>` function.");
       }
@@ -139,6 +158,8 @@ namespace bfc {
         auto reflection = reflect<T>();
         readMembers(s, o, ctx, reflection, std::make_integer_sequence<int64_t, reflection.size()>{});
         return true;
+      } else if constexpr (bfc::has_serialize_intrusive_read<T>) {
+        return T::Serialization::read(s, o, ctx);
       } else {
         static_assert(false, "read() is not implemented for type T. To enable serialization implement a Serializer or the `reflect<T>` function.");
       }
@@ -158,7 +179,7 @@ namespace bfc {
             return serialize(mapping[o]);
           }
         } else if constexpr (is_map_v<MappingT>) {
-          static_assert(std::is_same_v<MappingT::KeyType, T>, "EnumValueMap<T>::mapping keys must be of type 'T'");
+          static_assert(std::is_same_v<MappingT::key_type, T>, "EnumValueMap<T>::mapping keys must be of type 'T'");
           auto * pValue = mapping.tryGet(o);
           if (pValue == nullptr) {
             return SerializedObject::Empty();
@@ -182,8 +203,8 @@ namespace bfc {
 
         if constexpr (is_vector_v<MappingT>) {
           // Read value and find mapping in Vector
-          using ElementType = MappingT::ElementType;
-          Uninitialized<ElementType> buffer;
+          using value_type = MappingT::value_type;
+          Uninitialized<value_type> buffer;
           if (!s.read(buffer.get(), ctx)) {
             return false;
           }
@@ -199,10 +220,10 @@ namespace bfc {
           buffer.destruct();
           return success;
         } else if constexpr (is_map_v<MappingT>) {
-          static_assert(std::is_same_v<MappingT::KeyType, T>, "EnumValueMap<T>::mapping keys must be of type 'T'");
+          static_assert(std::is_same_v<MappingT::key_type, T>, "EnumValueMap<T>::mapping keys must be of type 'T'");
           // Read value and find mapping in Map
-          using ElementType = MappingT::ValueType;
-          Uninitialized<ElementType> buffer;
+          using value_type = MappingT::mapped_type;
+          Uninitialized<value_type> buffer;
           if (!s.read(buffer.get(), ctx)) {
             return false;
           }
