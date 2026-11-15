@@ -184,9 +184,12 @@ namespace engine {
   }
 
   void BehavioursLevelSystem::destroyed(Level * pLevel) {
-    for (auto & [script] : pLevel->getView<components::Behaviours>())
-      for (auto & instance : script.instances())
+    for (auto & [script] : pLevel->getView<components::Behaviours>()) {
+      for (auto & instance : script.instances()) {
         instance->destroyed();
+        instance->unbind();
+      }
+    }
   }
 
   BehavioursPlugin::BehavioursPlugin()

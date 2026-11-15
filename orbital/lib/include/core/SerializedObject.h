@@ -111,6 +111,7 @@ namespace bfc {
 
     SerializedMapElementProxy get(String const & name);
     SerializedObject const &  get(String const & name) const;
+    bool                      has(String const & name) const;
 
     /// Get the version of the serialized type.
     /// If unset, defaults to 0.

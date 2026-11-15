@@ -110,6 +110,10 @@ namespace bfc {
     return getType() == Type_Int;
   }
 
+  bool SerializedObjectProxy::isBool() const {
+    return getType() == Type_Bool;
+  }
+
   bool SerializedObjectProxy::isText() const {
     return getType() == Type_Text;
   }
@@ -146,6 +150,11 @@ namespace bfc {
   Map<String, SerializedObject> & SerializedObjectProxy::asMap() {
     BFC_ASSERT(isMap(), "Serialized data is not a Map.");
     return resolve().m_field.map;
+  }
+
+  bool SerializedObjectProxy::asBool() const {
+    BFC_ASSERT(isBool(), "Serialized data is not a Bool.");
+    return resolve().m_field.b;
   }
 
   int64_t SerializedObjectProxy::asInt() const {
@@ -214,6 +223,10 @@ namespace bfc {
       }
     }
     return s_empty;
+  }
+
+  bool SerializedObjectProxy::has(String const & name) const {
+    return isMap() && asMap().contains(name);
   }
 
   int64_t SerializedObjectProxy::getVersion() const {

@@ -151,6 +151,11 @@ namespace bfc {
       _visit(pSelf, visitor, IndicesT{});
     }
 
+    template<typename Visitor>
+    inline void visitAttributes(Visitor visitor) const {
+      _visitAttributes(visitor, IndicesT{});
+    }
+
     inline static bfc::type_index typeInfo() {
       return TypeID<Type>();
     }
@@ -209,6 +214,16 @@ namespace bfc {
       visitor(name<Index>(), get<Index>(pSelf));
     }
 
+    template<typename Visitor, int64_t... Indices>
+    inline void _visitAttributes(Visitor visitor, std::integer_sequence<int64_t, Indices...>) const {
+      (_tryVisitAttributes<Indices>(visitor), ...);
+    }
+
+    template<int64_t Index, typename Visitor>
+    inline void _tryVisitAttributes(Visitor visitor) const {
+      visitor(name<Index>(), getAttribute<Index>());
+    }
+
     template<typename T, int64_t... Indices>
     inline void _forEach(Type * pSelf, std::function<void(char const *, T &)> const & callback, std::integer_sequence<int64_t, Indices...>) const {
       (_tryForwardMember<Indices, T>(pSelf, callback), ...);
@@ -224,7 +239,6 @@ namespace bfc {
     }
 
     DataType m_attributes;
-
   };
 
   template<typename T, typename... Members>

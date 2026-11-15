@@ -23,6 +23,21 @@ namespace engine {
 
     sol::state lua;
 
+    template<typename T>
+    static auto addUserType(sol::table target, bfc::String const & name) {
+      if constexpr (bfc::has_reflect_v<T>)
+        return addUserType(target, name, bfc::reflect<T>());
+      else
+        return target.new_usertype<T>(name);
+    }
+
+    template<typename ClassT, typename... Members>
+    static auto addUserType(sol::table target, bfc::String const & name, bfc::Reflection<ClassT, Members...> const & refl) {
+      auto userType = target.new_usertype<ClassT>(name.c_str());
+      refl.visitAttributes([&](const char * name, auto member) { userType.set(name, member); });
+      return userType;
+    }
+
   private:
     bfc::Ref<VirtualFileSystem> m_pFileSystem = nullptr;
   };

@@ -16,6 +16,7 @@ namespace engine {
       lua_pushlstring(L, what.data(), what.size());
       return 1;
     }
+
   } // namespace impl
 
   LuaScripting::LuaScripting()
@@ -58,25 +59,7 @@ namespace engine {
     });
     lua.set_exception_handler(impl::luaExceptionHandler);
     lua.open_libraries(sol::lib::base, sol::lib::table, sol::lib::package, sol::lib::coroutine, sol::lib::io,
-                       sol::lib::debug, sol::lib::math);
-
-    // lua.new_usertype<bfc::SerializedObject>("SerializedObject",
-    //   "new", &sol::no_constructor,
-    //   "MakeMap", &bfc::SerializedObject::MakeMap,
-    //   "MakeArray", &bfc::SerializedObject::MakeArray,
-    //   "MakeFloat", &bfc::SerializedObject::MakeFloat,
-    //   "MakeInt", &bfc::SerializedObject::MakeInt,
-    //   "MakeText", &bfc::SerializedObject::MakeText,
-    //   "asArray", sol::resolve<bfc::Vector<bfc::SerializedObject> &()>(&bfc::SerializedObject::asArray),
-    //   "asMap", sol::resolve<bfc::Map<bfc::String, bfc::SerializedObject> &()>(&bfc::SerializedObject::asMap),
-    //   "asInt", &bfc::SerializedObject::asInt,
-    //   "asFloat", &bfc::SerializedObject::asFloat,
-    //   "asText", &bfc::SerializedObject::asText,
-    //   "add", &bfc::SerializedObject::add,
-    //   "pushFront", &bfc::SerializedObject::pushFront,
-    //   "pushBack", &bfc::SerializedObject::pushBack,
-    //   "pushBack", &bfc::SerializedObject::pushBack
-    // );
+                       sol::lib::debug, sol::lib::math, sol::lib::string);
 
     bfc::URI    entryScriptUri = "file:///engine:lua/entry.lua";
     bfc::String entryScript;
@@ -89,6 +72,13 @@ namespace engine {
 
     // Set up remaining bindings
     sol::table engine = lua[sol::create_if_nil]["Engine"];
+    addUserType<bfc::Vec2>(engine, "Vec2");
+    addUserType<bfc::Vec3>(engine, "Vec3");
+    addUserType<bfc::Vec4>(engine, "Vec4");
+    addUserType<bfc::Quat>(engine, "Quat");
+    addUserType<bfc::Mat3>(engine, "Mat3");
+    addUserType<bfc::Mat4>(engine, "Mat4");
+
     sol::table detail = engine["detail"];
     engine["resolveModuleURI"] = [=](bfc::String name) {
       if (name.find("://") != bfc::npos)
