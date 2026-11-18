@@ -4,170 +4,176 @@
 
 using namespace bfc;
 
+namespace {
+  std::mutex                      g_lock;
+  bfc::Map<bfc::String, bfc::URI> g_drives;
+  bfc::Map<bfc::URI, bfc::UUID>   g_virtualFiles;
+}
+
 namespace engine {
-  VirtualFileSystem::VirtualFileSystem(URI const & gameAssetsRoot, URI const & engineAssetsRoot)
-    : Subsystem(TypeID<VirtualFileSystem>(), "VirtualFileSystem") {
-    mountDrive("game", gameAssetsRoot);
-    mountDrive("engine", engineAssetsRoot);
-  }
-
-  bool VirtualFileSystem::mountDrive(StringView const & name, URI const & target) {
-    std::scoped_lock guard{ m_lock };
-    if (!m_drives.tryAdd(name, target)) {
-      return false;
+  namespace fs {
+    void init(bfc::URI const & gameAssetsRoot, bfc::URI const & engineAssetsRoot) {
+      mountDrive("game", gameAssetsRoot);
+      mountDrive("engine", engineAssetsRoot);
     }
 
-    BFC_LOG_INFO("VirtualFileSystem", "mounted drive (name=%s, target=%s)", name, target);
-    return true;
-  }
+    bool mountDrive(StringView const & name, URI const & target) {
+      std::scoped_lock guard{g_lock};
+      if (!g_drives.tryAdd(name, target)) {
+        return false;
+      }
 
-  bool VirtualFileSystem::unmountDrive(StringView const & name) {
-    std::scoped_lock guard{m_lock};
-    if (!m_drives.erase(name)) {
-      return false;
+      BFC_LOG_INFO("VirtualFileSystem", "mounted drive (name=%s, target=%s)", name, target);
+      return true;
     }
 
-    BFC_LOG_INFO("VirtualFileSystem", "unmounted drive (name=%s)", name);
-    return true;
-  }
+    bool unmountDrive(StringView const & name) {
+      std::scoped_lock guard{g_lock};
+      if (!g_drives.erase(name)) {
+        return false;
+      }
 
-  bfc::Vector<bfc::String> VirtualFileSystem::drives() const {
-    std::scoped_lock guard{m_lock};
+      BFC_LOG_INFO("VirtualFileSystem", "unmounted drive (name=%s)", name);
+      return true;
+    }
 
-    return m_drives.getKeys();
-  }
+    bfc::Vector<bfc::String> drives() {
+      std::scoped_lock guard{g_lock};
 
-  Ref<Stream> VirtualFileSystem::open(URI const & uri, FileMode mode) const {
-    URI resolved = resolveUri(uri);
+      return g_drives.getKeys();
+    }
 
-    return bfc::openURI(resolved, mode);
-  }
+    Ref<Stream> open(URI const & uri, FileMode mode) {
+      URI resolved = resolveUri(uri);
 
+      return bfc::openURI(resolved, mode);
+    }
 
-  bool VirtualFileSystem::exists(URI const & uri) const {
-    URI resolved = resolveUri(uri);
+    bool exists(URI const & uri) {
+      URI resolved = resolveUri(uri);
 
-    return uriExists(resolved);
-  }
+      return uriExists(resolved);
+    }
 
-  URI VirtualFileSystem::resolveUri(URI const & uri) const {
-    StringView path  = uri.pathView();
-    StringView drive = Filename::drive(path);
+    URI resolveUri(URI const & uri) {
+      StringView path  = uri.pathView();
+      StringView drive = Filename::drive(path);
 
-    URI virtualDriveTarget;
-    if (!m_drives.tryGet(drive, &virtualDriveTarget)) {
+      URI virtualDriveTarget;
+      if (!g_drives.tryGet(drive, &virtualDriveTarget)) {
+        return uri;
+      }
+
+      URI relativeURI = uri.withPath(String("./") + path.substr(drive.length() + 1));
+
+      return virtualDriveTarget.resolveRelativeReference(relativeURI, false);
+    }
+
+    bfc::URI toVirtualUri(bfc::URI const & uri) {
+      for (auto & [drive, root] : g_drives) {
+        bfc::URI      relativeUri  = uri.relativeTo(root);
+        bfc::Filename relativePath = relativeUri.path();
+        if (relativePath.isAbsolutePath() || relativePath.path().startsWith("../"))
+          continue;
+        return relativeUri.withPath(String::format("%s:%s", drive, relativePath));
+      }
       return uri;
     }
 
-    URI relativeURI = uri.withPath(String("./") + path.substr(drive.length() + 1));
-
-    return virtualDriveTarget.resolveRelativeReference(relativeURI, false);
-  }
-
-  bfc::URI VirtualFileSystem::toVirtualUri(bfc::URI const & uri) const {
-    for (auto & [drive, root] : m_drives) {
-      bfc::URI      relativeUri  = uri.relativeTo(root);
-      bfc::Filename relativePath = relativeUri.path();
-      if (relativePath.isAbsolutePath() || relativePath.path().startsWith("../"))
-        continue;
-      return relativeUri.withPath(String::format("%s:%s", drive, relativePath));
-    }
-    return uri;
-  }
-
-  bool VirtualFileSystem::read(URI const & resource, Vector<uint8_t> * pContent, bool binary) const {
-    const int64_t readSize = 32 * 1024 * 1024ll;
-    auto          pStream  = open(resource, binary ? FileMode_ReadBinary : FileMode_Read);
-    if (pStream == nullptr) {
-      return false;
-    }
-
-    int64_t   length   = 0;
-    int64_t   capacity = 0;
-    uint8_t * pData    = nullptr;
-    while (!pStream->eof()) {
-      capacity = length + readSize;
-      pData    = (uint8_t *)mem::realloc(pData, capacity);
-      length += pStream->read(pData, readSize);
-    }
-
-    pContent->setData(pData, length, capacity);
-    return true;
-  }
-
-  bool VirtualFileSystem::readText(URI const & resource, String * pContent) const {
-    Vector<uint8_t> data;
-    if (!read(resource, &data, false)) {
-      return false;
-    }
-
-    if (!data.empty() && data.back() != 0)
-      data.pushBack(0);
-
-    *pContent = std::move((Vector<char>&)data);
-    return true;
-  }
-
-  bool VirtualFileSystem::write(URI const & resource, Span<uint8_t> const & content) const {
-    auto pStream = open(resource, FileMode_WriteBinary);
-    return pStream != nullptr && pStream->write(content.data(), content.size()) == content.size();
-  }
-
-  bool VirtualFileSystem::writeText(URI const & resource, StringView const & content) const {
-    auto pStream = open(resource, FileMode_Write);
-    return pStream != nullptr && pStream->write(content.data(), content.size()) == content.size();
-  }
-
-  bool VirtualFileSystem::remove(URI const & resource) const {
-    // return deleteUri(resolveUri(resource));
-    return false;
-  }
-
-  bool VirtualFileSystem::isWritable(URI const & resource) const {
-    return uriExists(resolveUri(resource));
-  }
-
-  bool VirtualFileSystem::isReadable(URI const & resource) const {
-    return uriExists(resolveUri(resource));
-  }
-
-  URI VirtualFileSystem::find(URI const & resource, Vector<URI> const & basePaths, bool * pResult) const {
-    for (URI const& basePath : basePaths) {
-      URI test = basePath.resolveRelativeReference(resource);
-      if (exists(test)) {
-        return test;
+    bool read(URI const & resource, Vector<uint8_t> * pContent, bool binary) {
+      const int64_t readSize = 32 * 1024 * 1024ll;
+      auto          pStream  = open(resource, binary ? FileMode_ReadBinary : FileMode_Read);
+      if (pStream == nullptr) {
+        return false;
       }
+
+      int64_t   length   = 0;
+      int64_t   capacity = 0;
+      uint8_t * pData    = nullptr;
+      while (!pStream->eof()) {
+        capacity = length + readSize;
+        pData    = (uint8_t *)mem::realloc(pData, capacity);
+        length += pStream->read(pData, readSize);
+      }
+
+      pContent->setData(pData, length, capacity);
+      return true;
     }
 
-    return resource;
-  }
+    bool readText(URI const & resource, String * pContent) {
+      Vector<uint8_t> data;
+      if (!read(resource, &data, false)) {
+        return false;
+      }
 
-  bool VirtualFileSystem::isLeaf(bfc::URI const & resource) const {
-    return bfc::isLeaf(resolveUri(resource));
-  }
+      if (!data.empty() && data.back() != 0)
+        data.pushBack(0);
 
-  bfc::Vector<bfc::URI> VirtualFileSystem::walk(bfc::URI const & resource, bool recursive) const {
-    if (resource.empty())
-      return {};
+      *pContent = std::move((Vector<char> &)data);
+      return true;
+    }
 
-    BFC_ASSERT(recursive == false, "Recursive not fully supported. Fix resolving relative references");
+    bool write(URI const & resource, Span<uint8_t> const & content) {
+      auto pStream = open(resource, FileMode_WriteBinary);
+      return pStream != nullptr && pStream->write(content.data(), content.size()) == content.size();
+    }
 
-    bfc::URI resolved = resolveUri(resource);
+    bool writeText(URI const & resource, StringView const & content) {
+      auto pStream = open(resource, FileMode_Write);
+      return pStream != nullptr && pStream->write(content.data(), content.size()) == content.size();
+    }
 
-    return bfc::walk(resolved, recursive).map([=](URI const & o) {
-      return resource.resolveRelativeReference(Filename::name(o.pathView()));
-    });
-  }
+    bool remove(URI const & resource) {
+      // return deleteUri(resolveUri(resource));
+      return false;
+    }
 
-  std::optional<Timestamp> VirtualFileSystem::lastModified(bfc::URI const & resource) const {
-    return bfc::lastModified(resolveUri(resource));
-  }
+    bool isWritable(URI const & resource) {
+      return uriExists(resolveUri(resource));
+    }
 
-  bool VirtualFileSystem::serialize(bfc::URI const & resource, SerializedObject const & o, bfc::DataFormat format) {
-    return bfc::serialize(resolveUri(resource), o, format);
-  }
+    bool isReadable(URI const & resource) {
+      return uriExists(resolveUri(resource));
+    }
 
-  std::optional<SerializedObject> VirtualFileSystem::deserialize(bfc::URI const & resource, bfc::DataFormat format) {
-    return bfc::deserialize(resolveUri(resource), format);
-  }
+    URI find(URI const & resource, Vector<URI> const & basePaths, bool * pResult) {
+      for (URI const & basePath : basePaths) {
+        URI test = basePath.resolveRelativeReference(resource);
+        if (exists(test)) {
+          return test;
+        }
+      }
+
+      return resource;
+    }
+
+    bool isLeaf(bfc::URI const & resource) {
+      return bfc::isLeaf(resolveUri(resource));
+    }
+
+    bfc::Vector<bfc::URI> walk(bfc::URI const & resource, bool recursive) {
+      if (resource.empty())
+        return {};
+
+      BFC_ASSERT(recursive == false, "Recursive not fully supported. Fix resolving relative references");
+
+      bfc::URI resolved = resolveUri(resource);
+
+      return bfc::walk(resolved, recursive).map([=](URI const & o) {
+        return resource.resolveRelativeReference(Filename::name(o.pathView()));
+      });
+    }
+
+    std::optional<Timestamp> lastModified(bfc::URI const & resource) {
+      return bfc::lastModified(resolveUri(resource));
+    }
+
+    bool serialize(bfc::URI const & resource, SerializedObject const & o, bfc::DataFormat format) {
+      return bfc::serialize(resolveUri(resource), o, format);
+    }
+
+    std::optional<SerializedObject> deserialize(bfc::URI const & resource, bfc::DataFormat format) {
+      return bfc::deserialize(resolveUri(resource), format);
+    }
+  } // namespace fs
 }

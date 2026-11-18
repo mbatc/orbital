@@ -12,8 +12,8 @@ namespace engine {
     m_keyboard.attachTo(getEvents());
   }
 
-  GameViewport::GameViewport(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets)
-    : GameViewport(bfc::NewRef<DeferredRenderer>(pCmdList, pAssets)) {}
+  GameViewport::GameViewport(bfc::graphics::CommandList * pCmdList)
+    : GameViewport(bfc::NewRef<DeferredRenderer>(pCmdList)) {}
 
   Vector<RenderView> GameViewport::collectViews(bfc::graphics::RenderTargetRef renderTarget) const {
     Level * pLevel = getLevel();

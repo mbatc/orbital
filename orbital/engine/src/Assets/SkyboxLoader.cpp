@@ -1,19 +1,15 @@
 #include "SkyboxLoader.h"
-#include "AssetLoadContext.h"
-#include "AssetLoader.h"
 #include "AssetManager.h"
 
+#include "AssetLoader.h"
 #include "VirtualFileSystem.h"
-#include "render/GraphicsDevice.h"
+#include "Rendering/Rendering.h"
 
 using namespace bfc;
 
 namespace engine {
-  SkyboxLoader::SkyboxLoader(GraphicsDevice * pGraphicsDevice)
-    : m_pGraphicsDevice(pGraphicsDevice) {}
-
   Ref<graphics::Texture> SkyboxLoader::load(URI const & uri, AssetLoadContext * pContext) const {
-    std::optional<SkyboxDefinition> def = pContext->getFileSystem()->deserialize<SkyboxDefinition>(uri);
+    std::optional<SkyboxDefinition> def = fs::deserialize<SkyboxDefinition>(uri);
     if (!def.has_value()) {
       return nullptr;
     }
@@ -35,7 +31,8 @@ namespace engine {
         }
         
          jobs.pushBack(std::move(bfc::async([=]() {
-          auto pSurface = pContext->load<media::Surface>(baseUri.resolveRelativeReference(faceUri.uri));
+          auto pSurface =
+            asset_manager::load<media::Surface>(baseUri.resolveRelativeReference(faceUri.uri), nullptr, pContext);
           if (pSurface == nullptr)
             return;
           media::Surface dst = sfc.slice(face);
@@ -51,19 +48,17 @@ namespace engine {
     case SkyboxFormat_Equirectangular: BFC_FAIL("Not implemented"); return nullptr;
     }
 
-    auto pLoadList = m_pGraphicsDevice->createCommandList();
+    auto pLoadList = rendering::createCommandList();
     pLoadList->setDebugName("SkyboxLoader::load");
     graphics::TextureRef tex;
     graphics::loadTextureCubeMap(pLoadList.get(), &tex, sfc);
-    m_pGraphicsDevice->submit(std::move(pLoadList));
+    rendering::submit(std::move(pLoadList));
 
     sfc.free();
     return tex;
   }
 
-  bool SkyboxLoader::handles(URI const & uri, AssetManager const * pManager) const {
-    BFC_UNUSED(pManager);
-
+  bool SkyboxLoader::handles(URI const & uri) const {
     return Filename::extension(uri.pathView()).equals("skybox", true);
   }
 

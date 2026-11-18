@@ -9,7 +9,6 @@ namespace bfc {
 
 namespace engine {
   class Level;
-  class AssetManager;
   class EditorCamera {
   public:
     EditorCamera(bfc::Mouse * pMouse, bfc::Keyboard * pKeyboard);
@@ -40,14 +39,14 @@ namespace engine {
 
     float speedMultiplier = 1.0f;
 
-  private:
+    bfc::Vec3d position = bfc::Vec3d(0);
+    bfc::Vec3d ypr      = bfc::Vec3d(0);
+
     float m_fov       = glm::radians(60.0f);
     float m_nearPlane = 0.01f;
     float m_farPlane  = 1000.0f;
 
-    bfc::Vec3d m_position = bfc::Vec3d(0);
-    bfc::Vec3d m_ypr      = bfc::Vec3d(0);
-
+  private:
     bfc::Mouse *    m_pMouse    = nullptr;
     bfc::Keyboard * m_pKeyboard = nullptr;
 
@@ -57,7 +56,7 @@ namespace engine {
   class LevelEditorViewport : public Viewport {
   public:
     LevelEditorViewport(bfc::Ref<Renderer> const & pRenderer);
-    LevelEditorViewport(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets);
+    LevelEditorViewport(bfc::graphics::CommandList * pCmdList);
 
     virtual bfc::Vector<RenderView> collectViews(bfc::graphics::RenderTargetRef renderTarget) const override;
 

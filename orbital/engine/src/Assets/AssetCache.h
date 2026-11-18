@@ -6,8 +6,6 @@
 #include <optional>
 
 namespace engine {
-  class AssetManager;
-  class AssetLoadContext;
   class IAssetCache {
   public:
     /// The type of the asset loaded by this instance

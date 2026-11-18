@@ -5,8 +5,7 @@
 namespace engine {
   void BehavioursEditor::draw(LevelEditor * pEditor, bfc::Ref<Level> const & pLevel, EntityID entityID,
                                 components::Behaviours * pScripts) {
-    bfc::Ref<BehaviourInstance> pToRemove; 
-    auto pAssets = pEditor->getApp()->findSubsystem<AssetManager>();
+    bfc::Ref<BehaviourInstance> pToRemove;
     for (auto & pInstance : pScripts->instances()) {
       const bfc::String identifier = BehaviourClass::Registry::identifierOf(pInstance.get());
       bool keep = true;

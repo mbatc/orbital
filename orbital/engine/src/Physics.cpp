@@ -53,11 +53,94 @@ namespace {
 
   class BulletMeshInterface : public btStridingMeshInterface {
   public:
+    template<typename DstT, typename SrcT>
+    static void convert(DstT * pDst, SrcT const * pSrc, int64_t count) {
+      while (count-- > 0)
+        *(DstT *)(pDst++) = (DstT)(*(SrcT *)(pSrc++));
+    }
+
+    template<typename DstT, typename SrcT>
+    static void convert(DstT * pDst, SrcT const * pSrc, int64_t srcStride, int64_t count) {
+      uint8_t const * pSrcBytes = (uint8_t const*)pSrc;
+      while (count-- > 0) {
+        *(pDst++) = (DstT)(*pSrcBytes);
+        pSrcBytes += srcStride;
+      }
+    }
+
     BulletMeshInterface() = default;
     BulletMeshInterface(bfc::GraphicsDevice * pDevice, bfc::Ref<bfc::Mesh> pMesh, int64_t subMesh)
-      : m_pDevice(pDevice)
-      , m_mesh(pMesh)
-      , m_subMesh(subMesh) {}
+      : m_mesh(pMesh)
+      , m_subMesh(subMesh) {
+      auto pVA      = m_mesh->getVertexArray();
+      auto layout   = pVA->getLayout();
+
+      bfc::VertexInputLayout::Element position;
+      bfc::graphics::BufferRef pVertexBuffer;
+      
+      for (int64_t i = 0; i < layout.getAttributeCount(); ++i) {
+        if (!layout.getAttributeSemantic(i).equals("POSITION0", true))
+          continue;
+        position      = layout.getAttributeLayout(i);
+        pVertexBuffer = pVA->getVertexBuffer(position.slot);
+        break;
+      }
+
+      auto &     sm              = m_mesh->getSubMesh(m_subMesh);
+      const auto indexType       = pVA->getIndexType();
+      int64_t    indexSize       = bfc::getDataTypeSize(indexType);
+      int64_t    indexBufferSize = indexSize * sm.elmCount;
+      bfc::graphics::BufferRef pIndexBuffer = pVA->getIndexBuffer();
+
+      auto pCmdList = pDevice->createCommandList();
+      std::future<void *> mappedVertexBuffer = pCmdList->map(pVertexBuffer, bfc::MapAccess_Read);
+      std::future<void *> mappedIndexBuffer =
+        pCmdList->map(pIndexBuffer, sm.elmOffset * indexSize, indexBufferSize, bfc::MapAccess_Read);
+      pDevice->submit(std::move(pCmdList));
+
+      m_indices.resize(sm.elmCount);
+      switch (indexType) {
+      case bfc::DataType_Int8:
+        convert(m_indices.begin(), (int8_t*)mappedIndexBuffer.get(), sm.elmCount);
+        break;
+      case bfc::DataType_UInt8:
+        convert(m_indices.begin(), (uint8_t *)mappedIndexBuffer.get(), sm.elmCount);
+        break;
+      case bfc::DataType_Int16:
+        convert(m_indices.begin(), (int16_t *)mappedIndexBuffer.get(), sm.elmCount);
+        break;
+      case bfc::DataType_UInt16:
+        convert(m_indices.begin(), (uint16_t *)mappedIndexBuffer.get(), sm.elmCount);
+        break;
+      case bfc::DataType_Int32:
+        convert(m_indices.begin(), (int32_t *)mappedIndexBuffer.get(), sm.elmCount);
+        break;
+      case bfc::DataType_UInt32:
+        convert(m_indices.begin(), (uint32_t *)mappedIndexBuffer.get(), sm.elmCount);
+        break;
+      default: BFC_FAIL("Not supported"); break;
+      }
+
+      int64_t numVerts = pVertexBuffer->getSize() / position.stride;
+      m_vertices.resize(numVerts);
+      switch (position.dataType) {
+      case bfc::DataType_Float32:
+        convert(m_vertices.begin(), (bfc::Vec3 *)((uint8_t *)mappedVertexBuffer.get() + position.offset), position.stride,
+                numVerts);
+        break;
+      case bfc::DataType_Float64:
+        convert(m_vertices.begin(), (bfc::Vec3 *)((uint8_t *)mappedVertexBuffer.get() + position.offset), position.stride,
+                numVerts);
+        break;
+      default: BFC_FAIL("Not supported"); break;
+      }
+
+
+      pCmdList = pDevice->createCommandList();
+      pCmdList->unmap(pIndexBuffer);
+      pCmdList->unmap(pVertexBuffer);
+      pDevice->submit(std::move(pCmdList));
+    }
 
     virtual void getLockedVertexIndexBase(unsigned char ** vertexbase, int & numverts, PHY_ScalarType & type, int & stride,
                                           unsigned char ** indexbase, int & indexstride, int & numfaces,
@@ -75,64 +158,25 @@ namespace {
 
     void lock(bfc::MapAccess access, void ** vertexbase, int & numverts, PHY_ScalarType & type, int & stride,
               void ** indexbase, int & indexstride, int & numfaces, PHY_ScalarType & indicestype, int subpart = 0) const {
-      auto pCmdList = m_pDevice->createCommandList();
+      access;
+      
+      *vertexbase = (unsigned char *)m_vertices.begin();
+      numverts    = (int)m_vertices.size();
+      stride      = sizeof(float) * 3;
+      type        = PHY_FLOAT;
 
-      auto pVA    = m_mesh->getVertexArray();
-      auto layout = pVA->getLayout();
-
-      std::future<void *> mappedVertexBuffer;
-      std::future<void *> mappedIndexBuffer;
-
-      int64_t positionOffset = 0;
-      for (int64_t i = 0; i < layout.getAttributeCount(); ++i) {
-        if (!layout.getAttributeSemantic(i).equals("POSITION0", true))
-          continue;
-        auto & attribute = layout.getAttributeLayout(i);
-        pVA->getVertexBuffer(attribute.slot);
-
-        type           = ToScalarType(attribute.dataType);
-        stride         = (int)attribute.stride;
-        positionOffset = attribute.offset;
-
-        m_pLockedVertexBuffer = pVA->getVertexBuffer(attribute.slot);
-        mappedVertexBuffer    = pCmdList->map(m_pLockedVertexBuffer, access);
-        break;
-      }
-
-      auto &  sm              = m_mesh->getSubMesh(m_subMesh);
-      int64_t indexSize       = bfc::getDataTypeSize(pVA->getIndexType());
-      int64_t indexBufferSize = indexSize * sm.elmCount;
-
-      m_pLockedIndexBuffer = pVA->getIndexBuffer();
-      mappedIndexBuffer    = pCmdList->map(m_pLockedIndexBuffer, sm.elmOffset * indexSize, indexBufferSize, access);
-
-      m_pDevice->submit(std::move(pCmdList));
-
-      numverts    = (int)sm.elmCount;
-      numfaces    = numverts / 3;
-      indicestype = ToScalarType(pVA->getIndexType());
-      indexstride = (int)indexSize;
-
-      *vertexbase = (unsigned char *)mappedVertexBuffer.get() + positionOffset;
-      *indexbase  = (unsigned char *)mappedIndexBuffer.get();
+      *indexbase  = (unsigned char *)m_indices.begin();
+      numfaces    = (int)(m_indices.size() / 3);
+      indexstride = sizeof(int32_t);
+      indicestype = PHY_INTEGER;
     }
 
     virtual void unLockVertexBase(int subpart) {
-      auto pCmdList = m_pDevice->createCommandList();
-      pCmdList->unmap(m_pLockedIndexBuffer);
-      pCmdList->unmap(m_pLockedVertexBuffer);
-      m_pDevice->submit(std::move(pCmdList));
-      m_pLockedVertexBuffer = nullptr;
-      m_pLockedIndexBuffer  = nullptr;
+      subpart;
     }
 
     virtual void unLockReadOnlyVertexBase(int subpart) const {
-      auto pCmdList = m_pDevice->createCommandList();
-      pCmdList->unmap(m_pLockedIndexBuffer);
-      pCmdList->unmap(m_pLockedVertexBuffer);
-      m_pDevice->submit(std::move(pCmdList));
-      m_pLockedVertexBuffer = nullptr;
-      m_pLockedIndexBuffer  = nullptr;
+      subpart;
     }
 
     virtual int getNumSubParts() const {
@@ -147,18 +191,17 @@ namespace {
       numindices;
     }
 
-    bfc::GraphicsDevice * m_pDevice = nullptr;
-    bfc::Ref<bfc::Mesh>   m_mesh;
-    int64_t               m_subMesh = 0;
-
-    mutable bfc::graphics::BufferRef m_pLockedVertexBuffer;
-    mutable bfc::graphics::BufferRef m_pLockedIndexBuffer;
+    bfc::Ref<bfc::Mesh>    m_mesh;
+    int64_t                m_subMesh = 0;
+    bfc::Vector<bfc::Vec3> m_vertices;
+    bfc::Vector<uint32_t>  m_indices;
   };
 
   class CompoundMeshShape : public btCompoundShape {
   public:
     CompoundMeshShape(bfc::GraphicsDevice * pGraphicsDevice, bfc::Ref<bfc::Mesh> pMesh)
-      : btCompoundShape(true, (int)pMesh->getSubmeshCount()) {
+      : btCompoundShape(true, (int)pMesh->getSubmeshCount())
+      , m_pSourceMesh(pMesh) {
       const int64_t numSubMeshes = pMesh->getSubmeshCount();
       m_meshes.reserve(numSubMeshes);
       m_bvhs.reserve(numSubMeshes);
@@ -488,9 +531,9 @@ namespace engine {
     }
   };
 
-  Physics::Physics(engine::AssetManager * pAssets)
-    : m_pCube(pAssets, builtin_assets::mesh::cube)
-    , m_pSphere(pAssets, builtin_assets::mesh::sphere)
+  Physics::Physics()
+    : m_pCube(builtin_assets::mesh::cube)
+    , m_pSphere(builtin_assets::mesh::sphere)
   {}
 
   void Physics::created(Level * pLevel) {

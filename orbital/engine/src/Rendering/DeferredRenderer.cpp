@@ -6,7 +6,7 @@
 #include "mesh/Mesh.h"
 #include "render/ShadowAtlas.h"
 
-#include "../Assets/AssetManager.h"
+#include "Assets/AssetManager.h"
 
 using namespace bfc;
 
@@ -38,10 +38,10 @@ namespace engine {
 
   class Feature_TransparencyPass : public FeatureRenderer {
   public:
-    Feature_TransparencyPass(AssetManager * pAssets, GBuffer * pTransparencyBuffer, GBuffer * pOpaqueBuffer)
+    Feature_TransparencyPass(GBuffer * pTransparencyBuffer, GBuffer * pOpaqueBuffer)
       : m_pGBuffer(pTransparencyBuffer)
       , m_pOpaqueGBuffer(pOpaqueBuffer)
-      , m_blendTransparencyPass(pAssets, URI::File("engine:shaders/gbuffer/blend-transparency.shader")) {}
+      , m_blendTransparencyPass(URI::File("engine:shaders/gbuffer/blend-transparency.shader")) {}
 
     virtual void onAdded(graphics::CommandList * pCmdList, Renderer * pRenderer) override {}
 
@@ -107,7 +107,7 @@ namespace engine {
   class Feature_LightingPass : public FeatureRenderer {
   public:
     // Data needed to render a shadow map
-    Feature_LightingPass(graphics::CommandList * pCmdList, AssetManager * pAssets, GBuffer * pGBuffer,
+    Feature_LightingPass(graphics::CommandList * pCmdList, GBuffer * pGBuffer,
                          graphics::RenderTargetRef *                         pColourTarget,
                          graphics::StructuredBuffer<renderer::ModelBuffer> * pModelBuffer)
       : m_pGBuffer(pGBuffer)
@@ -116,8 +116,8 @@ namespace engine {
       , m_shadowAtlas(pCmdList)
       , m_lightData(BufferUsageHint_Storage | BufferUsageHint_Dynamic)
       , m_shadowMaps(BufferUsageHint_Dynamic)
-      , m_depthPass(pAssets, URI::File("engine:shaders/general/depth-pass.shader"))
-      , m_shader(pAssets, URI::File("engine:shaders/pbr/lighting.shader")) {}
+      , m_depthPass(URI::File("engine:shaders/general/depth-pass.shader"))
+      , m_shader(URI::File("engine:shaders/pbr/lighting.shader")) {}
 
     virtual void onAdded(graphics::CommandList * pCmdList, Renderer * pRenderer) override {
       // Setup shadow map render target
@@ -416,8 +416,8 @@ namespace engine {
 
   class Feature_Skybox : public FeatureRenderer {
   public:
-    Feature_Skybox(AssetManager * pAssets, graphics::RenderTargetRef * pColourTarget)
-      : m_shader(pAssets, URI::File("engine:shaders/general/cubemap.shader"))
+    Feature_Skybox(graphics::RenderTargetRef * pColourTarget)
+      : m_shader(URI::File("engine:shaders/general/cubemap.shader"))
       , m_pColourTarget(pColourTarget) {}
 
     virtual void renderView(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) override {
@@ -451,7 +451,7 @@ namespace engine {
 
   class Feature_PostProcessing : public FeatureRenderer {
   public:
-    Feature_PostProcessing(AssetManager * pAssets, GBuffer * pGBuffer,
+    Feature_PostProcessing(GBuffer * pGBuffer,
                            graphics::TextureRef * pFinalColour)
       : m_pGBuffer(pGBuffer)
       , m_pFinalColour(pFinalColour) {}
@@ -497,8 +497,8 @@ namespace engine {
 
   class PostProcess_SSAO : public FeatureRenderer {
   public:
-    PostProcess_SSAO(AssetManager * pAssets)
-      : m_ssaoShader(pAssets, URI::File("engine:shaders/ssao/ssao.shader")) {}
+    PostProcess_SSAO()
+      : m_ssaoShader(URI::File("engine:shaders/ssao/ssao.shader")) {}
 
     virtual void onAdded(graphics::CommandList * pCmdList, Renderer * pRenderer) override {
       m_sampleKernel.resize(m_kernelSize);
@@ -563,11 +563,11 @@ namespace engine {
 
   class PostProcess_SSR : public FeatureRenderer {
   public:
-    PostProcess_SSR(AssetManager * pAssets) {
-      programs.calculateReflections.assign(pAssets, URI::File("engine:shaders/ssr/calculate.shader"));
-      programs.blendReflections.assign(pAssets, URI::File("engine:shaders/ssr/blend.shader"));
-      programs.upsampler.assign(pAssets, URI::File("engine:shaders/bloom/upsample.shader"));
-      programs.downsampler.assign(pAssets, URI::File("engine:shaders/bloom/downsample.shader"));
+    PostProcess_SSR() {
+      programs.calculateReflections.assign(URI::File("engine:shaders/ssr/calculate.shader"));
+      programs.blendReflections.assign(URI::File("engine:shaders/ssr/blend.shader"));
+      programs.upsampler.assign(URI::File("engine:shaders/bloom/upsample.shader"));
+      programs.downsampler.assign(URI::File("engine:shaders/bloom/downsample.shader"));
     }
 
     virtual void onAdded(graphics::CommandList * pCmdList, Renderer * pRenderer) override {
@@ -682,11 +682,11 @@ namespace engine {
 
   class PostProcess_Bloom : public FeatureRenderer {
   public:
-    PostProcess_Bloom(AssetManager * pAssets, int64_t mipChainSize = 5)
-      : m_upsampler(pAssets, URI::File("engine:shaders/bloom/upsample.shader"))
-      , m_downsampler(pAssets, URI::File("engine:shaders/bloom/downsample.shader"))
-      , m_blendBloom(pAssets, URI::File("engine:shaders/bloom/mix.shader"))
-      , m_prefilter(pAssets, URI::File("engine:shaders/bloom/prefilter.shader")) {
+    PostProcess_Bloom(int64_t mipChainSize = 5)
+      : m_upsampler(URI::File("engine:shaders/bloom/upsample.shader"))
+      , m_downsampler(URI::File("engine:shaders/bloom/downsample.shader"))
+      , m_blendBloom(URI::File("engine:shaders/bloom/mix.shader"))
+      , m_prefilter(URI::File("engine:shaders/bloom/prefilter.shader")) {
       m_mipChain.resize(mipChainSize);
       m_mipChainSize = mipChainSize;
     }
@@ -820,8 +820,8 @@ namespace engine {
 
   class PostProcess_Exposure : public FeatureRenderer {
   public:
-    PostProcess_Exposure(AssetManager * pAssets)
-      : m_shader(pAssets, URI::File("engine:shaders/simple-tonemapper.shader")) {}
+    PostProcess_Exposure()
+      : m_shader(URI::File("engine:shaders/simple-tonemapper.shader")) {}
 
     virtual void onRenderRequest(std::any const & request, bfc::graphics::CommandList * pCmdList, Renderer * pRenderer,
                                  RenderView const & view) {
@@ -856,11 +856,11 @@ namespace engine {
 
   class StaticMeshRenderer : public FeatureRenderer {
   public:
-    StaticMeshRenderer(AssetManager * pAssets, graphics::StructuredBuffer<renderer::ModelBuffer> * pModelBuffer,
+    StaticMeshRenderer(graphics::StructuredBuffer<renderer::ModelBuffer> * pModelBuffer,
                        graphics::StructuredBuffer<renderer::PBRMaterial> * pDefaultMaterial)
       : m_pModelData(pModelBuffer)
       , m_pDefaultMaterial(pDefaultMaterial)
-      , m_shader(pAssets, URI::File("engine:shaders/gbuffer/base.shader")) {}
+      , m_shader(URI::File("engine:shaders/gbuffer/base.shader")) {}
 
     virtual void onRenderRequest(std::any const & request, bfc::graphics::CommandList * pCmdList, Renderer * pRenderer,
                                  RenderView const & view) override {
@@ -979,7 +979,7 @@ namespace engine {
     Asset<graphics::Program>                            m_shader;
   };
 
-  DeferredRenderer::DeferredRenderer(graphics::CommandList * pCmdList, AssetManager * pAssets)
+  DeferredRenderer::DeferredRenderer(graphics::CommandList * pCmdList)
     : Renderer(pCmdList->getDevice())
     , m_modelData(BufferUsageHint_Uniform | BufferUsageHint_Dynamic)
     , m_cameraData(BufferUsageHint_Uniform | BufferUsageHint_Dynamic) {
@@ -1021,18 +1021,18 @@ namespace engine {
 
     // Add renderer features
     addFeature<Feature_BasePass>(Phase::Base::Mesh::opaque, m_pGbuffer.get());
-    addFeature<Feature_TransparencyPass>(Phase::Base::Mesh::transparent, pAssets, m_pTransparencyGBuffer.get(),
+    addFeature<Feature_TransparencyPass>(Phase::Base::Mesh::transparent, m_pTransparencyGBuffer.get(),
                                          m_pGbuffer.get());
 
-    addFeature<StaticMeshRenderer>(Phase::undefined, pAssets, &m_modelData, &m_defaultMaterial);
-    addFeature<Feature_LightingPass>(Phase::lighting, pCmdList, pAssets, m_pGbuffer.get(), &m_finalTarget, &m_modelData);
-    addFeature<Feature_Skybox>(Phase::skybox, pAssets, &m_finalTarget);
+    addFeature<StaticMeshRenderer>(Phase::undefined, &m_modelData, &m_defaultMaterial);
+    addFeature<Feature_LightingPass>(Phase::lighting, pCmdList, m_pGbuffer.get(), &m_finalTarget, &m_modelData);
+    addFeature<Feature_Skybox>(Phase::skybox, &m_finalTarget);
 
-    addFeature<Feature_PostProcessing>(Phase::postProcess, pAssets, m_pGbuffer.get(), &m_finalColourTarget);
-    addFeature<PostProcess_SSAO>(Phase::postProcess, pAssets);
-    addFeature<PostProcess_SSR>(Phase::postProcess, pAssets);
-    addFeature<PostProcess_Bloom>(Phase::postProcess, pAssets);
-    addFeature<PostProcess_Exposure>(Phase::postProcess, pAssets);
+    addFeature<Feature_PostProcessing>(Phase::postProcess, m_pGbuffer.get(), &m_finalColourTarget);
+    addFeature<PostProcess_SSAO>(Phase::postProcess);
+    addFeature<PostProcess_SSR>(Phase::postProcess);
+    addFeature<PostProcess_Bloom>(Phase::postProcess);
+    addFeature<PostProcess_Exposure>(Phase::postProcess);
   }
 
   graphics::TextureRef const & DeferredRenderer::getDefaultTexture(Material::TextureSlot slot) const {

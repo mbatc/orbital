@@ -42,13 +42,9 @@ namespace engine {
                                 components::ColliderMesh * pCollider) {
     bfc::Ref<bfc::Mesh> pMesh = pCollider->getMesh();
 
-    AssetManager *      pAssets     = pEditor->getApp()->findSubsystem<AssetManager>().get();
-    VirtualFileSystem * pFileSystem = pEditor->getApp()->findSubsystem<VirtualFileSystem>().get();
-    bfc::GraphicsDevice * pGraphicsDevice = pEditor->getApp()->findSubsystem<Rendering>()->getDevice();
+    LevelEditor::drawAssetSelector("Mesh", &pMesh);
 
-    LevelEditor::drawAssetSelector("Mesh", &pMesh, pAssets, pFileSystem);
-
-    pCollider->setMesh(pGraphicsDevice, pMesh);
+    pCollider->setMesh(rendering::getDevice(), pMesh);
   }
 
   void RigidBodyEditor::draw(LevelEditor * pEditor, bfc::Ref<Level> const & pLevel, EntityID entityID,

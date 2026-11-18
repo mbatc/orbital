@@ -1,13 +1,13 @@
 #include "TextureLoader.h"
 #include "render/GraphicsDevice.h"
 #include "AssetManager.h"
-#include "AssetLoadContext.h"
+#include "Rendering/Rendering.h"
 
 using namespace bfc;
 
 namespace engine {
   Ref<media::Surface> SurfaceLoader::load(URI const & uri, AssetLoadContext * pContext) const {
-    Ref<Stream> pStream = pContext->getFileSystem()->open(uri, FileMode_ReadBinary);
+    Ref<Stream> pStream = fs::open(uri, FileMode_ReadBinary);
     if (pStream == nullptr) {
       return nullptr;
     }
@@ -24,33 +24,27 @@ namespace engine {
     });
   }
 
-  bool SurfaceLoader::handles(URI const & uri, AssetManager const * pManager) const {
+  bool SurfaceLoader::handles(URI const & uri) const {
     return media::canLoadSurface(Filename::extension(uri.path()));
   }
 
-  Texture2DLoader::Texture2DLoader(GraphicsDevice * pGraphicsDevice)
-    : m_pGraphicsDevice(pGraphicsDevice) {}
-
   bfc::Ref<graphics::Texture> Texture2DLoader::load(URI const & uri, AssetLoadContext * pContext) const {
-    Ref<media::Surface> pSurface = pContext->load<media::Surface>(uri);
+    Ref<media::Surface> pSurface = asset_manager::load<media::Surface>(uri, nullptr, pContext);
     if (pSurface == nullptr) {
       return nullptr;
     }
 
-    auto pLoadList = m_pGraphicsDevice->createCommandList();
+    auto pLoadList = rendering::createCommandList();
     pLoadList->setDebugName("Texture2DLoader::load");
     graphics::TextureRef pTexture;
     graphics::loadTexture2D(pLoadList.get(), &pTexture, *pSurface);
-    m_pGraphicsDevice->submit(std::move(pLoadList));
+    rendering::submit(std::move(pLoadList));
     return pTexture;
   }
 
-  bool Texture2DLoader::handles(URI const & uri, AssetManager const * pManager) const {
-    return pManager->canLoad<media::Surface>(uri);
+  bool Texture2DLoader::handles(URI const & uri) const {
+    return asset_manager::canLoad<media::Surface>(uri);
   }
-
-  TextureCache::TextureCache(bfc::GraphicsDevice * pDevice)
-    : m_pGraphicsDevice(pDevice) {}
 
   bfc::Ref<bfc::graphics::Texture> TextureCache::read(bfc::Stream * pStream) const {
     bfc::TextureType type;
@@ -61,22 +55,22 @@ namespace engine {
     if (!surface.has_value())
       return nullptr;
 
-    auto pLoadList = m_pGraphicsDevice->createCommandList();
+    auto pLoadList = rendering::createCommandList();
     pLoadList->setDebugName("TextureCache::read");
     graphics::TextureRef pTexture;
     graphics::loadTexture(pLoadList.get(), &pTexture, type, surface.value());
-    m_pGraphicsDevice->submit(std::move(pLoadList));
+    rendering::submit(std::move(pLoadList));
     surface->free();
     return pTexture;
   }
 
   bool TextureCache::store(bfc::Ref<bfc::graphics::Texture> pAsset, bfc::Stream * pStream) const {
-    bfc::graphics::TextureDownloadRef pDownload = m_pGraphicsDevice->createTextureDownload();
+    bfc::graphics::TextureDownloadRef pDownload = rendering::createTextureDownload();
     {
-      auto pLoadList = m_pGraphicsDevice->createCommandList();
+      auto pLoadList = rendering::createCommandList();
       pLoadList->setDebugName("TextureCache::store");
       pLoadList->downloadTexture(pAsset, pDownload);
-      m_pGraphicsDevice->submit(std::move(pLoadList));
+      rendering::submit(std::move(pLoadList));
     }
 
     if (!pDownload->wait())

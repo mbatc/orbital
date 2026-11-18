@@ -15,8 +15,8 @@ namespace engine {
   void EditorCamera::update(Timestamp dt) {
     if (m_pMouse->isDown(MouseButton_Right)) {
       Vec2d change = m_pMouse->getPositionChange() / 100;
-      m_ypr.x -= change.x;
-      m_ypr.y -= change.y;
+      ypr.x -= change.x;
+      ypr.y -= change.y;
 
       if (!m_hasMouse) {
         setCursorVisible(false);
@@ -68,11 +68,11 @@ namespace engine {
       finalMutlipler /= 2;
     }
 
-    m_ypr = glm::mod(m_ypr, 2 * glm::pi<double>());
+    ypr = glm::mod(ypr, 2 * glm::pi<double>());
 
-    Mat4 camRot = glm::yawPitchRoll(m_ypr.x, m_ypr.y, 0.0);
+    Mat4 camRot = glm::yawPitchRoll(ypr.x, ypr.y, 0.0);
     mv          = camRot * Vec4d(mv, 0);
-    m_position  = m_position + mv * (double)finalMutlipler;
+    position  = position + mv * (double)finalMutlipler;
   }
 
   bool EditorCamera::wantMouseCapture() const {
@@ -104,7 +104,7 @@ namespace engine {
   }
 
   Mat4d EditorCamera::transformMat() const {
-    return math::translation(m_position) * math::rotationYPR(m_ypr);
+    return math::translation(position) * math::rotationYPR(ypr);
   }
 
   Mat4d EditorCamera::viewMat() const {
@@ -126,8 +126,8 @@ namespace engine {
     m_keyboard.attachTo(getEvents());
   }
 
-  LevelEditorViewport::LevelEditorViewport(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets) 
-    : LevelEditorViewport(bfc::NewRef<DeferredRenderer>(pCmdList, pAssets)) {}
+  LevelEditorViewport::LevelEditorViewport(bfc::graphics::CommandList * pCmdList) 
+    : LevelEditorViewport(bfc::NewRef<DeferredRenderer>(pCmdList)) {}
 
   Vector<RenderView> LevelEditorViewport::collectViews(bfc::graphics::RenderTargetRef renderTarget) const {
     RenderView view;

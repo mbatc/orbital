@@ -86,6 +86,9 @@ namespace engine {
 
     void saveSettings();
 
+  protected:
+    virtual void loop() {}
+
   private:
     bool addSubsystem(bfc::Ref<Subsystem> const& pSystem);
     bfc::Ref<Subsystem> findSubsystem_unlocked(bfc::type_index const & type) const;

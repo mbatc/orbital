@@ -5,7 +5,7 @@
 using namespace bfc;
 
 namespace engine {
-  Viewport::Viewport(bfc::Ref<Renderer> const& pRenderer, bfc::StringView const & viewportName)
+  Viewport::Viewport(bfc::Ref<Renderer> const & pRenderer, bfc::StringView const & viewportName)
     : m_events(String::format("Viewport.%.*s", viewportName.length(), viewportName.begin()))
     , m_renderScene(pRenderer->getGraphicsDevice(), nullptr)
     , m_pRenderer(pRenderer)
@@ -13,8 +13,8 @@ namespace engine {
     , m_size({0, 0})
   {}
 
-  Viewport::Viewport(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets, StringView const & viewportName)
-    : Viewport(NewRef<DeferredRenderer>(pCmdList, pAssets), viewportName) {}
+  Viewport::Viewport(bfc::graphics::CommandList * pCmdList, StringView const & viewportName)
+    : Viewport(NewRef<DeferredRenderer>(pCmdList), viewportName) {}
 
   void Viewport::render(bfc::graphics::CommandList * pCmdList, bfc::graphics::RenderTargetRef renderTarget) {
     if (m_renderScene.getLevel() == nullptr || getSize().x == 0 || getSize().y == 0)

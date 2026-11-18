@@ -6,11 +6,11 @@
 namespace engine {
   class Level;
   class Renderer;
-  class AssetManager;
+
   class GameViewport : public Viewport {
   public:
     GameViewport(bfc::Ref<Renderer> const & pRenderer);
-    GameViewport(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets);
+    GameViewport(bfc::graphics::CommandList * pCmdList);
 
     virtual bfc::Vector<RenderView> collectViews(bfc::graphics::RenderTargetRef renderTarget) const override;
 

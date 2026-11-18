@@ -17,7 +17,6 @@ namespace bfc {
 namespace engine {
   class LightComponent;
   class Scene;
-  class AssetManager;
 
   struct ShadowMapData {
     bfc::Mat4                     lightVP;
@@ -105,7 +104,7 @@ namespace engine {
       inline static const bfc::StringView postProcess     = "post-process";
     };
 
-    DeferredRenderer(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets);
+    DeferredRenderer(bfc::graphics::CommandList * pCmdList);
 
     static constexpr int64_t ColourTargetBindPointBase  = 8;
     static constexpr int64_t FinalColourTargetBindPoint = ColourTargetBindPointBase + bfc::GBufferTarget_Count;

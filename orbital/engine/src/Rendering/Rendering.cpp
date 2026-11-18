@@ -6,104 +6,168 @@
 #include "platform/Window.h"
 #include "Levels/LevelManager.h"
 
+using namespace engine;
 using namespace bfc;
-using namespace bfc::platform;
+
+namespace {
+  Setting<String>       g_api;
+  Ref<GraphicsDevice>   g_pDevice       = nullptr;
+  Ref<platform::Window> g_pWindow       = nullptr;
+  Ref<EventListener>    g_pListener     = nullptr;
+  Ref<Viewport>         g_pMainViewport = nullptr;
+
+  Vector<Ref<IRenderingPlugin>>    g_plugins;
+  Vector<Ref<IRenderingExtension>> g_extensions;
+  uint64_t                         g_lastFrameFence = 0;
+  Vector<WeakRef<Renderer>>        g_renderers;
+} // namespace
 
 namespace engine {
-  Rendering::Rendering() 
-    : Subsystem(TypeID<Rendering>(), "Rendering") {
-    graphicsDevice_registerOpenGL();
-  }
+  namespace rendering {
+    using namespace bfc::graphics;
 
-  GraphicsDevice* Rendering::getDevice() const {
-    return m_pDevice.get();
-  }
+    GraphicsDevice *getDevice() {
+      return g_pDevice.get();
+    }
 
-  Window* Rendering::getMainWindow() const {
-    return m_pWindow.get();
-  }
+    platform::Window *getMainWindow() {
+      return g_pWindow.get();
+    }
 
-  bool Rendering::init(Application *pApp) {
-    m_pWindow = NewRef<Window>(pApp);
-    m_pWindow->setTitle(pApp->getName());
-    m_pWindow->show();
+    bool init(Application *pApp) {
+      graphicsDevice_registerOpenGL();
 
-    m_pListener = m_pWindow->getEvents()->addListener();
-    m_pListener->on<bfc::events::CloseWindow>([=](bfc::events::CloseWindow const & e) {
-      pApp->exit();
+      g_pWindow = NewRef<platform::Window>(pApp);
+      g_pWindow->setTitle(pApp->getName());
+      g_pWindow->show();
+
+      g_pListener = g_pWindow->getEvents()->addListener();
+      g_pListener->on<bfc::events::CloseWindow>([=](bfc::events::CloseWindow const & e) {
+        pApp->exit();
+        return true;
+      });
+
+      g_api = pApp->addSetting<String>("rendering/api", "OpenGL");
+
+      g_pDevice = createGraphicsDevice(g_api.get());
+      if (g_pDevice == nullptr) {
+        return false;
+      }
+
+      if (!g_pDevice->init(g_pWindow.get())) {
+        return false;
+      }
+
       return true;
-    });
-
-    m_api = pApp->addSetting<String>("rendering/api", "OpenGL");
-
-    m_pDevice = createGraphicsDevice(m_api.get());
-    if (m_pDevice == nullptr) {
-      return false;
     }
 
-    if (!m_pDevice->init(m_pWindow.get())) {
-      return false;
+    void shutdown() {
+      g_pDevice = nullptr;
+      g_pWindow = nullptr;
     }
 
-    return true;
-  }
+    void loop() {
+      g_renderers.eraseIf([](const auto & o) { return o.expired(); });
 
-  void Rendering::shutdown() {
-    m_pDevice = nullptr;
-    m_pWindow = nullptr;
-  }
+      auto pCmdList = g_pDevice->createCommandList();
+      pCmdList->setDebugName("rendering::loop MainViewport");
 
-  void Rendering::loop(Application * pApp) {
-    m_renderers.eraseIf([](const auto & o) { return o.expired(); });
+      pCmdList->bindRenderTarget(g_pDevice->getDefaultRenderTarget());
+      pCmdList->swap();
+      pCmdList->clear({0, 0, 0, 1});
+      for (auto & pPlugin : g_plugins)
+        pPlugin->onFrame(pCmdList.get(), g_pWindow.get(), g_pDevice->getDefaultRenderTarget());
+      pCmdList->bindRenderTarget(g_pDevice->getDefaultRenderTarget());
 
-    auto pCmdList = m_pDevice->createCommandList();
-    pCmdList->setDebugName("Rendering::loop MainViewport");
+      // m_pMainViewport->setSize(pCmdList.get(), m_pWindow->getSize());
+      // m_pMainViewport->render(pCmdList.get(), m_pDevice->getDefaultRenderTarget());
+      uint64_t thisFrameFence = g_pDevice->submit(std::move(pCmdList));
 
-    BFC_UNUSED(pApp);
+      g_pDevice->wait(g_lastFrameFence);
+      g_lastFrameFence = thisFrameFence;
+    }
 
-    pCmdList->bindRenderTarget(m_pDevice->getDefaultRenderTarget());
-    pCmdList->swap();
-    pCmdList->clear({0, 0, 0, 1});
-    for (auto & pPlugin : m_plugins)
-      pPlugin->onFrame(pCmdList.get(), m_pWindow.get(), m_pDevice->getDefaultRenderTarget());
-    pCmdList->bindRenderTarget(m_pDevice->getDefaultRenderTarget());
+    void registerPlugin(Ref<IRenderingPlugin> pPlugin) {
+      g_plugins.pushBack(pPlugin);
+    }
 
-    // m_pMainViewport->setSize(pCmdList.get(), m_pWindow->getSize());
-    // m_pMainViewport->render(pCmdList.get(), m_pDevice->getDefaultRenderTarget());
-    uint64_t thisFrameFence = m_pDevice->submit(std::move(pCmdList));
+    bool unregisterExtension(Ref<IRenderingPlugin> pPlugin) {
+      return g_plugins.eraseValue(pPlugin);
+    }
 
-    m_pDevice->wait(m_lastFrameFence);
-    m_lastFrameFence = thisFrameFence;
-  }
+    void registerExtension(Ref<IRenderingExtension> const &pExtension) {
+      g_extensions.pushBack(pExtension);
 
-  void Rendering::registerPlugin(bfc::Ref<IRenderingPlugin> pPlugin) {
-    m_plugins.pushBack(pPlugin);
-  }
+      for (WeakRef<Renderer> const & pRenderer : g_renderers)
+        if (auto pLocked = pRenderer.lock())
+          pExtension->apply(pLocked.get());
+    }
 
-  bool Rendering::unregisterExtension(bfc::Ref<IRenderingPlugin> pPlugin) {
-    return m_plugins.eraseValue(pPlugin);
-  }
+    bool unregisterExtension(Ref<IRenderingExtension> const &pExtension) {
+      return g_extensions.eraseValue(pExtension);
+    }
 
-  void Rendering::registerExtension(bfc::Ref<IRenderingExtension> const & pExtension) {
-    m_extensions.pushBack(pExtension);
+    void registerRenderer(Ref<Renderer> const &pRenderer) {
+      for (Ref<IRenderingExtension> const & pExtension : g_extensions)
+        pExtension->apply(pRenderer.get());
 
-    for (bfc::WeakRef<Renderer> const & pRenderer : m_renderers)
-      if (auto pLocked = pRenderer.lock())
-        pExtension->apply(pLocked.get());
-  }
+      g_renderers.pushBack(pRenderer);
+    }
 
-  bool Rendering::unregisterExtension(bfc::Ref<IRenderingExtension> const & pExtension) {
-    return m_extensions.eraseValue(pExtension);
-  }
+    Ref<Viewport> getMainViewport() {
+      return g_pMainViewport;
+    }
 
-  void Rendering::registerRenderer(bfc::Ref<Renderer> const & pRenderer) {
-    for (bfc::Ref<IRenderingExtension> const & pExtension : m_extensions)
-      pExtension->apply(pRenderer.get());
+    graphics::RenderTargetRef getDefaultRenderTarget() {
+      return getDevice()->getDefaultRenderTarget();
+    }
 
-    m_renderers.pushBack(pRenderer);
-  }
+    std::unique_ptr<graphics::CommandList> createCommandList() {
+      return getDevice()->createCommandList();
+    }
 
-  bfc::Ref<Viewport> Rendering::getMainViewport() {
-    return m_pMainViewport;
-  }
+    graphics::BufferRef createBuffer(BufferUsageHint usageHint) {
+      return getDevice()->createBuffer();
+    }
+
+    graphics::VertexArrayRef createVertexArray() {
+      return getDevice()->createVertexArray();
+    }
+
+    graphics::ProgramRef createProgram() {
+      return getDevice()->createProgram();
+    }
+
+    graphics::TextureRef createTexture(TextureType type) {
+      return getDevice()->createTexture(type);
+    }
+
+    graphics::TextureDownloadRef createTextureDownload() {
+      return getDevice()->createTextureDownload();
+    }
+
+    graphics::SamplerRef createSampler() {
+      return getDevice()->createSampler();
+    }
+
+    graphics::RenderTargetRef createRenderTarget(RenderTargetType type) {
+      return getDevice()->createRenderTarget(type);
+    }
+
+    graphics::StateManager* getStateManager() {
+      return getDevice()->getStateManager();
+    }
+
+    std::shared_future<bool> compile(graphics::ProgramRef pProgram) {
+      return getDevice()->compile(pProgram);
+    }
+
+    uint64_t submit(std::unique_ptr<graphics::CommandList> &&pCommandList) {
+      return getDevice()->submit(std::move(pCommandList));
+    }
+
+    bool wait(uint64_t handle, std::optional<Timestamp> const & timeout) {
+      return getDevice()->wait(handle, timeout);
+    }
+  } // namespace rendering
 }

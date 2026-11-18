@@ -41,13 +41,8 @@ namespace engine {
 
   class SkyboxLoader : public AssetLoader<bfc::graphics::Texture> {
   public:
-    SkyboxLoader(bfc::GraphicsDevice * pGraphicsDevice);
-
     virtual bfc::Ref<bfc::graphics::Texture> load(bfc::URI const & uri, AssetLoadContext * pContext) const override;
-    virtual bool                   handles(bfc::URI const & uri, AssetManager const * pManager) const override;
-
-  private:
-    bfc::GraphicsDevice * m_pGraphicsDevice = nullptr;
+    virtual bool                   handles(bfc::URI const & uri) const override;
   };
 } // namespace engine
 

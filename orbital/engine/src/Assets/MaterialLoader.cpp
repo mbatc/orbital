@@ -1,6 +1,6 @@
 #include "MaterialLoader.h"
 #include "AssetManager.h"
-#include "AssetLoadContext.h"
+#include "../Rendering/Rendering.h"
 
 #include "mesh/Mesh.h"
 #include "util/Scan.h"
@@ -9,7 +9,7 @@ using namespace bfc;
 
 namespace engine {
   Ref<MeshData::Material> MaterialFileLoader::load(URI const & uri, AssetLoadContext * pContext) const {
-    auto material = pContext->getFileSystem()->deserialize<MeshData::Material>(uri);
+    auto material = fs::deserialize<MeshData::Material>(uri);
 
     if (!material.has_value()) {
       return nullptr;
@@ -18,33 +18,28 @@ namespace engine {
     return bfc::NewRef<MeshData::Material>(std::move(material.value()));
   }
 
-  bool MaterialFileLoader::handles(URI const & uri, AssetManager const * pManager) const {
-    BFC_UNUSED(pManager);
-
+  bool MaterialFileLoader::handles(URI const & uri) const {
     return Filename::extension(uri.pathView()) == "material";
   }
 
-  MaterialLoader::MaterialLoader(GraphicsDevice * pDevice)
-    : m_pGraphics(pDevice) {}
-
   Ref<Material> MaterialLoader::load(URI const & uri, AssetLoadContext * pContext) const {
-    Ref<MeshData::Material> pData = pContext->load<MeshData::Material>(uri);
+    Ref<MeshData::Material> pData = asset_manager::load<MeshData::Material>(uri, nullptr, pContext);
     if (pData == nullptr) {
       return nullptr;
     }
 
     Ref<Material> pMaterial = NewRef<Material>();
-    auto          pCmdList  = m_pGraphics->createCommandList();
+    auto          pCmdList  = rendering::createCommandList();
     pCmdList->setDebugName("MaterialLoader::load");
 
     pMaterial->load(pCmdList.get(), *pData);
 
-    m_pGraphics->submit(std::move(pCmdList));
+    rendering::submit(std::move(pCmdList));
 
     return pMaterial;
   }
 
-  bool MaterialLoader::handles(URI const & uri, AssetManager const * pManager) const {
-    return pManager->canLoad<MeshData::Material>(uri);
+  bool MaterialLoader::handles(URI const & uri) const {
+    return asset_manager::canLoad<MeshData::Material>(uri);
   }
 } // namespace engine

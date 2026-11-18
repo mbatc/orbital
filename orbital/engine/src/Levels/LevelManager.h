@@ -11,6 +11,8 @@ namespace bfc {
 } // namespace bfc
 
 namespace engine {
+  using namespace bfc;
+
   class Level;
   enum SimulateState {
     SimulateState_Paused,
@@ -49,8 +51,6 @@ namespace engine {
     };
   } // namespace events
 
-  class AssetManager;
-  class Rendering;
   class Level;
 
   class LevelManager : public Subsystem {
@@ -82,8 +82,6 @@ namespace engine {
     void registerCoreComponentTypes();
     void registerCoreSystems();
 
-    bfc::Ref<AssetManager>       m_pAssets      = nullptr;
-    bfc::Ref<Rendering>          m_pRendering   = nullptr;
     bfc::Ref<bfc::EventListener> m_pInputs      = nullptr;
 
     bfc::Ref<Level> m_pActiveLevel = nullptr;

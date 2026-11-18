@@ -12,12 +12,10 @@ namespace bfc {
 
 namespace engine {
   class EditorCamera;
-  class Rendering;
   class Level;
   class LevelEditorViewport;
   class GameViewport;
   class LevelManager;
-  class VirtualFileSystem;
 
   class LevelEditor : public Subsystem {
   public:
@@ -28,6 +26,8 @@ namespace engine {
         bfc::Setting<float> fov;
         bfc::Setting<float> nearPlane;
         bfc::Setting<float> farPlane;
+        bfc::Setting<Vec3d> position;
+        bfc::Setting<Vec3>  ypr;
       } camera;
     } settings;
 
@@ -68,45 +68,31 @@ namespace engine {
     static bool drawEntitySelector(bfc::StringView const & name, EntityID * pEntityID, Level * pLevel);
 
     template<typename T>
-    bool drawAssetSelector(bfc::StringView const & name, bfc::Ref<T> * ppAsset) {
-      return drawAssetSelector(name, ppAsset, getApp()->findSubsystem<AssetManager>().get(),
-                               getApp()->findSubsystem<VirtualFileSystem>().get());
-    }
-
-    template<typename T>
-    bool drawAssetSelector(bfc::StringView const & name, engine::Asset<T> * pAsset) {
-      return drawAssetSelector(name, pAsset, getApp()->findSubsystem<AssetManager>().get(),
-                               getApp()->findSubsystem<VirtualFileSystem>().get());
-    }
-
-    template<typename T>
-    static bool drawAssetSelector(bfc::StringView const & name, bfc::Ref<T> * ppAsset, AssetManager * pManager, VirtualFileSystem * pFileSystem) {
+    static bool drawAssetSelector(bfc::StringView const & name, bfc::Ref<T> * ppAsset) {
       bfc::Ref<void> pOpaque = *ppAsset;
-      bool           result  = drawAssetSelector(name, &pOpaque, bfc::TypeID<T>(), pManager, pFileSystem);
+      bool           result  = drawAssetSelector(name, &pOpaque, bfc::TypeID<T>());
       *ppAsset               = std::static_pointer_cast<T>(pOpaque);
       return result;
     }
 
     template<typename T>
-    static bool drawAssetSelector(bfc::StringView const & name, engine::Asset<T> * pAsset, AssetManager * pManager, VirtualFileSystem * pFileSystem) {
+    static bool drawAssetSelector(bfc::StringView const & name, engine::Asset<T> * pAsset) {
       AssetHandle handle = pAsset->handle();
       bool        result = false;
       if (handle == InvalidAssetHandle && pAsset->instance() != nullptr) {
         bfc::Ref<T> pInstance = pAsset->instance();
-        result                = drawAssetSelector(name, &pInstance, pManager, pFileSystem);
-        pAsset->assign(pManager, pInstance);
+        result                = drawAssetSelector(name, &pInstance);
+        pAsset->assign(pInstance);
       } else {
-        result = drawAssetSelector(name, &handle, bfc::TypeID<T>(), pManager, pFileSystem);
-        pAsset->assign(pManager, handle);
+        result = drawAssetSelector(name, &handle, bfc::TypeID<T>());
+        pAsset->assign(handle);
       }
       return result;
     }
 
 
-    static bool drawAssetSelector(bfc::StringView const & name, bfc::Ref<void> * ppAsset, bfc::type_index const & assetType, AssetManager * pManager,
-                                  VirtualFileSystem * pFileSystem);
-    static bool drawAssetSelector(bfc::StringView const & name, AssetHandle * pHandle, bfc::type_index const & assetType, AssetManager * pManager,
-                                  VirtualFileSystem * pFileSystem,
+    static bool drawAssetSelector(bfc::StringView const & name, bfc::Ref<void> * ppAsset, bfc::type_index const & assetType);
+    static bool drawAssetSelector(bfc::StringView const & name, AssetHandle * pHandle, bfc::type_index const & assetType,
                                   bfc::StringView const & emptyPreview = "[ None ]");
 
     void activateViewport(bfc::Ref<Viewport>);
@@ -121,13 +107,11 @@ namespace engine {
   private:
     void onRenderFrame(bfc::graphics::CommandList * pCmdList, bfc::graphics::RenderTargetRef renderTarget);
 
-    void drawUI(bfc::Ref<LevelManager> const & pLevels, bfc::Ref<AssetManager> const & pAssets, bfc::Ref<Rendering> const & pRendering,
-                bfc::Ref<VirtualFileSystem> const & pFileSystem);
+    void drawUI(bfc::Ref<LevelManager> const & pLevels);
 
     void drawViewportGizmo(bfc::Ref<Level> const & pLevel, EntityID entityID, ImVec2 vpMin, ImVec2 vpMax);
-    void drawAssetsPanel(bfc::Ref<VirtualFileSystem> const & pFileSystem, bfc::Ref<LevelManager> const & pLevels);
-    void drawLevelPanel(bfc::Ref<LevelManager> const & pLevels, bfc::Ref<AssetManager> const & pAssets, bfc::Ref<Rendering> const & pRendering,
-                        bfc::Ref<Level> const & pLevel);
+    void drawAssetsPanel(bfc::Ref<LevelManager> const & pLevels);
+    void drawLevelPanel(bfc::Ref<LevelManager> const & pLevels, bfc::Ref<Level> const & pLevel);
     void drawEditorViewportPanel(bfc::Ref<Level> const & pLevel);
     void drawGameViewportPanel(bfc::Ref<Level> const & pLevel);
     void drawEntityProperties(bfc::Ref<Level> const & pLevel, EntityID entityID);

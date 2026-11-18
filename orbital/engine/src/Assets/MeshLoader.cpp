@@ -1,6 +1,6 @@
 #include "MeshLoader.h"
 #include "AssetManager.h"
-#include "AssetLoadContext.h"
+#include "Rendering/Rendering.h"
 
 #include "mesh/Mesh.h"
 #include "mesh/parsers/OBJParser.h"
@@ -14,7 +14,7 @@ namespace engine {
   Ref<MeshData> MeshDataFileLoader::load(URI const & uri, AssetLoadContext * pContext) const {
     BFC_UNUSED(pContext);
 
-    Ref<Stream> pStream = pContext->getFileSystem()->open(uri, FileMode_ReadBinary);
+    Ref<Stream> pStream = fs::open(uri, FileMode_ReadBinary);
     if (pStream == nullptr) {
       return nullptr;
     }
@@ -23,7 +23,7 @@ namespace engine {
 
     bool       success    = false;
     StringView ext        = Filename::extension(uri.pathView());
-    Filename   parentPath = Filename::parent(pContext->getFileSystem()->resolveUri(uri).path());
+    Filename   parentPath = Filename::parent(fs::resolveUri(uri).path());
 
     if (ext.equals("obj", true)) {
       // TODO: more customization of how dependent files are loaded.
@@ -40,7 +40,7 @@ namespace engine {
     pMeshData->addDefaults();
 
     pMeshData->mapTextures([=](Filename const & file, String const & /*name*/, int64_t /*layer*/) {
-      return pContext->getFileSystem()->find(URI::File(file), { uri.resolveRelativeReference("../") }).path();
+      return fs::find(URI::File(file), {uri.resolveRelativeReference("../")}).path();
     });
 
     pMeshData->findTextures();
@@ -48,40 +48,32 @@ namespace engine {
     return pMeshData;
   }
 
-  bool MeshDataFileLoader::handles(URI const & uri, AssetManager const * pManager) const {
-    BFC_UNUSED(pManager);
-
+  bool MeshDataFileLoader::handles(URI const & uri) const {
     return MeshData::canRead(Filename::extension(uri.pathView()));
   }
 
-  MeshLoader::MeshLoader(GraphicsDevice * pDevice)
-    : m_pGraphics(pDevice) {}
-
   Ref<Mesh> MeshLoader::load(URI const & uri, AssetLoadContext * pContext) const {
-    Ref<MeshData> pData = pContext->load<MeshData>(uri);
+    Ref<MeshData> pData = asset_manager::load<MeshData>(uri, nullptr, pContext);
     if (pData == nullptr) {
       return nullptr;
     }
 
     Ref<Mesh> pMesh    = NewRef<Mesh>();
-    auto      pCmdList = m_pGraphics->createCommandList();
+    auto      pCmdList = rendering::createCommandList();
     pCmdList->setDebugName("MeshLoader::load");
 
     if (!pMesh->load(pCmdList.get(), *pData)) {
       return nullptr;
     }
 
-    m_pGraphics->submit(std::move(pCmdList));
+    rendering::submit(std::move(pCmdList));
 
     return pMesh;
   }
 
-  bool MeshLoader::handles(URI const & uri, AssetManager const * pManager) const {
-    return pManager->canLoad<MeshData>(uri);
+  bool MeshLoader::handles(URI const & uri) const {
+    return asset_manager::canLoad<MeshData>(uri);
   }
-
-  MeshMaterialLoader::MeshMaterialLoader(GraphicsDevice * pDevice)
-    : m_pGraphics(pDevice) {}
 
   Ref<Material> MeshMaterialLoader::load(URI const & uri, AssetLoadContext * pContext) const {
     StringView indexString = uri.fragment().substr(fragmentPrefix.length());
@@ -90,7 +82,7 @@ namespace engine {
       return nullptr;
     }
 
-    Ref<MeshData> pData = pContext->load<MeshData>(URI::File(uri.path()));
+    Ref<MeshData> pData = asset_manager::load<MeshData>(URI::File(uri.path()), nullptr, pContext);
     if (pData == nullptr) {
       return nullptr;
     }
@@ -99,7 +91,7 @@ namespace engine {
       return nullptr;
     }
 
-    auto pCmdList = m_pGraphics->createCommandList();
+    auto pCmdList = rendering::createCommandList();
     pCmdList->setDebugName("MeshMaterialLoader::load");
 
     Ref<Material> pMaterial = NewRef<Material>();
@@ -107,19 +99,19 @@ namespace engine {
       pCmdList.get(),
       pData->materials[index],
       [pContext](MeshData::Material const & data, String const & prop) -> Ref<graphics::Texture> {
-        return pContext->load<graphics::Texture>(URI::File(data.getTexture(prop)));
+        return asset_manager::load<graphics::Texture>(URI::File(data.getTexture(prop)));
       }
     );
     pMaterial->upload(pCmdList.get());
 
-    m_pGraphics->submit(std::move(pCmdList));
+    rendering::submit(std::move(pCmdList));
 
     return pMaterial;
   }
 
-  bool MeshMaterialLoader::handles(URI const & uri, AssetManager const * pManager) const {
+  bool MeshMaterialLoader::handles(URI const & uri) const {
     StringView fragment = uri.fragment();
-    return fragment.startsWith(fragmentPrefix) && pManager->canLoad<MeshData>(uri);
+    return fragment.startsWith(fragmentPrefix) && asset_manager::canLoad<MeshData>(uri);
   }
 
   Ref<MeshData> MeshDataCache::read(bfc::Stream * pStream) const {

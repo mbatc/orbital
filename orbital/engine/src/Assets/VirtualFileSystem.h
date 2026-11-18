@@ -13,9 +13,8 @@
 #include <mutex>
 
 namespace engine {
-  class VirtualFileSystem : public Subsystem {
-  public:
-    VirtualFileSystem(bfc::URI const & gameAssetsRoot, bfc::URI const & engineAssetsRoot);
+  namespace fs {
+    void init(bfc::URI const & gameAssetsRoot, bfc::URI const & engineAssetsRoot);
 
     /// Mount a virtual drive name.
     /// @param name The name of the drive.
@@ -31,60 +30,60 @@ namespace engine {
     bool unmountDrive(bfc::StringView const & name);
 
     /// Get a list of drives mounted in the virtual file system.
-    bfc::Vector<bfc::String> drives() const;
+    bfc::Vector<bfc::String> drives();
 
     /// Open a stream to the URI specified.
-    bfc::Ref<bfc::Stream> open(bfc::URI const & uri, bfc::FileMode mode) const;
+    bfc::Ref<bfc::Stream> open(bfc::URI const & uri, bfc::FileMode mode);
 
     /// Test if a URI exists.
-    bool exists(bfc::URI const & uri) const;
+    bool exists(bfc::URI const & uri);
 
     /// Resolve any virtual drives in a URI to the full target path.
-    bfc::URI resolveUri(bfc::URI const & uri) const;
+    bfc::URI resolveUri(bfc::URI const & uri);
 
     /// Convert the URI to a virtual path, if it is contained in one of the mounted drives.
-    bfc::URI toVirtualUri(bfc::URI const & uri) const;
+    bfc::URI toVirtualUri(bfc::URI const & uri);
 
     /// Read a binary file.
-    bool read(bfc::URI const & resource, bfc::Vector<uint8_t> * pContent, bool binary = true) const;
+    bool read(bfc::URI const & resource, bfc::Vector<uint8_t> * pContent, bool binary = true);
 
     /// Read a text file.
-    bool readText(bfc::URI const & resource, bfc::String * pContent) const;
+    bool readText(bfc::URI const & resource, bfc::String * pContent);
 
     /// Write a binary file.
-    bool write(bfc::URI const & resource, bfc::Span<uint8_t> const & content) const;
+    bool write(bfc::URI const & resource, bfc::Span<uint8_t> const & content);
 
     /// Write a text file.
-    bool writeText(bfc::URI const & resource, bfc::StringView const & content) const;
+    bool writeText(bfc::URI const & resource, bfc::StringView const & content);
 
     /// Remove a file.
     /// @retval true  The resource was deleted.
     /// @retval false The resource could not be deleted.
-    bool remove(bfc::URI const & resource) const;
+    bool remove(bfc::URI const & resource);
 
     /// Test if a path is writable.
     /// @retval true  The resource is writable.
     /// @retval false The resource is not writable.
-    bool isWritable(bfc::URI const & resource) const;
+    bool isWritable(bfc::URI const & resource);
 
     /// Test if a path is readble.
     /// @retval true  The resource is readable.
     /// @retval false The resource is not readable.
-    bool isReadable(bfc::URI const & resource) const;
+    bool isReadable(bfc::URI const & resource);
 
     /// Find a resource in the searchPaths provided.
     /// @retval true  The resource is readable.
     /// @retval false The resource is not readable.
-    bfc::URI find(bfc::URI const & resource, bfc::Vector<bfc::URI> const & basePaths, bool * pResult = nullptr) const;
+    bfc::URI find(bfc::URI const & resource, bfc::Vector<bfc::URI> const & basePaths, bool * pResult = nullptr);
 
     /// Test if a path has sub-resources.
-    bool isLeaf(bfc::URI const & resource) const;
+    bool isLeaf(bfc::URI const & resource);
 
     /// Walk any subresources of the URI provided.
-    bfc::Vector<bfc::URI> walk(bfc::URI const & resource, bool recursive = false) const;
+    bfc::Vector<bfc::URI> walk(bfc::URI const & resource, bool recursive = false);
 
     /// Get the last modified timestamp of the URI provided.
-    std::optional<bfc::Timestamp> lastModified(bfc::URI const & resource) const;
+    std::optional<bfc::Timestamp> lastModified(bfc::URI const & resource);
 
     template<typename T>
     bool write(bfc::URI const & resource, T const & o) {
@@ -125,13 +124,10 @@ namespace engine {
       return bfc::deserialize<T>(resolveUri(resource), format);
     }
 
-    bool serialize(bfc::URI const & resource, bfc::SerializedObject const & o, bfc::DataFormat format = bfc::DataFormat_YAML);
+    bool serialize(bfc::URI const & resource, bfc::SerializedObject const & o,
+                   bfc::DataFormat format = bfc::DataFormat_YAML);
 
-    std::optional<bfc::SerializedObject> deserialize(bfc::URI const & resource, bfc::DataFormat format = bfc::DataFormat_YAML);
-
-  private:
-    mutable std::mutex m_lock;
-    bfc::Map<bfc::String, bfc::URI> m_drives;
-    bfc::Map<bfc::URI, bfc::UUID>   m_virtualFiles;
-  };
+    std::optional<bfc::SerializedObject> deserialize(bfc::URI const & resource,
+                                                     bfc::DataFormat  format = bfc::DataFormat_YAML);
+  } // namespace fs
 }

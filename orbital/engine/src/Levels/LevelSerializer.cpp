@@ -6,19 +6,17 @@
 using namespace bfc;
 
 namespace engine {
-  LevelSerializer::LevelSerializer(bfc::GraphicsDevice * pGraphicsDevice, AssetManager * pManager, ThreadPool * pThreads)
-    : m_pManager(pManager)
-    , m_pThreads(pThreads)
-    , m_pGraphicsDevice(pGraphicsDevice) {}
+  LevelSerializer::LevelSerializer(ThreadPool * pThreads)
+    : m_pThreads(pThreads) {}
 
   bool LevelSerializer::serialize(URI const & uri, Level const & level) {
-    return m_pManager->getFileSystem()->serialize(uri, serialize(level));
+    return fs::serialize(uri, serialize(level));
   }
 
   bool LevelSerializer::deserialize(URI const & uri, Level & level) {
     level.sourceUri = uri;
 
-    std::optional<SerializedObject> serialized = m_pManager->getFileSystem()->deserialize(uri, DataFormat_YAML);
+    std::optional<SerializedObject> serialized = fs::deserialize(uri, DataFormat_YAML);
     if (!serialized.has_value()) {
       return false;
     }
@@ -30,7 +28,6 @@ namespace engine {
     ComponentSerializeContext context;
     context.pLevel        = &level;
     context.pSerializer   = this;
-    context.pAssetManager = getAssets();
 
     SerializedObject entityList = SerializedObject::MakeArray();
     for (EntityID entity : level.entities()) {
@@ -71,7 +68,6 @@ namespace engine {
     ComponentDeserializeContext context;
     context.pLevel        = &level;
     context.pSerializer   = this;
-    context.pAssetManager = getAssets();
 
     if (entities.isArray()) {
       for (int64_t i = 0; i < entities.size(); ++i) {
@@ -144,36 +140,26 @@ namespace engine {
     m_deferred.pushBack(callback);
   }
 
-  AssetManager * LevelSerializer::getAssets() const {
-    return m_pManager;
-  }
-
-  bfc::GraphicsDevice * LevelSerializer::getGraphicsDevice() const {
-    return m_pGraphicsDevice;
-  }
-
   SerializedObject LevelSerializer::writeAsset(Ref<void> const & pAsset) {
-    AssetHandle handle = getAssets()->find(pAsset);
+    AssetHandle handle = asset_manager::find(pAsset);
     if (handle == InvalidAssetHandle) {
       return SerializedObject::Empty();
     }
 
-    return SerializedObject::MakeMap({{"uri", getAssets()->uriOf(handle).str()}});
+    return SerializedObject::MakeMap({{"uri", asset_manager::uriOf(handle).str()}});
   }
 
   Ref<void> LevelSerializer::readAsset(SerializedObject const & serialized, type_index const & typeInfo) {
     SerializedObject const & uriItem = serialized.get("uri");
     if (uriItem.isText()) {
-      AssetManager * pAssets = getAssets();
       bfc::URI       uri     = uriItem.asText();
-      return pAssets->load(pAssets->add(uri, typeInfo), typeInfo);
+      return asset_manager::load(asset_manager::add(uri, typeInfo), typeInfo);
     }
 
     SerializedObject const & idItem = serialized.get("uuid");
     if (idItem.isText()) {
-      AssetManager * pAssets = getAssets();
       bfc::UUID      uuid    = uriItem.asText();
-      return pAssets->load(pAssets->find(uuid), typeInfo);
+      return asset_manager::load(asset_manager::find(uuid), typeInfo);
     }
 
     return nullptr;

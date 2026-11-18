@@ -89,7 +89,7 @@ namespace engine {
     , public ILevelStop
     , public ILevelRenderDataCollector {
   public:
-    Physics(AssetManager *pAssets);
+    Physics();
 
     virtual void created(Level * pLevel) override;
     virtual void update(Level * pLevel, bfc::Timestamp dt) override;

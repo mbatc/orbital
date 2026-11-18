@@ -15,7 +15,7 @@ namespace engine {
     virtual bfc::Ref<void> _load(bfc::URI const & uri, AssetLoadContext * pContext) const = 0;
 
     /// Query if this loader can handle the URI provided.
-    virtual bool handles(bfc::URI const & uri, AssetManager const * pManager) const = 0;
+    virtual bool handles(bfc::URI const & uri) const = 0;
   };
 
   template<typename T>

@@ -11,12 +11,10 @@ namespace bfc {
 
 namespace engine {
   class Level;
-  class Renderer;
-  class AssetManager;
   class Viewport {
   public:
     Viewport(bfc::Ref<Renderer> const & pRenderer, bfc::StringView const & viewportName);
-    Viewport(bfc::graphics::CommandList * pCmdList, AssetManager * pAssets, bfc::StringView const & viewportName);
+    Viewport(bfc::graphics::CommandList * pCmdList, bfc::StringView const & viewportName);
 
     /// Render the viewport.
     void render(bfc::graphics::CommandList * pCmdList, bfc::graphics::RenderTargetRef renderTarget);

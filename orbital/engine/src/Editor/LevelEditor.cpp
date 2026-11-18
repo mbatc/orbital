@@ -41,26 +41,25 @@ namespace engine {
     : Subsystem(TypeID<LevelEditor>(), "LevelEditor") {}
 
   bool LevelEditor::init(Application * pApp) {
-    auto pAssets     = pApp->findSubsystem<AssetManager>();
-    auto pRendering  = pApp->findSubsystem<Rendering>();
     auto pLevels     = pApp->findSubsystem<LevelManager>();
-    auto pFileSystem = pApp->findSubsystem<VirtualFileSystem>();
 
     settings.startupLevel     = pApp->addSetting("level-editor/startup-level",     URI::File("game:levels/main.level"));
     settings.camera.fov       = pApp->addSetting("level-editor/camera/fov",        glm::radians(60.0f));
     settings.camera.farPlane  = pApp->addSetting("level-editor/camera/far-plane",  0.1f);
     settings.camera.nearPlane = pApp->addSetting("level-editor/camera/near-plane", 100000.0f);
+    settings.camera.position  = pApp->addSetting("level-editor/camera/position",   Vec3d(0, 1, -2));
+    settings.camera.ypr       = pApp->addSetting("level-editor/camera/ypr",        Vec3(0));
 
     // Load the startup level
     URI levelPath = settings.startupLevel.get();
-    if (!pAssets->getFileSystem()->exists(levelPath)) {
+    if (!fs::exists(levelPath)) {
       auto pNewLevel = pLevels->getActiveLevel();
 
       Filename skyboxPath = "game:skybox/nebula.skybox";
       EntityID testEntity = pNewLevel->create();
 
       pNewLevel->add<components::Name>  (testEntity).name     = "Environment";
-      pNewLevel->add<components::Skybox>(testEntity).pTexture = pAssets->load<graphics::Texture>(URI::File(skyboxPath));
+      pNewLevel->add<components::Skybox>(testEntity).pTexture = asset_manager::load<graphics::Texture>(URI::File(skyboxPath));
 
       components::Transform & sunTransform = pNewLevel->add<components::Transform>(testEntity);
       sunTransform.lookAt(bfc::Vec3d(1, 1, -1));
@@ -76,18 +75,19 @@ namespace engine {
       pLevels->setActiveLevel(pLevels->load(settings.startupLevel.get()));
     }
 
-    GraphicsDevice * pGraphicDevice = pRendering->getDevice();
+    GraphicsDevice * pGraphicDevice = rendering::getDevice();
 
     // Create an editor viewport and render the active level.
     {
       auto pInitCmdList = pGraphicDevice->createCommandList();
 
-      auto pRenderer = bfc::NewRef<DeferredRenderer>(pInitCmdList.get(), pAssets.get());
-      pRendering->registerRenderer(pRenderer);
+      auto pRenderer = bfc::NewRef<DeferredRenderer>(pInitCmdList.get());
+      rendering::registerRenderer(pRenderer);
       m_pEditorViewport = NewRef<LevelEditorViewport>(pRenderer);
-
-      auto pGameRenderer = bfc::NewRef<DeferredRenderer>(pInitCmdList.get(), pAssets.get());
-      pRendering->registerRenderer(pGameRenderer);
+      m_pEditorViewport->camera.position = settings.camera.position.get();
+      m_pEditorViewport->camera.ypr      = settings.camera.ypr.get();
+      auto pGameRenderer = bfc::NewRef<DeferredRenderer>(pInitCmdList.get());
+      rendering::registerRenderer(pGameRenderer);
       m_pGameViewport = NewRef<GameViewport>(pGameRenderer);
 
       pGraphicDevice->submit(std::move(pInitCmdList));
@@ -96,12 +96,12 @@ namespace engine {
     m_pEditorViewport->setLevel(pLevels->getActiveLevel());
     m_pEditorViewportRenderTarget = pGraphicDevice->createRenderTarget(RenderTargetType_Texture);
     m_pGameViewportRenderTarget   = pGraphicDevice->createRenderTarget(RenderTargetType_Texture);
-    pRendering->registerPlugin(bfc::NewRef<LevelEditorRenderingPlugin>(this));
+    rendering::registerPlugin(bfc::NewRef<LevelEditorRenderingPlugin>(this));
 
     m_pViewportListener = m_pEditorViewport->getEvents()->addListener();
     m_pViewportListener->on([=](bfc::events::DroppedFiles const & e) {
       for (Filename const & file : e.files) {
-        bfc::URI const virtualUri = pFileSystem->toVirtualUri(URI::File(file));
+        bfc::URI const virtualUri = fs::toVirtualUri(URI::File(file));
 
         BFC_LOG_INFO("LevelEditor", "File dropped. URI=%s", virtualUri);
 
@@ -135,7 +135,7 @@ namespace engine {
 
     // Init ui context rendering.
     m_uiContext.init(pInitCmdList.get());
-    m_uiContext.getEvents()->listenTo(pRendering->getMainWindow()->getEvents());
+    m_uiContext.getEvents()->listenTo(rendering::getMainWindow()->getEvents());
 
     addPropertyEditor<DefaultPropertyEditor<int8_t>>();
     addPropertyEditor<DefaultPropertyEditor<int16_t>>();
@@ -196,26 +196,25 @@ namespace engine {
   }
 
   void LevelEditor::shutdown() {
+    settings.camera.position.set(m_pEditorViewport->camera.position);
+    settings.camera.ypr.set(m_pEditorViewport->camera.ypr);
     m_pEditorViewport = nullptr;
     m_uiContext.deinit();
   }
 
   void LevelEditor::loop(Application * pApp) {
-    auto pRendering  = pApp->findSubsystem<Rendering>();
-    auto pAssets     = pApp->findSubsystem<AssetManager>();
     auto pLevels     = pApp->findSubsystem<LevelManager>();
-    auto pFileSystem = pApp->findSubsystem<VirtualFileSystem>();
 
-    m_uiContext.beginFrame(pRendering->getMainWindow()->getSize());
+    m_uiContext.beginFrame(rendering::getMainWindow()->getSize());
 
-    drawUI(pLevels, pAssets, pRendering, pFileSystem);
+    drawUI(pLevels);
 
     ImGui::Render();
 
     m_pDrawData = ImGui::GetDrawData();
 
     // Route inputs to active viewport
-    routeInputsToActiveViewport(pRendering->getMainWindow()->getEvents());
+    routeInputsToActiveViewport(rendering::getMainWindow()->getEvents());
 
     // Apply camera controls
     m_pEditorViewport->camera.update(pApp->getDeltaTime());
@@ -225,13 +224,13 @@ namespace engine {
         URI levelPath = settings.startupLevel.get();
 
         BFC_LOG_INFO("LevelEditor", "Saving level to %s", levelPath);
-        LevelSerializer(pRendering->getDevice(), pAssets.get()).serialize(levelPath, *pLevels->getActiveLevel());
+        LevelSerializer().serialize(levelPath, *pLevels->getActiveLevel());
       }
 
       if (kbd.isPressed(KeyCode_1)) {
         BFC_LOG_INFO("LevelEditor", "Reloading shaders");
-        for (AssetHandle handle : pAssets->findHandles<bfc::graphics::Program>()) {
-          pAssets->reload(handle);
+        for (AssetHandle handle : asset_manager::findHandles<bfc::graphics::Program>()) {
+          asset_manager::reload(handle);
         }
       }
 
@@ -318,38 +317,37 @@ namespace engine {
     return changed;
   }
 
-  static void discoverAssets(URI const & basePath, VirtualFileSystem * pFileSystem, AssetManager * pManager, bfc::type_index const & assetType) {
-    for (auto & uri : pFileSystem->walk(basePath)) {
-      if (pFileSystem->isLeaf(uri)) {
-        if (pManager->canLoad(uri, assetType))
-          pManager->add(uri, assetType); // add but don't load
+  static void discoverAssets(URI const & basePath, bfc::type_index const & assetType) {
+    for (auto & uri : fs::walk(basePath)) {
+      if (fs::isLeaf(uri)) {
+        if (asset_manager::canLoad(uri, assetType))
+          asset_manager::add(uri, assetType); // add but don't load
       } else {
-        discoverAssets(uri, pFileSystem, pManager, assetType);
+        discoverAssets(uri, assetType);
       }
     }
   }
 
-  static void discoverAssets(VirtualFileSystem * pFileSystem, AssetManager * pManager, bfc::type_index const & assetType) {
-    for (auto & drive : pFileSystem->drives()) {
-      discoverAssets(String::format("file:%s:/", drive), pFileSystem, pManager, assetType);
+  static void discoverAssets(bfc::type_index const & assetType) {
+    for (auto & drive : fs::drives()) {
+      discoverAssets(String::format("file:%s:/", drive), assetType);
     }
   }
 
-  bool LevelEditor::drawAssetSelector(StringView const & name, Ref<void> * ppAsset, type_index const & assetType, AssetManager * pManager,
-                                      VirtualFileSystem * pFileSystem) {
-    AssetHandle handle = pManager->find(*ppAsset);
-    bool        changed = drawAssetSelector(name, &handle, assetType, pManager, pFileSystem, *ppAsset != nullptr ? "Unmanaged" : "[ None ]");
-    *ppAsset    = pManager->load(handle, assetType);
+  bool LevelEditor::drawAssetSelector(StringView const & name, Ref<void> * ppAsset, type_index const & assetType) {
+    AssetHandle handle  = asset_manager::find(*ppAsset);
+    bool        changed = drawAssetSelector(name, &handle, assetType, *ppAsset != nullptr ? "Unmanaged" : "[ None ]");
+    *ppAsset            = asset_manager::load(handle, assetType);
     return changed;
   }
 
-  bool LevelEditor::drawAssetSelector(bfc::StringView const & name, AssetHandle * pHandle, bfc::type_index const & assetType, AssetManager * pManager, VirtualFileSystem *pFileSystem,
+  bool LevelEditor::drawAssetSelector(bfc::StringView const & name, AssetHandle * pHandle, bfc::type_index const & assetType,
                                       bfc::StringView const & emptyPreview) {
     bool        changed      = false;
     bfc::String selectedName = emptyPreview;
 
     if (*pHandle != InvalidAssetHandle) {
-      selectedName = pManager->uriOf(*pHandle).str();
+      selectedName = asset_manager::uriOf(*pHandle).str();
     }
 
     ui::Input(name, &selectedName);
@@ -360,10 +358,11 @@ namespace engine {
 
     if (ImGui::BeginPopup("Select Asset")) {
       if (ImGui::IsWindowAppearing()) {
-        discoverAssets(pFileSystem, pManager, assetType);
+        discoverAssets(assetType);
       }
 
-      auto handles = pManager->findHandles([assetType](URI const & uri, type_index const & type, StringView const & loaderID) { return type == assetType; });
+      auto handles = asset_manager::findHandles(
+        [assetType](URI const & uri, type_index const & type, StringView const & loaderID) { return type == assetType; });
 
       if (ImGui::Selectable("[ None ]"), *pHandle == InvalidAssetHandle) {
         *pHandle = InvalidAssetHandle;
@@ -374,7 +373,7 @@ namespace engine {
         ImGui::PushID((int)((option >> 32) & 0x00000000FFFFFFFF));
 
         bfc::String optionName = "[ unnamed ]";
-        URI         uri        = pManager->uriOf(option);
+        URI         uri        = asset_manager::uriOf(option);
 
         if (ImGui::Selectable(uri.c_str(), option == *pHandle)) {
           *pHandle = option;
@@ -400,17 +399,15 @@ namespace engine {
 
     BFC_LOG_INFO("LevelEditor", "Mapping input devices from new viewport to the input subsystem");
 
-    auto pInputs = getApp()->findSubsystem<Input>();
-
     if (m_pActiveViewport != nullptr) {
       for (auto [name, pDevice] : m_pActiveViewport->getInputDevices()) {
-        pInputs->setInputDevice(name, nullptr);
+        inputs::setInputDevice(name, nullptr);
       }
     }
 
     if (pNewViewport != nullptr) {
       for (auto [name, pDevice] : pNewViewport->getInputDevices()) {
-        pInputs->setInputDevice(name, pDevice);
+        inputs::setInputDevice(name, pDevice);
       }
     }
 
@@ -448,17 +445,16 @@ namespace engine {
     }
   }
 
-  void LevelEditor::drawUI(bfc::Ref<LevelManager> const & pLevels, bfc::Ref<AssetManager> const & pAssets, bfc::Ref<Rendering> const & pRendering,
-                           bfc::Ref<VirtualFileSystem> const & pFileSystem) {
+  void LevelEditor::drawUI(bfc::Ref<LevelManager> const & pLevels) {
     Ref<Level> pLevel = pLevels->getActiveLevel();
 
     ImGuiID dockspaceId = ImGui::GetID("main-dockspace");
     ImGui::DockSpaceOverViewport(dockspaceId);
 
-    drawLevelPanel(pLevels, pAssets, pRendering, pLevel);
+    drawLevelPanel(pLevels, pLevel);
     drawEntityProperties(pLevel, m_selected);
     drawEditorSettings();
-    drawAssetsPanel(pFileSystem, pLevels);
+    drawAssetsPanel(pLevels);
     drawEditorViewportPanel(pLevel);
     drawGameViewportPanel(pLevel);
   }
@@ -510,9 +506,9 @@ namespace engine {
     ImGui::PopStyleVar();
   }
 
-  void LevelEditor::drawAssetsPanel(Ref<VirtualFileSystem> const & pFileSystem, Ref<LevelManager> const & pLevels) {
+  void LevelEditor::drawAssetsPanel(Ref<LevelManager> const & pLevels) {
     ImGui::Begin("Assets");
-    for (String const & drive : pFileSystem->drives()) {
+    for (String const & drive : fs::drives()) {
       if (ImGui::Selectable(drive.c_str())) {
         m_selectedAssetPath = URI::File(String::format("%s:/", drive));
       }
@@ -527,8 +523,8 @@ namespace engine {
       }
     }
 
-    for (URI const & item : pFileSystem->walk(m_selectedAssetPath)) {
-      bool isLeaf          = pFileSystem->isLeaf(item);
+    for (URI const & item : fs::walk(m_selectedAssetPath)) {
+      bool isLeaf          = fs::isLeaf(item);
       bool isClicked       = ImGui::Selectable(String(item.path().name()).c_str());
       bool isDoubleClicked = ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
 
@@ -548,7 +544,7 @@ namespace engine {
     ImGui::End();
   }
 
-  void LevelEditor::drawLevelPanel(Ref<LevelManager> const & pLevels, Ref<AssetManager> const & pAssets, Ref<Rendering> const & pRendering,
+  void LevelEditor::drawLevelPanel(Ref<LevelManager> const & pLevels,
                                    Ref<Level> const & pLevel) {
     ImGui::Begin("Level", 0, ImGuiWindowFlags_MenuBar);
     ImGui::BeginMenuBar();
@@ -583,13 +579,13 @@ namespace engine {
         m_pEditorViewport->setLevel(pLevels->getActiveLevel());
         activateViewport(m_pEditorViewport);
       } else if (activateGameViewport) {
-        auto pInitCmdList = pRendering->getDevice()->createCommandList();
+        auto pInitCmdList = rendering::createCommandList();
         pInitCmdList->setDebugName("LevelEditor init game viewport");
-        auto pRenderer    = bfc::NewRef<DeferredRenderer>(pInitCmdList.get(), pAssets.get());
-        pRendering->registerRenderer(pRenderer);
+        auto pRenderer    = bfc::NewRef<DeferredRenderer>(pInitCmdList.get());
+        rendering::registerRenderer(pRenderer);
 
         auto pGameViewport = NewRef<GameViewport>(pRenderer);
-        pRendering->getDevice()->submit(std::move(pInitCmdList));
+        rendering::getDevice()->submit(std::move(pInitCmdList));
 
         pGameViewport->setLevel(pLevels->getActiveLevel());
         activateViewport(pGameViewport);

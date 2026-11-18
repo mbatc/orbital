@@ -75,8 +75,7 @@ namespace bfc {
     BFC_API MessageBoxButton errorMessageBox(char const* title, char const* message);
   }
 
-  namespace events
-  {
+  namespace events {
     // Window events
     struct ResizeWindow {
       platform::Window * pWindow = nullptr;

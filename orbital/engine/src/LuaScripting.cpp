@@ -1,5 +1,4 @@
 #include "LuaScripting.h"
-#include "Assets/AssetLoadContext.h"
 #include "Assets/AssetLoader.h"
 #include "Assets/AssetManager.h"
 #include "Application.h"
@@ -23,7 +22,6 @@ namespace engine {
     : Subsystem(bfc::TypeID<LuaScripting>(), "Scripting") {}
 
   bool LuaScripting::init(Application * pApp) {
-    m_pFileSystem = pApp->findSubsystem<VirtualFileSystem>();
     reload();
     return true;
   }
@@ -53,7 +51,7 @@ namespace engine {
     lua = {};
     lua.add_package_loader([this](bfc::String const & str) -> sol::object {
       bfc::String content;
-      if (!m_pFileSystem->readText(bfc::URI(str), &content))
+      if (!fs::readText(bfc::URI(str), &content))
         return sol::make_object(lua, (std::string)bfc::String::format("\n\tUnable to read module: %s", str));
       return lua.load_buffer(content.begin(), content.length(), str.begin()).get<sol::object>();
     });
@@ -63,7 +61,7 @@ namespace engine {
 
     bfc::URI    entryScriptUri = "file:///engine:lua/entry.lua";
     bfc::String entryScript;
-    if (!m_pFileSystem->readText(entryScriptUri, &entryScript)) {
+    if (!fs::readText(entryScriptUri, &entryScript)) {
       return;
     }
 
@@ -82,14 +80,14 @@ namespace engine {
     sol::table detail = engine["detail"];
     engine["resolveModuleURI"] = [=](bfc::String name) {
       if (name.find("://") != bfc::npos)
-        return m_pFileSystem->resolveUri(bfc::URI(name)).str();
+        return fs::resolveUri(bfc::URI(name)).str();
       else
-        return m_pFileSystem->resolveUri(bfc::URI::File(name.replace(".", "/"))).path().operator bfc::String();
+        return fs::resolveUri(bfc::URI::File(name.replace(".", "/"))).path().operator bfc::String();
     };
 
     engine["resolveRelativeReference"] = [=](bfc::String base, bfc::String ref) {
       if (ref.find("://") != bfc::npos)
-        return m_pFileSystem->resolveUri(bfc::URI(ref)).str();
+        return fs::resolveUri(bfc::URI(ref)).str();
       else
         return bfc::URI::File(bfc::Filename::parent(base)).resolveRelativeReference(ref).path().operator bfc::String();
     };

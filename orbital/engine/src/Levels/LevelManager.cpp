@@ -26,9 +26,6 @@ namespace engine {
     : Subsystem(TypeID<LevelManager>(), "LevelManager") {}
 
   bool LevelManager::init(Application * pApp) {
-    m_pAssets    = pApp->findSubsystem<AssetManager>();
-    m_pRendering = pApp->findSubsystem<Rendering>();
-
     registerCoreComponentTypes();
     registerCoreSystems();
 
@@ -104,7 +101,7 @@ namespace engine {
   }
 
   bool LevelManager::load(bfc::URI const & uri, Level * pDst, bool merge) const {
-    return LevelSerializer(m_pRendering->getDevice(), m_pAssets.get()).deserialize(uri, *pDst);
+    return LevelSerializer().deserialize(uri, *pDst);
   }
 
   Ref<Level> LevelManager::load(bfc::URI const & uri) const {
@@ -114,7 +111,7 @@ namespace engine {
   }
 
   bool LevelManager::save(bfc::URI const & uri, Level const & level) const {
-    return LevelSerializer(m_pRendering->getDevice(), m_pAssets.get()).serialize(uri, level);
+    return LevelSerializer().serialize(uri, level);
   }
 
   bfc::Ref<Level> LevelManager::getActiveLevel() const {
@@ -144,8 +141,8 @@ namespace engine {
   }
 
   bool LevelManager::Import(Level * pLevel, bfc::URI const & uri) const {
-    if (m_pAssets->canLoad<bfc::Mesh>(uri)) {
-      Ref<Mesh> pMesh      = m_pAssets->load<Mesh>(uri);
+    if (asset_manager::canLoad<bfc::Mesh>(uri)) {
+      Ref<Mesh> pMesh      = asset_manager::load<Mesh>(uri);
       if (pMesh == nullptr) {
         return false;
       }
@@ -160,7 +157,7 @@ namespace engine {
       mesh.pMesh = pMesh;
       for (int64_t i = 0; i < mesh.pMesh->getSubmeshCount(); ++i) {
         URI matUri = uri.withFragment(String::format("material.%lld", i));
-        mesh.materials.pushBack(components::ShadedMaterial{m_pAssets->load<Material>(matUri), nullptr});
+        mesh.materials.pushBack(components::ShadedMaterial{asset_manager::load<Material>(matUri), nullptr});
       }
       return true;
     }
@@ -194,6 +191,6 @@ namespace engine {
   }
 
   void LevelManager::registerCoreSystems() {
-    registerLevelSystem<engine::Physics>(m_pAssets.get());
+    registerLevelSystem<engine::Physics>();
   }
 } // namespace engine

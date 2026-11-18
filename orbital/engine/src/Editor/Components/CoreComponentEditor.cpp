@@ -62,20 +62,14 @@ namespace engine {
   }
 
   void SkyboxEditor::draw(LevelEditor * pEditor, Ref<Level> const & pLevel, EntityID entityID, components::Skybox * pComponent) {
-    AssetManager * pAssets     = pEditor->getApp()->findSubsystem<AssetManager>().get();
-    VirtualFileSystem * pFileSystem = pEditor->getApp()->findSubsystem<VirtualFileSystem>().get();
-
-    LevelEditor::drawAssetSelector("Texture", &pComponent->pTexture, pAssets, pFileSystem);
+    LevelEditor::drawAssetSelector("Texture", &pComponent->pTexture);
   }
 
   void StaticMeshEditor::draw(LevelEditor * pEditor, Ref<Level> const & pLevel, EntityID entityID, components::StaticMesh * pComponent) {
-    AssetManager *      pAssets     = pEditor->getApp()->findSubsystem<AssetManager>().get();
-    VirtualFileSystem * pFileSystem = pEditor->getApp()->findSubsystem<VirtualFileSystem>().get();
-
     ui::Input("Cast Shadows",    &pComponent->castShadows);
     ui::Input("Use Tesselation", &pComponent->useTesselation);
 
-    LevelEditor::drawAssetSelector("Mesh", &pComponent->pMesh, pAssets, pFileSystem);
+    LevelEditor::drawAssetSelector("Mesh", &pComponent->pMesh);
 
     ui::Separator();
     ui::Label("Materials");
@@ -91,8 +85,8 @@ namespace engine {
         }
 
         bool changed = false;
-        changed |= LevelEditor::drawAssetSelector(bfc::String::format("Material %lld", i), &pMaterial, pAssets, pFileSystem);
-        changed |= LevelEditor::drawAssetSelector(bfc::String::format("Shader   %lld", i), &pProgram, pAssets, pFileSystem);
+        changed |= LevelEditor::drawAssetSelector(bfc::String::format("Material %lld", i), &pMaterial);
+        changed |= LevelEditor::drawAssetSelector(bfc::String::format("Shader   %lld", i), &pProgram);
         if (changed) {
           if (i >= pComponent->materials.size()) {
             pComponent->materials.resize(i + 1);
@@ -120,13 +114,10 @@ namespace engine {
   }
 
   void PostProcess_BloomEditor::draw(LevelEditor * pEditor, Ref<Level> const & pLevel, EntityID entityID, components::PostProcess_Bloom * pComponent) {
-    AssetManager *      pAssets     = pEditor->getApp()->findSubsystem<AssetManager>().get();
-    VirtualFileSystem * pFileSystem = pEditor->getApp()->findSubsystem<VirtualFileSystem>().get();
-
     ui::Input("Filter Radius", &pComponent->filterRadius);
     ui::Input("Strength", &pComponent->strength);
     ui::Input("Threshold", &pComponent->threshold);
-    LevelEditor::drawAssetSelector("Dirt", &pComponent->dirt, pAssets, pFileSystem);
+    LevelEditor::drawAssetSelector("Dirt", &pComponent->dirt);
     ui::Input("Dirt Intensity", &pComponent->dirtIntensity);
   }
 

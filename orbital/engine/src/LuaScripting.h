@@ -37,9 +37,6 @@ namespace engine {
       refl.visitAttributes([&](const char * name, auto member) { userType.set(name, member); });
       return userType;
     }
-
-  private:
-    bfc::Ref<VirtualFileSystem> m_pFileSystem = nullptr;
   };
 } // namespace engine
 
