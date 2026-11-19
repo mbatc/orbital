@@ -538,12 +538,15 @@ namespace engine {
   void Physics::stop(Level * pLevel) {}
 
   void Physics::collectRenderData(RenderView * pRenderView, Level const * pLevel) {
+    if ((pRenderView->filter & RenderView::Filter_DebugVisualization) == 0) {
+      return;
+    }
+
     auto pRenderData = pRenderView->pRenderData;
     auto pSphere     = m_pSphere.instance();
     auto pCube       = m_pCube.instance();
 
     RenderableStorage<StaticMeshRenderable> & meshes = pRenderData->renderables<StaticMeshRenderable>();
-
     for (auto & [transform, sphere] : pLevel->getView<components::Transform, components::ColliderSphere>()) {
       StaticMeshRenderable mesh(transform.globalTransform(pLevel) * bfc::math::scale(sphere.getRadius() * 2), *pSphere, 0);
       mesh.primitiveType = bfc::PrimitiveType_Line;

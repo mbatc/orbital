@@ -17,6 +17,12 @@ namespace engine {
 
   class RenderView {
   public:
+    enum Filter {
+      Filter_Scene              = 1 << 0,
+      Filter_DebugVisualization = 1 << 1,
+      Filter_All                = ~0,
+    };
+
     bfc::Mat4d viewMatrix;       ///< Camera view matrix
     bfc::Mat4d projectionMatrix; ///< Camera projection matrix
 
@@ -24,6 +30,8 @@ namespace engine {
     bfc::Vec4d                     viewport;     ///< Rect within renderTarget
 
     RenderData * pRenderData = nullptr; ///< Data to be rendered
+
+    Filter filter = Filter_Scene;
 
     void updateCachedProperties();
 
@@ -175,31 +183,6 @@ namespace engine {
       }
     }
 
-    // template<typename T>
-    // void setResource(bfc::StringView const & name, bfc::Ref<T> const & pResource) {
-    //   auto &registered = m_resources.getOrAdd(name);
-    //   registered.addOrSet(bfc::TypeID<T>(), pResource);
-    // }
-    // 
-    // template<typename T>
-    // void setResource(bfc::StringView const & name, T * pResource) {
-    //   return setResource(name, bfc::Ref<T>(pResource, [](T *) {}));
-    // }
-    // 
-    // template<typename T>
-    // bfc::Ref<T> getResource(bfc::StringView const& name) const {
-    //   auto * pRegistered = m_resources.tryGet(name);
-    // 
-    //   if (pRegistered == nullptr) {
-    //     return nullptr;
-    //   }
-    // 
-    //   return std::static_pointer_cast<T>(pRegistered->getOr(bfc::TypeID<T>(), nullptr));
-    // }
-
-    /// Get the available resource names
-    /// bfc::Vector<bfc::String> listResources() const;
-
     /// Get the renderers graphics device.
     bfc::GraphicsDevice * getGraphicsDevice() const;
 
@@ -218,4 +201,10 @@ namespace engine {
     // These will be initialised on the next render.
     bfc::Vector<FeatureRenderer *> m_added;
   };
+
 } // namespace engine
+
+namespace bfc {
+  template<>
+  struct enable_bitwise_operators<engine::RenderView::Filter> : std::true_type{};
+}
