@@ -498,7 +498,10 @@ namespace engine {
   class PostProcess_SSAO : public FeatureRenderer {
   public:
     PostProcess_SSAO()
-      : m_ssaoShader(URI::File("engine:shaders/ssao/ssao.shader")) {}
+      : m_ssaoShader(URI::File("engine:shaders/ssao/ssao.shader"))
+      , m_blurShader(URI::File("engine:shaders/blur/3x3-box.shader"))
+      , m_blendShader(URI::File("engine:shaders/ssao/ssao-blend.shader"))
+    {}
 
     virtual void onAdded(graphics::CommandList * pCmdList, Renderer * pRenderer) override {
       m_sampleKernel.resize(m_kernelSize);
@@ -514,7 +517,19 @@ namespace engine {
         c.g    = uint8_t(v.y * 255.0f);
         c.b    = uint8_t(v.z * 255.0f);
       }
-      graphics::loadTexture2D(pCmdList, &m_randomTex, {m_randSize, m_randSize}, randData.data());
+      graphics::loadTexture2D(pCmdList, &m_randomTex, bfc::Vec2i((int32_t)m_randSize), randData.begin());
+      m_blurTarget = pCmdList->createRenderTarget(RenderTargetType_Texture);
+      m_ssaoTarget = pCmdList->createRenderTarget(RenderTargetType_Texture);
+    }
+
+    virtual void beginView(graphics::CommandList * pCmdList, Renderer * pRenderer, RenderView const & view) override {
+      if (m_resolution != view.renderTarget->getSize()) {
+        graphics::loadTexture2D(pCmdList, &m_blurTexture, view.renderTarget->getSize(), PixelFormat_Ru8);
+        m_blurTarget->attachColour(m_blurTexture);
+
+        graphics::loadTexture2D(pCmdList, &m_ssaoTexture, view.renderTarget->getSize(), PixelFormat_Ru8);
+        m_ssaoTarget->attachColour(m_ssaoTexture);
+      }
     }
 
     virtual void onRenderRequest(std::any const & request, bfc::graphics::CommandList * pCmdList, Renderer * pRenderer,
@@ -537,28 +552,50 @@ namespace engine {
 
       pPass->pPostProcessing->addPass([=](graphics::CommandList * pCmdList, PostProcessParams const & params) {
         params.bindInputs(pCmdList);
-        params.bindTarget(pCmdList);
+        pCmdList->bindVertexArray(InvalidGraphicsResource);
+        pCmdList->bindRenderTarget(m_ssaoTarget);
         pCmdList->bindProgram(m_ssaoShader);
         pCmdList->bindTexture(m_randomTex, 7);
         pCmdList->setUniform("radius", radius);
         pCmdList->setUniform("strength", strength);
         pCmdList->setUniform("bias", bias);
         pCmdList->setUniform("outputSize", params.sceneColour->getSize());
-
         for (int64_t i = 0; i < m_sampleKernel.size(); ++i) {
           pCmdList->setUniform(String::format("sampleKernel[%lld]", i), m_sampleKernel[i]);
         }
-
-        pCmdList->bindVertexArray(InvalidGraphicsResource);
         pCmdList->draw(3);
+
+        // Blur SSAO output
+
+        pCmdList->bindRenderTarget(m_blurTarget);
+        pCmdList->bindProgram(m_blurShader);
+        pCmdList->bindTexture(m_ssaoTexture, 0);
+        pCmdList->draw(3);
+
+        // Render blurred ao to colour buffer
+        params.bindInputs(pCmdList);
+        params.bindTarget(pCmdList);
+        pCmdList->bindProgram(m_blendShader);
+        pCmdList->bindTexture(m_blurTexture, 7);
+        pCmdList->draw(3);
+
       });
     }
 
-    Asset<graphics::Program> m_ssaoShader;
-    graphics::TextureRef     m_randomTex;
-    Vector<Vec3>             m_sampleKernel;
-    int64_t                  m_kernelSize = 32;
-    int64_t                  m_randSize   = 4;
+    Asset<graphics::Program>  m_ssaoShader;
+    graphics::TextureRef      m_ssaoTexture;
+    graphics::RenderTargetRef m_ssaoTarget;
+    graphics::TextureRef      m_randomTex;
+    Vector<Vec3>              m_sampleKernel;
+    int64_t                   m_kernelSize = 32;
+    int64_t                   m_randSize = 3;
+
+    bfc::Vec2i                m_resolution = {0, 0};
+    Asset<graphics::Program>  m_blurShader;
+    graphics::TextureRef      m_blurTexture;
+    graphics::RenderTargetRef m_blurTarget;
+
+    Asset<graphics::Program> m_blendShader;
   };
 
   class PostProcess_SSR : public FeatureRenderer {

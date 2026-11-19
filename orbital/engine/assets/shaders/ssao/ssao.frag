@@ -27,10 +27,10 @@ void main()
   vec3 vsNormal = normalize((transpose(inverse(viewMatrix)) * vec4(normal, 1)).xyz);
   vec3 vsPosition = (viewMatrix * vec4(position, 1)).xyz;
 
-  vec2 randSize = textureSize(randomTex, 0);
-  vec2 randScale = outputSize / randSize;
+  vec2  randSize = textureSize(randomTex, 0);
+  ivec2 randTexel = ivec2(mod(vsout_uv0 * outputSize, randSize));
 
-  vec3 tangent = (textureLod(randomTex, vsout_uv0 * randScale, 0).xyz - vec3(0.5)) * 2;
+  vec3 tangent = (texelFetch(randomTex, randTexel, 0).xyz - vec3(0.5)) * 2;
   tangent = normalize(tangent - vsNormal * dot(tangent, vsNormal));
   vec3 bitangent = cross(vsNormal, tangent);
   mat3 kernelRot = mat3(tangent, bitangent, vsNormal);
@@ -50,13 +50,16 @@ void main()
 
     if (projectedSample.x >= 0 && projectedSample.x <= 1 && projectedSample.y >= 0 && projectedSample.y <= 1)
     {
-      float sampleDepth = (viewMatrix * vec4(texture(positionTex, projectedSample.xy).xyz, 1)).z;
+      vec4 scenePosition = texture(positionTex, projectedSample.xy);
+
+      float sampleDepth = (viewMatrix * vec4(scenePosition.xyz, 1)).z;
       float rangeCheck = smoothstep(0.0, 1.0, radius / abs(vsPosition.z - sampleDepth));
-      occlusion       += (sampleDepth != 1 && sampleDepth >= samplePosition.z + bias ? 1.0 : 0.0) * rangeCheck;
+      occlusion       += (scenePosition.a != 0 && sampleDepth >= samplePosition.z + bias ? 1.0 : 0.0) * rangeCheck;
     }
   }
 
   occlusion /= KERNEL_SIZE;
   occlusion *= strength * factor;
-  fragColour = vec4(texture(sceneColourTex, vsout_uv0).rgb * (1 - occlusion), 1);
+  fragColour.r = 1 - occlusion; // vec4(texture(sceneColourTex, vsout_uv0).rgb * (1 - occlusion), 1);
+  // fragColour = vec4(texture(sceneColourTex, vsout_uv0).rgb * (1 - occlusion), 1);
 }
