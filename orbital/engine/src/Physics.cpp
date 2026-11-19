@@ -25,8 +25,10 @@ namespace {
     return bfc::Matrix3<btScalar>(m[0][0], m[1][0], m[2][0], m[0][1], m[1][1], m[2][1], m[0][2], m[1][2], m[2][2]);
   }
 
-  btTransform ToBt(engine::Level * pLevel, components::Transform const & t) {
-    return btTransform(ToBt(glm::mat3_cast(t.globalOrientation(pLevel))), ToBt(t.globalTranslation(pLevel)));
+  btTransform ToBt(bfc::Mat4d const & t) {
+    components::Transform g;
+    g.setTransform(t);
+    return btTransform(ToBt((bfc::Matrix3<btScalar>)glm::mat3_cast(g.orientation())), ToBt(g.translation()));
   }
 
   engine::EntityID getAssignedEntityID(btCollisionObject const * obj){
@@ -63,7 +65,7 @@ namespace {
     static void convert(DstT * pDst, SrcT const * pSrc, int64_t srcStride, int64_t count) {
       uint8_t const * pSrcBytes = (uint8_t const*)pSrc;
       while (count-- > 0) {
-        *(pDst++) = (DstT)(*pSrcBytes);
+        *(pDst++) = (DstT)(*(SrcT*)pSrcBytes);
         pSrcBytes += srcStride;
       }
     }
@@ -97,39 +99,34 @@ namespace {
       std::future<void *> mappedIndexBuffer =
         pCmdList->map(pIndexBuffer, sm.elmOffset * indexSize, indexBufferSize, bfc::MapAccess_Read);
       pDevice->submit(std::move(pCmdList));
-
       m_indices.resize(sm.elmCount);
+      const void * ibData = mappedIndexBuffer.get();
       switch (indexType) {
-      case bfc::DataType_Int8:
-        convert(m_indices.begin(), (int8_t*)mappedIndexBuffer.get(), sm.elmCount);
+      case bfc::DataType_Int8: convert(m_indices.begin(), (int8_t *)ibData, sm.elmCount);
         break;
-      case bfc::DataType_UInt8:
-        convert(m_indices.begin(), (uint8_t *)mappedIndexBuffer.get(), sm.elmCount);
+      case bfc::DataType_UInt8: convert(m_indices.begin(), (uint8_t *)ibData, sm.elmCount);
         break;
-      case bfc::DataType_Int16:
-        convert(m_indices.begin(), (int16_t *)mappedIndexBuffer.get(), sm.elmCount);
+      case bfc::DataType_Int16: convert(m_indices.begin(), (int16_t *)ibData, sm.elmCount);
         break;
-      case bfc::DataType_UInt16:
-        convert(m_indices.begin(), (uint16_t *)mappedIndexBuffer.get(), sm.elmCount);
+      case bfc::DataType_UInt16: convert(m_indices.begin(), (uint16_t *)ibData, sm.elmCount);
         break;
-      case bfc::DataType_Int32:
-        convert(m_indices.begin(), (int32_t *)mappedIndexBuffer.get(), sm.elmCount);
+      case bfc::DataType_Int32: convert(m_indices.begin(), (int32_t *)ibData, sm.elmCount);
         break;
-      case bfc::DataType_UInt32:
-        convert(m_indices.begin(), (uint32_t *)mappedIndexBuffer.get(), sm.elmCount);
+      case bfc::DataType_UInt32: convert(m_indices.begin(), (uint32_t *)ibData, sm.elmCount);
         break;
       default: BFC_FAIL("Not supported"); break;
       }
 
       int64_t numVerts = pVertexBuffer->getSize() / position.stride;
       m_vertices.resize(numVerts);
+      const void * vbData   = mappedVertexBuffer.get();
       switch (position.dataType) {
       case bfc::DataType_Float32:
-        convert(m_vertices.begin(), (bfc::Vec3 *)((uint8_t *)mappedVertexBuffer.get() + position.offset), position.stride,
+        convert(m_vertices.begin(), (bfc::Vec3 *)((uint8_t *)vbData + position.offset), position.stride,
                 numVerts);
         break;
       case bfc::DataType_Float64:
-        convert(m_vertices.begin(), (bfc::Vec3 *)((uint8_t *)mappedVertexBuffer.get() + position.offset), position.stride,
+        convert(m_vertices.begin(), (bfc::Vec3 *)((uint8_t *)vbData + position.offset), position.stride,
                 numVerts);
         break;
       default: BFC_FAIL("Not supported"); break;
@@ -167,7 +164,7 @@ namespace {
 
       *indexbase  = (unsigned char *)m_indices.begin();
       numfaces    = (int)(m_indices.size() / 3);
-      indexstride = sizeof(int32_t);
+      indexstride = sizeof(int32_t) * 3;
       indicestype = PHY_INTEGER;
     }
 
@@ -231,23 +228,18 @@ namespace {
     bfc::Ref<btCollisionShape> shape;
   };
 
-  // TODO: Implement trait to enable static addresses for level components so we can use btCollisionObject as the component
-  struct PhysicsCollider {
-    bfc::Ref<btCollisionShape>  shape; ///< Shape used by the collider
-    bfc::Ref<btCollisionObject> obj;
-  };
-
   struct PhysicsMotionSync : public btMotionState {
     engine::Level *  pLevel;
     engine::EntityID entity;
-    bfc::Mat4d       previousTransform;
+    mutable bfc::Mat4d simulationTransform;
 
     virtual void getWorldTransform(btTransform & worldTrans) const {
       auto pTransform = pLevel->tryGet<components::Transform>(entity);
       if (pTransform == nullptr)
         return;
 
-      worldTrans = ToBt(pLevel, *pTransform);
+      simulationTransform = pTransform->transform();
+      worldTrans          = ToBt(simulationTransform);
     }
 
     virtual void setWorldTransform(const btTransform & worldTrans) {
@@ -261,7 +253,7 @@ namespace {
       pTransform->setGlobalTranslation(pLevel, translation);
       pTransform->setGlobalOrientation(pLevel, glm::quat_cast(basis));
 
-      previousTransform = pTransform->globalTransform(pLevel);
+      simulationTransform = pTransform->globalTransform(pLevel);
     }
   };
 
@@ -369,7 +361,6 @@ namespace components {
 namespace engine {
   struct Physics::LevelData {
     bfc::Map<EntityID, bfc::Ref<btCollisionShape>> entityShapes;
-    bfc::Map<EntityID, PhysicsCollider>  entityColliders;
     bfc::Map<EntityID, PhysicsRigidBody> entityBodies;
     bfc::Vector<EntityID> staleShapes;
 
@@ -378,7 +369,6 @@ namespace engine {
     bfc::Ref<btDbvtBroadphase>                    pOverlappingPairCache;
     bfc::Ref<btSequentialImpulseConstraintSolver> pSolver;
     bfc::Ref<btDiscreteDynamicsWorld>             pWorld;
-
 
     void synchronize(Level * pLevel) {
       staleShapes.clear();
@@ -445,36 +435,28 @@ namespace engine {
         }
 
         pShape->setLocalScaling(ToBt(pTransform->globalScale(pLevel)));
+        
+        const auto *       pBody     = pLevel->tryGet<components::RigidBody>(entityId);
+        PhysicsRigidBody & rigidbody = entityBodies.getOrAdd(entityId);
+        if (rigidbody.body == nullptr) {
+          rigidbody.shape        = pShape;
+          rigidbody.sync         = bfc::NewRef<PhysicsMotionSync>();
+          rigidbody.sync->pLevel = pLevel;
+          rigidbody.sync->entity = entityId;
 
-        if (auto * pBody = pLevel->tryGet<components::RigidBody>(entityId)) {
-          PhysicsRigidBody &rigidbody = entityBodies.getOrAdd(entityId);
-          if (rigidbody.body == nullptr) {
-            rigidbody.shape        = pShape;
-            rigidbody.sync         = bfc::NewRef<PhysicsMotionSync>();
-            rigidbody.sync->pLevel = pLevel;
-            rigidbody.sync->entity = entityId;
+          const btScalar mass = pBody ? (btScalar)pBody->getMass() : 0;
 
-            btRigidBody::btRigidBodyConstructionInfo params((btScalar)pBody->getMass(), rigidbody.sync.get(), pShape.get());
-            pShape->calculateLocalInertia((btScalar)pBody->getMass(), params.m_localInertia);
-
-            rigidbody.body = bfc::NewRef<btRigidBody>(params);
-            rigidbody.body->setWorldTransform(ToBt(pLevel, *pTransform));
-
-            assignEntityID(rigidbody.body.get(), entityId);
-            pWorld->addRigidBody(rigidbody.body.get());
+          btRigidBody::btRigidBodyConstructionInfo params(mass, rigidbody.sync.get(), pShape.get());
+          if (mass != 0) {
+            pShape->calculateLocalInertia(mass, params.m_localInertia);
           }
-        } else {
-          PhysicsCollider & collider = entityColliders.getOrAdd(entityId);
-          if (collider.obj == nullptr) {
-            collider.obj = bfc::NewRef<btCollisionObject>();
-            collider.obj->setCollisionShape(pShape.get());
-            collider.obj->setWorldTransform(ToBt(pLevel, *pTransform));
-            collider.shape = pShape;
 
-            pWorld->addCollisionObject(collider.obj.get());
-            assignEntityID(collider.obj.get(), entityId);
-            entityColliders.addOrSet(entityId, collider);
-          }
+          rigidbody.body = bfc::NewRef<btRigidBody>(params);
+          rigidbody.body->setCollisionFlags(pBody ? btRigidBody::CF_DYNAMIC_OBJECT : btRigidBody::CF_KINEMATIC_OBJECT);
+          rigidbody.body->setWorldTransform(ToBt(pTransform->globalTransform(pLevel)));
+
+          assignEntityID(rigidbody.body.get(), entityId);
+          pWorld->addRigidBody(rigidbody.body.get());
         }
       }
 
@@ -482,16 +464,14 @@ namespace engine {
         auto pShape = entityShapes[entityId];
 
         if (pShape != nullptr) {
-          if (auto * pBody = pLevel->tryGet<components::RigidBody>(entityId)) {
-            PhysicsRigidBody & rigidbody = entityBodies[entityId];
-            btVector3                    inertia;
+          auto *             pBody     = pLevel->tryGet<components::RigidBody>(entityId);
+          PhysicsRigidBody & rigidbody = entityBodies[entityId];
+          btVector3          inertia;
+          if (pBody != nullptr) {
             pShape->calculateLocalInertia((btScalar)pBody->getMass(), inertia);
             rigidbody.body->setMassProps((btScalar)pBody->getMass(), inertia);
-            rigidbody.body->setCollisionShape(pShape.get());
-          } else {
-            PhysicsCollider & collider = entityColliders.getOrAdd(entityId);
-            collider.obj->setCollisionShape(pShape.get());
           }
+          rigidbody.body->setCollisionShape(pShape.get());
         }
       }
 
@@ -500,12 +480,7 @@ namespace engine {
           pWorld->removeRigidBody(entityBodies[entityId].body.get());
         }
 
-        if (entityColliders.contains(entityId)) {
-          pWorld->removeCollisionObject(entityColliders[entityId].obj.get());
-        }
-
         entityBodies.erase(entityId);
-        entityColliders.erase(entityId);
         entityShapes.erase(entityId);
       }
 
@@ -515,17 +490,14 @@ namespace engine {
         shape->setLocalScaling(ToBt(transform.globalScale(pLevel)));
       }
 
-      for (auto & [entityId, collider] : entityColliders) {
-        auto & transform = pLevel->get<components::Transform>(entityId);
-        collider.obj->setWorldTransform(ToBt(pLevel, transform));
-      }
-
       for (auto & [entityId, body] : entityBodies) {
         auto & transform = pLevel->get<components::Transform>(entityId);
 
-        if (body.sync->previousTransform != transform.globalTransform(pLevel)) {
-          body.body->setWorldTransform(ToBt(pLevel, transform));
-          body.body->activate();
+        bfc::Mat4d currentTransform = transform.globalTransform(pLevel);
+        if (body.sync->simulationTransform != currentTransform) {
+          body.body->setWorldTransform(ToBt(currentTransform));
+          body.body->activate(true);
+          body.sync->simulationTransform = currentTransform;
         }
       }
     }
@@ -595,6 +567,14 @@ namespace engine {
                                   *pSphere, 0);
       bottom.primitiveType = bfc::PrimitiveType_Line;
       meshes.pushBack(bottom);
+    }
+
+    for (auto & [transform, mesh] : pLevel->getView<components::Transform, components::ColliderMesh>()) {
+      if (mesh.getMesh()) {
+        StaticMeshRenderable bottom(transform.globalTransform(pLevel), *mesh.getMesh(), 0);
+        bottom.primitiveType = bfc::PrimitiveType_Line;
+        meshes.pushBack(bottom);
+      }
     }
   }
 
