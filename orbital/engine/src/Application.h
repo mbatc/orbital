@@ -87,7 +87,11 @@ namespace engine {
     void saveSettings();
 
   protected:
-    virtual void loop() {}
+    virtual bool onInit() {
+      return true;
+    }
+
+    virtual void onLoop() {}
 
   private:
     bool addSubsystem(bfc::Ref<Subsystem> const& pSystem);

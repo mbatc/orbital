@@ -108,6 +108,10 @@ namespace bfc {
       DragAcceptFiles(m_pData->hWnd, enabled);
     }
 
+    void Window::setMaximized(bool maximized) {
+      ShowWindow(m_pData->hWnd, maximized ? SW_MAXIMIZE : SW_RESTORE);
+    }
+
     bfc::String Window::getTitle() const {
       int          len = GetWindowTextLength(m_pData->hWnd);
       Vector<char> buffer(len + 1, 0);

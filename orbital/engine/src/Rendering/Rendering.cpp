@@ -10,7 +10,14 @@ using namespace engine;
 using namespace bfc;
 
 namespace {
+  constexpr bfc::Vec2i WindowInvalidSize     = bfc::Vec2i(std::numeric_limits<int32_t>::max());
+  constexpr bfc::Vec2i WindowInvalidPosition = WindowInvalidSize;
+
   Setting<String>       g_api;
+  Setting<bfc::Vec2i>   g_lastWindowSize;
+  Setting<bfc::Vec2i>   g_lastWindowPosition;
+  Setting<bool>         g_lastWindowMaximized;
+
   Ref<GraphicsDevice>   g_pDevice       = nullptr;
   Ref<platform::Window> g_pWindow       = nullptr;
   Ref<EventListener>    g_pListener     = nullptr;
@@ -34,20 +41,48 @@ namespace engine {
       return g_pWindow.get();
     }
 
-    bool init(Application *pApp) {
+    bool init(Application * pApp) {
       graphicsDevice_registerOpenGL();
+
+      g_api                 = pApp->addSetting<String>("rendering/api", "OpenGL");
+      g_lastWindowSize      = pApp->addSetting("rendering/window/size", WindowInvalidSize);
+      g_lastWindowPosition  = pApp->addSetting("rendering/window/position", WindowInvalidSize);
+      g_lastWindowMaximized = pApp->addSetting("rendering/window/maximized", true);
 
       g_pWindow = NewRef<platform::Window>(pApp);
       g_pWindow->setTitle(pApp->getName());
+
+      if (g_lastWindowPosition.get() != WindowInvalidSize)
+        g_pWindow->setPosition(g_lastWindowPosition.get());
+
+      if (g_lastWindowSize.get() != WindowInvalidSize) {
+        g_pWindow->setSize(g_lastWindowSize.get());
+      } else {
+        g_pWindow->setMaximized(true);
+      }
+
       g_pWindow->show();
+      
+      if (g_lastWindowMaximized.get()) {
+        g_pWindow->setMaximized(true);
+      }
 
       g_pListener = g_pWindow->getEvents()->addListener();
+      g_pListener->on<bfc::events::ResizeWindow>([=](bfc::events::ResizeWindow const & e) {
+        if (g_pWindow->isMaximized()) {
+          g_lastWindowMaximized.set(true);
+        } else {
+          g_lastWindowSize.set(g_pWindow->getSize());
+          g_lastWindowMaximized.set(false);
+        }
+      });
+      g_pListener->on<bfc::events::MoveWindow>([=](bfc::events::MoveWindow const & e) {
+        g_lastWindowPosition.set(g_pWindow->getPosition());
+      });
       g_pListener->on<bfc::events::CloseWindow>([=](bfc::events::CloseWindow const & e) {
         pApp->exit();
         return true;
       });
-
-      g_api = pApp->addSetting<String>("rendering/api", "OpenGL");
 
       g_pDevice = createGraphicsDevice(g_api.get());
       if (g_pDevice == nullptr) {

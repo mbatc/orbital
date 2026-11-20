@@ -252,19 +252,16 @@ namespace engine {
                             graphics::State::ColourWrite{false});
 
         for (ShadowMapData const & shadowMapData : m_shadowMapData) {
-          if (shadowMapData.casterBounds.invalid()) {
+          if (shadowMapData.atlasIndex == -1) {
             continue;
           }
 
           ShadowAtlas::Slot slot = m_shadowAtlas.getSlot(shadowMapData.atlasIndex);
           m_shadowMapTarget->attachDepth(m_shadowAtlas, slot.level, slot.layer);
-
           pCmdList->bindRenderTarget(m_shadowMapTarget);
-          pCmdList->clear(0);
+          pCmdList->clearDepth(1); // TODO: Can we clear the whole atlas? maybe inefficient if it's not very full.
           pCmdList->pushState(graphics::State::Viewport{{0, 0}, m_shadowAtlas.resolution(shadowMapData.atlasIndex)});
-
           pRenderer->request(DeferredRenderer::Stages::ShadowDepth{&shadowMapData}, pCmdList, view);
-
           pCmdList->popState();
         }
 

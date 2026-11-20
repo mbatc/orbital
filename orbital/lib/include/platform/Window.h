@@ -33,6 +33,7 @@ namespace bfc {
       void setSize(Vec2i const & size);
       void setPosition(Vec2i const & position);
       void setDragDrop(bool enabled);
+      void setMaximized(bool maximized);
 
       String getTitle() const;
       Vec2i getSize() const;

@@ -8,10 +8,10 @@ out vec4 fragColour;
 
 void main()
 {
-  vec2 stepSize = 1 / textureSize(texture0, 0);
+  vec2 stepSize = vec2(1) / textureSize(texture0, 0);
   vec4 colour = vec4(0);
-  for (int y = -3; y < 3; ++y) {
-    for (int x = -3; x < 3; ++x) {
+  for (int y = -3; y <= 3; ++y) {
+    for (int x = -3; x <= 3; ++x) {
       colour += textureLod(texture0, vsout_uv0 + vec2(x, y) * stepSize, 0);
     }
   }

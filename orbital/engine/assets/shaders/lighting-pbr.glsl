@@ -158,42 +158,39 @@ vec3 CalcSpotLight(vec3 colour, vec3 lightPosition, vec3 lightDirection, vec3 at
   return Lo * intensity;
 }
 
+int IsInShadow(vec3 fragPos, float bias, ShadowMapData shadow) {
+  if (shadow.level == -1 || shadow.layer == -1) {
+    return 0;
+  }
+  vec4 projectedPixel = shadow.vp * vec4(fragPos, 1);
+  vec3 projectedCoord = projectedPixel.xyz / projectedPixel.w;
+  projectedCoord = projectedCoord * 0.5 + 0.5;
+
+  bool inMap   = projectedCoord.x >= 0 && projectedCoord.x <= 1 && projectedCoord.y >= 0 && projectedCoord.y <= 1;
+  // bool inFront = projectedCoord.z < 0;
+  bool behind  = projectedCoord.z > 1;
+  if (!inMap) {
+    return 0;
+  }
+
+  float shadowDepth = textureLod(ShadowAtlas, vec3(projectedCoord.xy, shadow.layer), shadow.level).r;
+  return int( projectedCoord.z - bias > shadowDepth);
+}
+
 float CalcShadowing(vec3 lightDir, uvec2 shadowMapRange, vec3 fragPos, vec3 fragNormal) {
   float bias = max(0.005 * (1.0 - dot(fragNormal, lightDir)), 0.001);
+  float amount = 1;
   if (shadowMapRange.y - shadowMapRange.x == 6) {
     // Cube-map shadow
     vec3 cubeCoord = SampleCube(lightDir);
     uint face = shadowMapRange.x + uint(cubeCoord.z);
-
-    vec4 projectedPixel = shadowData[face].vp * vec4(fragPos, 1);
-    vec3 projectedCoord = projectedPixel.xyz / projectedPixel.w;
-    projectedCoord = projectedCoord * 0.5 + 0.5;
-
-    float shadowDepth = textureLod(ShadowAtlas, vec3(projectedCoord.xy, shadowData[face].layer), shadowData[face].level).r;
-    return projectedCoord.z - bias > shadowDepth ? 0.0f : 1.0f;
+    amount = 1 - IsInShadow(fragPos, bias, shadowData[face]);
   } else {
     for (uint i = shadowMapRange.x; i < shadowMapRange.y; ++i) {
-      vec4 projectedPixel = shadowData[i].vp * vec4(fragPos, 1);
-      vec3 projectedCoord = projectedPixel.xyz / projectedPixel.w;
-      projectedCoord = projectedCoord * 0.5 + 0.5;
-
-      if (projectedCoord.x >= 0 && projectedCoord.x <= 1 && projectedCoord.y >= 0 && projectedCoord.y <= 1)
-      {
-        float shadowDepth = textureLod(ShadowAtlas, vec3(projectedCoord.xy, shadowData[i].layer), shadowData[i].level).r;
-        if (projectedCoord.z < 0 || projectedCoord.z > 1)
-        {
-          if (shadowDepth != 1)
-            return 0;
-        } 
-        else if (projectedCoord.z - bias > shadowDepth)
-          return 0;
-        // if (projectedCoord.z - bias > shadowDepth || ) {
-        //   return shadowDepth;
-        // }
-      }
+      amount = 1 - IsInShadow(fragPos, bias, shadowData[i]);
     }
   }
-  return 1;
+  return amount;
 }
 
 #endif // LIGHTING_PBR_GLSL

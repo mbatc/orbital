@@ -33,6 +33,10 @@ namespace engine {
   bool Application::init() {
     m_settings.load(bfc::URI::File(getSettingsPath()));
 
+    if (!onInit()) {
+      return false;
+    }
+
     m_subsystemLock.lock();
     auto systems = m_subsystems;
     m_subsystemLock.unlock();
@@ -77,7 +81,7 @@ namespace engine {
     while (m_running) {
       Events::update();
 
-      loop();
+      onLoop();
 
       for (int64_t i = 0; i < m_subsystems.size(); ++i) {
         m_subsystems[i]->loop(this);
