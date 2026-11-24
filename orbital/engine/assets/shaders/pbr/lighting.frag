@@ -8,6 +8,23 @@ in vec3 vsout_position0;
 
 out vec4 fragColour;
 
+const float rotations[9] = float[](
+    4.526359, // 259.3 deg
+    1.558603, //  89.3 deg
+    1.111840, //  63.7 deg
+    0.523038, //  30.0 deg
+    5.905415, // 338.4 deg
+    2.370467, // 135.8 deg
+    3.014585, // 172.7 deg
+    5.428435, // 311.0 deg
+    3.632439  // 208.1 deg
+);
+
+float getRand(vec2 pixel) {
+  ivec2 randCoord = ivec2(mod(pixel, vec2(3, 3)));
+  return rotations[randCoord.y * 3 + randCoord.x];
+}
+
 void main() {
   // Sample GBuffers
   vec3 base     = gbuffer_ReadColour(vsout_uv0).xyz;
@@ -16,6 +33,7 @@ void main() {
   vec3 rma      = gbuffer_ReadRMA(vsout_uv0);
   vec3 normal   = gbuffer_ReadNormal(vsout_uv0);
 
+  float rand    = getRand(gbuffer_PixelCoordinate(vsout_uv0));
   float roughness = rma.x;
   float metalness = rma.y;
   float ao        = rma.z;
@@ -89,7 +107,7 @@ void main() {
       break;
     }
 
-    float shadowing = CalcShadowing(lightDir, lightData[i].shadowMapRange, position, normal);
+    float shadowing = CalcShadowing(lightDir, lightData[i].shadowMapRange, position, normal, rand);
     Lo += lighting * shadowing;
   }
 

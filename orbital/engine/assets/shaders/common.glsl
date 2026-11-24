@@ -15,6 +15,7 @@
 #define BND_UBO_Shadows 3
 
 const float PI = 3.14159265359;
+const float FLT_MAX = 3.402823466e+38;
 
 layout(std140, binding=BND_UBO_Camera) uniform Camera {
   mat4 viewProjMatrix;
@@ -51,6 +52,28 @@ vec2 getScreenUV(vec3 worldPosition) {
   vec4 position = (viewProjMatrix * vec4(worldPosition, 1));
   position /= position.w;
   return (position.xy + vec2(1)) / 2;
+}
+
+vec2 rotate2d(vec2 v, float angle) {
+    float s = sin(angle);
+    float c = cos(angle);
+    mat2 m = mat2(c, s, -s, c);
+    return m * v;
+}
+
+vec3 rotate3d(vec3 v, vec3 axis, float angle) {
+  float c = cos(angle);
+  float s = sin(angle);
+  return v * c + cross(axis, v) * s + axis * dot(axis, v) * (1.0 - c);
+}
+
+vec3 projectPointOnPlane(vec3 point, vec3 planePos, vec3 planeNormal) {
+    float dist = dot(point - planePos, planeNormal);
+    return point - planeNormal * dist;
+}
+
+vec3 projectVectorOnPlane(vec3 v, vec3 planeNormal) {
+    return v - planeNormal * dot(v, planeNormal);
 }
 
 #endif // COMMON_GLSL

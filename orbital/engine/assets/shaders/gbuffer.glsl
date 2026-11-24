@@ -40,4 +40,14 @@ vec3 gbuffer_ReadNormal(vec2 uv)
   return 2 * (texture2D(G_Normal, uv).xyz - vec3(0.5));
 }
 
+vec2 gbuffer_Resolution()
+{
+  return textureSize(G_BaseColour, 0);
+}
+
+vec2 gbuffer_PixelCoordinate(vec2 uv)
+{
+  return vec2(gbuffer_Resolution() * uv);
+}
+
 #endif // GBUFFER_GLSL

@@ -158,7 +158,9 @@ vec3 CalcSpotLight(vec3 colour, vec3 lightPosition, vec3 lightDirection, vec3 at
   return Lo * intensity;
 }
 
-int IsInShadow(vec3 fragPos, float bias, ShadowMapData shadow) {
+int IsInShadow(vec3 lightDir, vec3 fragPos, float bias, ShadowMapData shadow, out float shadowDistance) {
+  shadowDistance = 1;
+
   if (shadow.level == -1 || shadow.layer == -1) {
     return 0;
   }
@@ -166,31 +168,74 @@ int IsInShadow(vec3 fragPos, float bias, ShadowMapData shadow) {
   vec3 projectedCoord = projectedPixel.xyz / projectedPixel.w;
   projectedCoord = projectedCoord * 0.5 + 0.5;
 
-  bool inMap   = projectedCoord.x >= 0 && projectedCoord.x <= 1 && projectedCoord.y >= 0 && projectedCoord.y <= 1;
-  // bool inFront = projectedCoord.z < 0;
-  bool behind  = projectedCoord.z > 1;
+  bool inMap  = projectedCoord.x >= 0 && projectedCoord.x <= 1 && projectedCoord.y >= 0 && projectedCoord.y <= 1;
+  bool behind = projectedCoord.z > 1;
   if (!inMap) {
     return 0;
   }
 
+  mat4 inverseVp    = inverse(shadow.vp);
   float shadowDepth = textureLod(ShadowAtlas, vec3(projectedCoord.xy, shadow.layer), shadow.level).r;
-  return int( projectedCoord.z - bias > shadowDepth);
+  
+  vec4 shadowCasterWorldCoord = inverseVp * vec4(projectedCoord.xy, shadowDepth * 2 - 1, 1);
+  shadowCasterWorldCoord /= shadowCasterWorldCoord.w;
+
+  float distToShadowCaster = dot(lightDir, shadowCasterWorldCoord.xyz);
+  float distToFrag         = dot(lightDir, fragPos);
+  shadowDistance = distToFrag - distToShadowCaster;
+
+  return int(projectedCoord.z - bias > shadowDepth);
+  // if (behind && shadowDepth != 1)
+  //   return 1;
+  // 
+  // return int(projectedCoord.z - bias > shadowDepth);
 }
 
-float CalcShadowing(vec3 lightDir, uvec2 shadowMapRange, vec3 fragPos, vec3 fragNormal) {
+const vec3 penumbraKernel[] = vec3[](
+    vec3(-0.045862, -0.052410, -0.022602), // len: 0.0732 (-,-,-)
+    vec3( 0.058664,  0.036864,  0.060236), // len: 0.0918 (+,+,+)
+    vec3(-0.049760,  0.055621,  0.078666), // len: 0.1084 (-,+,+)
+    vec3( 0.036957, -0.040074, -0.116301), // len: 0.1284 (+,-,-)
+    vec3( 0.077261,  0.100668, -0.088119), // len: 0.1545 (+,+,-)
+    vec3(-0.140799, -0.176117,  0.099512), // len: 0.2465 (-,-,+)
+    vec3( 0.234620, -0.137249,  0.152680), // len: 0.3118 (+,-,+)
+    vec3(-0.171082,  0.212698, -0.164072), // len: 0.3185 (-,+,-)
+    vec3( 0.350219,  0.192972,  0.146982), // len: 0.4260 (+,+,+)
+    vec3(-0.388029, -0.309191, -0.307042), // len: 0.5835 (-,-,-)
+    vec3(-0.234535,  0.538155, -0.425426), // len: 0.7250 (-,+,-)
+    vec3( 0.272345, -0.421936,  0.585487)  // len: 0.7714 (+,-,+)
+);
+
+float CalcShadowing(vec3 lightDir, uvec2 shadowMapRange, vec3 fragPos, vec3 fragNormal, float rand) {
   float bias = max(0.005 * (1.0 - dot(fragNormal, lightDir)), 0.001);
-  float amount = 1;
+  float amount = 0;
+  float shadowDistance = 0;
+  float sampleRange = 0.1;
   if (shadowMapRange.y - shadowMapRange.x == 6) {
     // Cube-map shadow
     vec3 cubeCoord = SampleCube(lightDir);
     uint face = shadowMapRange.x + uint(cubeCoord.z);
-    amount = 1 - IsInShadow(fragPos, bias, shadowData[face]);
+    amount = IsInShadow(lightDir, fragPos, bias, shadowData[face], shadowDistance);
   } else {
     for (uint i = shadowMapRange.x; i < shadowMapRange.y; ++i) {
-      amount = 1 - IsInShadow(fragPos, bias, shadowData[i]);
+      float sampledWeight = 0;
+      float penumbra = 0;
+      amount = IsInShadow(lightDir, fragPos, bias, shadowData[i], shadowDistance);
+      sampledWeight = shadowDistance;
+      for (uint j = 0; j < 13; ++j) {
+         vec3 projectedOffset = projectVectorOnPlane(rotate3d(penumbraKernel[j] * sampleRange * sampledWeight, fragNormal, rand), fragNormal);
+         vec3 samplePos = fragPos + projectedOffset;
+         float penumbraDistance;
+         float shadowSample = IsInShadow(lightDir, samplePos, bias, shadowData[i], penumbraDistance);
+         // amount +=  mix(-1, 1, shadowSample) / clamp(shadowDistance * length(projectedOffset), 0.1, 1.0);
+         penumbra += mix(-1, 1, shadowSample);
+      }
+      penumbra /= 13;
+      
+      amount = mix(amount, penumbra, clamp(sampledWeight / 2, 0, 1));
     }
   }
-  return amount;
+  return clamp(1 - amount, 0, 1);
 }
 
 #endif // LIGHTING_PBR_GLSL
