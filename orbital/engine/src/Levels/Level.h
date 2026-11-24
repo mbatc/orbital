@@ -220,6 +220,10 @@ namespace engine {
 
     std::optional<bfc::URI> sourceUri; ///< Where was the level loaded from
 
+    struct Meta {
+      static constexpr auto reflect();
+    };
+
   private:
     bool contains(int64_t const & index, int64_t const & version) const;
 
@@ -235,4 +239,24 @@ namespace engine {
 
     bfc::Map<bfc::type_index, bfc::Ref<ILevelComponentStorage>> m_components;
   };
+
+  constexpr auto Level::Meta::reflect() {
+    return bfc::makeReflection<Level>(
+      BFC_REFLECT(Level, create),
+      BFC_REFLECT(Level, entities),
+      BFC_REFLECT(Level, find),
+      BFC_REFLECT(Level, uuidOf),
+      BFC_REFLECT_OVERLOAD(Level, contains, bool, (EntityID const &) const),
+      BFC_REFLECT(Level, capacity),
+      BFC_REFLECT(Level, copy),
+      BFC_REFLECT_OVERLOAD(Level, copyTo, bfc::Vector<EntityID>, (Level *, bfc::Span<EntityID const> const &, bool)),
+      BFC_REFLECT_OVERLOAD(Level, copyTo, bfc::Vector<EntityID>, (Level *, bool)),
+      BFC_REFLECT_OVERLOAD(Level, copyTo, bfc::Vector<EntityID>, (Level *, EntityID const &, bool)),
+      BFC_REFLECT(Level, clear),
+      BFC_REFLECT(Level, sourceUri),
+      BFC_REFLECT_OVERLOAD(Level, components, BFC_SINGLE(bfc::Map<bfc::type_index, bfc::Ref<ILevelComponentStorage>>) const &,
+                         () const)
+    );
+  }
 } // namespace engine
+

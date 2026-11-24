@@ -112,6 +112,7 @@ static_assert(false, "NDEBUG and DEBUG are both defined. Please remove one.");
 #endif
 
 #define BFC_UNUSED(...) (__VA_ARGS__)
+#define BFC_SINGLE(...) __VA_ARGS__
 
 #define BFC_RELASSERT(expression, messageFmt, ...) ::bfc::assertion(BFC_FILE, BFC_FUNCTION, BFC_LINE, expression, #expression, messageFmt, __VA_ARGS__)
 #define BFC_RELFAIL(messageFmt, ...) ::bfc::fail(BFC_FILE, BFC_FUNCTION, BFC_LINE, messageFmt, __VA_ARGS__)

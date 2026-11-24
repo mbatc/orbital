@@ -259,7 +259,7 @@ namespace bfc {
       Vector<String> const & members() const;
       /// Get names of the reflected functions.
       Vector<String> const & methods() const;
-      /// Get the number of constructors
+      /// Get the number of constructors.
       int64_t getConstructorCount() const;
 
       /// Check if a variable is in the reflected attributes.

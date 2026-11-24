@@ -7,6 +7,7 @@
 
 #include "Behaviours.h"
 #include "LuaBehaviours.h"
+#include "Levels/CoreComponents.h"
 
 namespace engine {
   namespace impl {
@@ -76,6 +77,19 @@ namespace engine {
     addUserType<bfc::Quat>(engine, "Quat");
     addUserType<bfc::Mat3>(engine, "Mat3");
     addUserType<bfc::Mat4>(engine, "Mat4");
+    addUserType<URI>(engine, "URI");
+    addUserType<Level>(engine, "Level");
+    addUserType<components::Name>(engine, "Level");
+    addUserType<components::Transform>(engine, "Transform");
+    addUserType<components::Camera>(engine, "Camera");
+    addUserType<components::Light>(engine, "Light");
+    addUserType<components::StaticMesh>(engine, "StaticMesh");
+    addUserType<components::Skybox>(engine, "Skybox");
+    addUserType<components::PostProcessVolume>(engine, "PostProcessVolume");
+    addUserType<components::PostProcess_Bloom>(engine, "PostProcess_Bloom");
+    addUserType<components::PostProcess_SSAO>(engine, "PostProcess_SSAO");
+    addUserType<components::PostProcess_Tonemap>(engine, "PostProcess_Tonemap");
+    addUserType<components::PostProcess_SSR>(engine, "PostProcess_SSR");
 
     sol::table detail = engine["detail"];
     engine["resolveModuleURI"] = [=](bfc::String name) {

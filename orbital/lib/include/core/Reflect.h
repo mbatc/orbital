@@ -11,7 +11,7 @@
 #include <optional>
 
 #define BFC_REFLECT(MyType, a)        ::bfc::makePair(&MyType::a, #a)
-#define BFC_REFLECT_OVERLOAD(MyType, a, Return, Params) ::bfc::makePair(static_cast<Return(MyType::*) Params>(&MyType::a), #a)
+#define BFC_REFLECT_OVERLOAD(MyType, a, Return, Params) ::bfc::makePair(static_cast<Return (MyType::*) Params>(&MyType::a), #a)
 #define BFC_REFLECT_CTOR(MyType, ...) ::bfc::makePair(bfc::detail::CtorReflection<__VA_ARGS__>{}, "MyType ctor");
 
 namespace bfc {
@@ -53,8 +53,16 @@ namespace bfc {
         return std::tuple<>{};
       }
     }
+
+    template<typename T, typename U = void>
+    struct has_meta_reflect : std::false_type {};
+    template<typename T>
+    struct has_meta_reflect<T, std::void_t<decltype(T::Meta::reflect)>> : std::true_type {};
   } // namespace detail
 
+  template<typename T>
+  inline static constexpr bool has_meta_reflect_v = detail::has_meta_reflect<T>::value;
+  
   template<typename T>
   struct is_ctorreflection : std::false_type {};
 
@@ -253,7 +261,10 @@ namespace bfc {
 
   template<typename T>
   inline constexpr auto reflect() {
-    return Reflect<T>::get();
+    if constexpr (has_meta_reflect_v<T>)
+      return T::Meta::reflect();
+    else
+      return Reflect<T>::get();
   }
 
   template<typename T>

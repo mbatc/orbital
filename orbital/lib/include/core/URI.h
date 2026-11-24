@@ -3,6 +3,7 @@
 #include "String.h"
 #include "Filename.h"
 #include "Timestamp.h"
+#include "Reflect.h"
 #include <optional>
 
 namespace bfc {
@@ -108,6 +109,32 @@ namespace bfc {
 
     BFC_API friend int64_t write(Stream * pStream, URI const * pValue, int64_t count);
     BFC_API friend int64_t read(Stream * pStream, URI * pValue, int64_t count);
+
+    struct Meta {
+      static constexpr auto reflect() {
+        return makeReflection<URI>(
+          BFC_REFLECT(URI, str),
+          BFC_REFLECT_OVERLOAD(URI, host, StringView, () const),
+          BFC_REFLECT_OVERLOAD(URI, authority, StringView, () const),
+          BFC_REFLECT_OVERLOAD(URI, port, StringView, () const),
+          BFC_REFLECT_OVERLOAD(URI, user, StringView, () const),
+          BFC_REFLECT_OVERLOAD(URI, query, StringView, () const),
+          BFC_REFLECT_OVERLOAD(URI, fragment, StringView, () const),
+          BFC_REFLECT_OVERLOAD(URI, pathView, StringView, () const),
+          BFC_REFLECT_OVERLOAD(URI, path, Filename, () const),
+          BFC_REFLECT(URI, withScheme),
+          BFC_REFLECT(URI, withAuthority),
+          BFC_REFLECT(URI, withPort),
+          BFC_REFLECT(URI, withHost),
+          BFC_REFLECT(URI, withUser),
+          BFC_REFLECT(URI, withQuery),
+          BFC_REFLECT(URI, withFragment),
+          BFC_REFLECT(URI, resolveRelativeReference),
+          BFC_REFLECT(URI, relativeTo),
+          BFC_REFLECT(URI, empty)
+        );
+      }
+    };
 
   private:
     URI replacePartPrefixed(StringView const & section, StringView const & replace, StringView const & prefixOnEmpty) const;

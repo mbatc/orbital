@@ -95,4 +95,9 @@ namespace sol {
       return sol::stack::push(L, idx + 1);
     }
   };
+
+  template<>
+  struct is_container<bfc::URI> : std::false_type {};
+  template<>
+  struct is_container<bfc::Filename> : std::false_type {};
 } // namespace sol

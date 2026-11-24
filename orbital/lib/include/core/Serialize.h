@@ -83,21 +83,21 @@ namespace bfc {
 
   namespace detail {
     template<typename T, typename U = void>
-    struct has_serialize_intrusive_write : std::false_type {};
+    struct has_meta_write : std::false_type {};
     template<typename T>
-    struct has_serialize_intrusive_write<T, std::void_t<decltype(T::Serialization::write)>> : std::true_type {};
+    struct has_meta_write<T, std::void_t<decltype(T::Meta::write)>> : std::true_type {};
 
     template<typename T, typename U = void>
-    struct has_serialize_intrusive_read : std::false_type {};
+    struct has_meta_read : std::false_type {};
     template<typename T>
-    struct has_serialize_intrusive_read<T, std::void_t<decltype(T::Serialization::read)>> : std::true_type {};
+    struct has_meta_read<T, std::void_t<decltype(T::Meta::read)>> : std::true_type {};
   }
 
   template<typename T>
-  inline static constexpr bool has_serialize_intrusive_write = detail::has_serialize_intrusive_write<T>::value;
+  inline static constexpr bool has_meta_write = detail::has_meta_write<T>::value;
   
   template<typename T>
-  inline static constexpr bool has_serialize_intrusive_read  = detail::has_serialize_intrusive_read<T>::value;
+  inline static constexpr bool has_meta_read = detail::has_meta_read<T>::value;
 
   template<typename T>
   struct Serializer {
@@ -145,7 +145,7 @@ namespace bfc {
         auto reflection = reflect<T>();
         return writeMembers(o, ctx, reflection, std::make_integer_sequence<int64_t, reflection.size()>{});
       } else if constexpr (bfc::has_serialize_intrusive_write<T>) {
-        return T::Serialization::write(o, ctx);
+        return T::Meta::write(o, ctx);
       } else {
         static_assert(false, "write() is not implemented for type T. To enable serialization implement a Serializer or the `reflect<T>` function.");
       }
@@ -159,7 +159,7 @@ namespace bfc {
         readMembers(s, o, ctx, reflection, std::make_integer_sequence<int64_t, reflection.size()>{});
         return true;
       } else if constexpr (bfc::has_serialize_intrusive_read<T>) {
-        return T::Serialization::read(s, o, ctx);
+        return T::Meta::read(s, o, ctx);
       } else {
         static_assert(false, "read() is not implemented for type T. To enable serialization implement a Serializer or the `reflect<T>` function.");
       }
