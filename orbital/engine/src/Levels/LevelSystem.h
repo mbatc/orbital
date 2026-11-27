@@ -63,10 +63,8 @@ namespace engine {
   void registerLevelUpdate(bfc::Ref<ILevelUpdate> const & pUpdater);
   void registerLevelRenderDataCollector(bfc::Ref<ILevelRenderDataCollector> const & pCollector);
 
-  template<typename T, typename... Args>
-  void registerLevelSystem(Args &&... args) {
-    bfc::Ref<T> pSystem = bfc::NewRef<T>(std::forward<Args>(args)...);
-
+  template<typename T>
+  void registerLevelSystem(bfc::Ref<T> pSystem) {
     if constexpr (std::is_base_of_v<ILevelCreated, T>)
       registerLevelCreated(pSystem);
 
@@ -94,6 +92,28 @@ namespace engine {
     if constexpr (std::is_base_of_v<ILevelRenderDataCollector, T>)
       registerLevelRenderDataCollector(pSystem);
   }
+
+  template<typename T, typename... Args>
+  void registerLevelSystem(Args &&... args) {
+    bfc::Ref<T> pSystem = bfc::NewRef<T>(std::forward<Args>(args)...);
+
+    registerLevelSystem(pSystem);
+  }
+
+  template<typename T>
+  class AutoRegisterLevelSystem
+  {
+  public:
+    AutoRegisterLevelSystem()
+    {
+      registerLevelSystem(bfc::Ref<T>((T*)this, [](auto){}));
+    }
+
+    ~AutoRegisterLevelSystem()
+    {
+      // unregisterLevelSystem(this);
+    }
+  };
 
   bfc::Ref<Level> createLevel();
   void playLevel(Level * pLevel);

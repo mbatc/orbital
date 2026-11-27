@@ -1,6 +1,7 @@
 #include "LevelManager.h"
 #include "LevelSerializer.h"
 #include "LevelSystem.h"
+#include "LevelTemplate.h"
 #include "Level.h"
 
 #include "Application.h"
@@ -9,7 +10,8 @@
 #include "Rendering/Renderables.h"
 #include "Rendering/Rendering.h"
 #include "Assets/AssetManager.h"
-
+#include "Assets/AssetLoader.h"
+#include "Gameplay/CharacterControllers.h"
 #include "Physics.h"
 
 #include "mesh/Mesh.h"
@@ -22,10 +24,27 @@
 using namespace bfc;
 
 namespace engine {
+  class LevelTemplateLoader : public AssetLoader<LevelTemplate> {
+  public:
+    virtual bfc::Ref<LevelTemplate> load(bfc::URI const & uri, AssetLoadContext *) const override {
+      std::optional<SerializedObject> data = fs::deserialize(uri);
+      if (!data.has_value()) {
+        return nullptr;
+      }
+      return bfc::NewRef<LevelTemplate>(data.value());
+    }
+
+    virtual bool handles(bfc::URI const & uri) const override {
+      return uri.path().extension() == "template";
+    }
+  };
+
   LevelManager::LevelManager()
     : Subsystem(TypeID<LevelManager>(), "LevelManager") {}
 
   bool LevelManager::init(Application * pApp) {
+    asset_manager::registerLoader("core.leveltemplate", NewRef<LevelTemplateLoader>());
+
     registerCoreComponentTypes();
     registerCoreSystems();
 
@@ -188,9 +207,13 @@ namespace engine {
     registerComponentType<components::ColliderCapsule>("physics.collider.capsule");
     registerComponentType<components::ColliderMesh>("physics.collider.mesh");
     registerComponentType<components::RigidBody>("physics.rigidbody");
+
+    // Gameplay
+    registerComponentType<components::ThirdPersonCharacterController>("gameplay.controller.third-person-controller");
   }
 
   void LevelManager::registerCoreSystems() {
     registerLevelSystem<engine::Physics>();
+    registerLevelSystem<engine::CharacterContollerLevelSystem>();
   }
 } // namespace engine
