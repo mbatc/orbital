@@ -100,21 +100,6 @@ namespace engine {
     registerLevelSystem(pSystem);
   }
 
-  template<typename T>
-  class AutoRegisterLevelSystem
-  {
-  public:
-    AutoRegisterLevelSystem()
-    {
-      registerLevelSystem(bfc::Ref<T>((T*)this, [](auto){}));
-    }
-
-    ~AutoRegisterLevelSystem()
-    {
-      // unregisterLevelSystem(this);
-    }
-  };
-
   bfc::Ref<Level> createLevel();
   void playLevel(Level * pLevel);
   void pauseLevel(Level * pLevel);

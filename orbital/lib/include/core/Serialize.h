@@ -98,24 +98,24 @@ namespace bfc {
     struct has_serialize_intrusive_read : std::false_type {};
     template<typename T>
     struct has_serialize_intrusive_read<
-      T, std::void_t<decltype(T::Serialization::read(DummySerializer{}, bfc::SerializedObject{}, *(T *)0))>>
+      T, std::void_t<decltype(T::Meta::read(DummySerializer{}, bfc::SerializedObject{}, *(T *)0))>>
       : std::true_type {};
 
     template<typename T, typename U = void>
     struct has_serialize_intrusive_read_concrete : std::false_type {};
     template<typename T>
-    struct has_serialize_intrusive_read_concrete<T, std::void_t<decltype(T::Serialization::read)>> : std::true_type {};
+    struct has_serialize_intrusive_read_concrete<T, std::void_t<decltype(T::Meta::read)>> : std::true_type {};
 
     template<typename T, typename U = void>
     struct has_serialize_intrusive_write : std::false_type {};
     template<typename T>
-    struct has_serialize_intrusive_write<T, std::void_t<decltype(T::Serialization::write(DummySerializer{}, *(T *)0))>>
+    struct has_serialize_intrusive_write<T, std::void_t<decltype(T::Meta::write(DummySerializer{}, *(T *)0))>>
       : std::true_type {};
 
     template<typename T, typename U = void>
     struct has_serialize_intrusive_write_concrete : std::false_type {};
     template<typename T>
-    struct has_serialize_intrusive_write_concrete<T, std::void_t<decltype(T::Serialization::write)>> : std::true_type {};
+    struct has_serialize_intrusive_write_concrete<T, std::void_t<decltype(T::Meta::write)>> : std::true_type {};
   } // namespace detail
 
   template<typename T>
@@ -186,7 +186,7 @@ namespace bfc {
       if constexpr (bfc::has_serialize_write<T>) {
         return Serialization<T>::write(AsImpl(), o);
       } else if constexpr (bfc::has_serialize_intrusive_write<T>) {
-        return T::Serialization::write(AsImpl(), o);
+        return T::Meta::write(AsImpl(), o);
       } else if constexpr (bfc::has_reflect_v<T>) {
         auto reflection = reflect<T>();
         return writeMembers(AsImpl(), o, reflection, std::make_integer_sequence<int64_t, reflection.size()>{});
@@ -220,7 +220,8 @@ namespace bfc {
           return SerializedObject::MakeInt((int64_t)o);
         }
       } else {
-        return Serialization<T>::write(AsImpl(), o);
+        static_assert(false, "No serialization writer implemented for type `T`");
+        return false;
       }
     }
 
@@ -242,7 +243,7 @@ namespace bfc {
       if constexpr (bfc::has_serialize_read<T>) {
         return Serialization<T>::read(AsImpl(), s, o);
       } else if constexpr (bfc::has_serialize_intrusive_read<T>) {
-        return T::Serialization::read(AsImpl(), s, o);
+        return T::Meta::read(AsImpl(), s, o);
       } else if constexpr (bfc::has_reflect_v<T>) {
         memset(&o, 0, sizeof(T));
         auto reflection = reflect<T>();

@@ -10,9 +10,9 @@ namespace engine {
   using namespace bfc;
 
   struct InputDescriptor {
-    String inputDevice;
-    int64_t     inputIndex;
-    float       multiplier = 1.0f;
+    String  inputDevice;
+    int64_t inputIndex = 0;
+    float   multiplier = 1.0f;
   };
 
   namespace inputs {

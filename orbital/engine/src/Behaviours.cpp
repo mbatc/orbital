@@ -114,7 +114,7 @@ namespace components {
     return true;
   }
 
-  bfc::SerializedObject Behaviours::Serialization::write(engine::LevelSerializer::Writer & ar, components::Behaviours const & o) {
+  bfc::SerializedObject Behaviours::Meta::write(engine::LevelSerializer::Writer & ar, components::Behaviours const & o) {
     bfc::Map<bfc::String, bfc::SerializedObject> instances;
     for (auto & pInstance : o.instances()) {
       instances.add(engine::BehaviourClass::Registry::identifierOf(pInstance.get()), pInstance->serialize());
@@ -125,7 +125,7 @@ namespace components {
     });
   }
 
-  bool Behaviours::Serialization::read(engine::LevelSerializer::Reader & ar, bfc::SerializedObject const & s,
+  bool Behaviours::Meta::read(engine::LevelSerializer::Reader & ar, bfc::SerializedObject const & s,
                                        components::Behaviours & o) {
     bfc::mem::construct(&o);
 

@@ -61,7 +61,9 @@ namespace components {
     void lookAt(bfc::Vec3d const & direction, bfc::Vec3d const & up = bfc::math::up<double>);
 
     void translate(bfc::Vec3d const & translation);
+    void translateGlobal(engine::Level const * pLevel, bfc::Vec3d const & translation);
     void rotate(bfc::Quatd const & rotation);
+    void rotateGlobal(engine::Level const * pLevel, bfc::Quatd const & rotation);
     void scale(bfc::Vec3d const & amount);
     void scale(double const & amount);
 

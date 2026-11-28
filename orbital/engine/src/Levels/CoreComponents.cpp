@@ -156,8 +156,16 @@ namespace components {
     setTranslation(translation() + amount);
   }
 
+  void Transform::translateGlobal(engine::Level const * pLevel, bfc::Vec3d const & translation) {
+    setGlobalTranslation(pLevel, globalTranslation(pLevel) + translation);
+  }
+
   void Transform::rotate(bfc::Quatd const & rotation) {
     setOrientation(orientation() * rotation);
+  }
+
+  void Transform::rotateGlobal(engine::Level const * pLevel, bfc::Quatd const & rotation) {
+    setGlobalOrientation(pLevel, globalOrientation(pLevel) * rotation);
   }
 
   void Transform::scale(bfc::Vec3d const & amount) {
