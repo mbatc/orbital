@@ -55,32 +55,32 @@ namespace bfc {
   };
 
   template<>
-  struct Serializer<engine::SkyboxDefinition> {
-    template<typename Context>
-    static SerializedObject write(engine::SkyboxDefinition const & o, Context const &) {
+  struct Serialization<engine::SkyboxDefinition> {
+    template<typename Serializer>
+    static SerializedObject write(Serializer & ar, engine::SkyboxDefinition const & o) {
       SerializedObject src;
       switch (o.format) {
-      case engine::SkyboxFormat_CubeMap: src = serialize(o.cubeSource); break;
-      case engine::SkyboxFormat_Equirectangular: src = serialize(o.eqrectSource); break;
+      case engine::SkyboxFormat_CubeMap: src = ar(o.cubeSource); break;
+      case engine::SkyboxFormat_Equirectangular: src = ar(o.eqrectSource); break;
       }
 
       return SerializedObject::MakeMap({
-        {"format", serialize(o.format)},
+        {"format", ar(o.format)},
         {"source", src},
-        {"resolution", serialize(o.resolution)},
-        {"pixelFormat", serialize(o.pixelFormat)},
+        {"resolution", ar(o.resolution)},
+        {"pixelFormat", ar(o.pixelFormat)},
       });
     }
 
-    template<typename Context>
-    static bool read(SerializedObject const & s, engine::SkyboxDefinition & o, Context const &) {
-      s.get("format").readOrConstruct(o.format, engine::SkyboxFormat_Unknown);
+    template<typename Serializer>
+    static bool read(Serializer & ar, SerializedObject const & s, engine::SkyboxDefinition & o) {
+      ar(s.get("format"), bfc::ReadOrConstruct(o.format, engine::SkyboxFormat_Unknown));
 
       switch (o.format) {
       case engine::SkyboxFormat_CubeMap:
         if (s.get("source").isText()) {
           bfc::Uninitialized<bfc::URI> uri;
-          s.get("source").readOrConstruct(uri.get());
+          ar(s.get("source"), bfc::ReadOrConstruct(uri.get()));
           mem::construct(&o.cubeSource);
           for (size_t i = 0; i < CubeMapFace_Count; ++i) {
             CubeMapFace f = (CubeMapFace)i;
@@ -90,41 +90,41 @@ namespace bfc {
             o.cubeSource.add(f, mapping);
           }
         } else {
-          s.get("source").readOrConstruct(o.cubeSource);
+          ar(s.get("source"), bfc::ReadOrConstruct(o.cubeSource));
         }
         mem::construct(&o.eqrectSource);
         break;
       case engine::SkyboxFormat_Equirectangular:
-        s.get("source").readOrConstruct(o.eqrectSource);
+        ar(s.get("source"), bfc::ReadOrConstruct(o.eqrectSource));
         mem::construct(&o.cubeSource);
         break;
       }
 
-      s.get("resolution").readOrConstruct(o.resolution, Vec2i(2048));
-      s.get("pixelFormat").readOrConstruct(o.pixelFormat, PixelFormat_RGBu8);
+      ar(s.get("resolution"), bfc::ReadOrConstruct(o.resolution, Vec2i(2048)));
+      ar(s.get("pixelFormat"), bfc::ReadOrConstruct(o.pixelFormat, PixelFormat_RGBu8));
 
       return true;
     }
   };
 
   template<>
-  struct Serializer<engine::SkyboxDefinition::Image> {
-    template<typename Context>
-    static SerializedObject write(engine::SkyboxDefinition::Image const & o, Context const &) {
+  struct Serialization<engine::SkyboxDefinition::Image> {
+    template<typename Serializer>
+    static SerializedObject write(Serializer & ar, engine::SkyboxDefinition::Image const & o) {
       return SerializedObject::MakeMap({
-        { "uri", serialize(o.uri) },
-        { "region", serialize(o.region) }
+        { "uri", ar(o.uri) },
+        { "region", ar(o.region) }
       });
     }
 
-    template<typename Context>
-    static bool read(SerializedObject const & s, engine::SkyboxDefinition::Image & o, Context const &) {
+    template<typename Serializer>
+    static bool read(Serializer & ar, SerializedObject const & s, engine::SkyboxDefinition::Image & o) {
       if (s.isText()) {
-        s.readOrConstruct(o.uri);
+        ar(s, bfc::ReadOrConstruct(o.uri));
         mem::construct(&o.region, Vec2d(0), Vec2d(1));
       } else {
-        s.get("uri").readOrConstruct(o.uri);
-        s.get("region").readOrConstruct(o.region, Vec2d(0), Vec2d(1));
+        ar(s.get("uri"), bfc::ReadOrConstruct(o.uri));
+        ar(s.get("region"), bfc::ReadOrConstruct(o.region, Vec2d(0), Vec2d(1)));
       }
       return true;
     }

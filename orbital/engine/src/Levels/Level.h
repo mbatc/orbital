@@ -205,17 +205,17 @@ namespace engine {
 
     /// Unpack the index from an entity ID.
     inline static constexpr int64_t indexOf(EntityID const & entityID) {
-      return (entityID & 0x00000000FFFFFFFF);
+      return ((uint64_t)entityID & 0x00000000FFFFFFFF);
     }
 
     /// Unpack the version from an entity ID.
     inline static constexpr int64_t versionOf(EntityID const & entityID) {
-      return (entityID & 0xFFFFFFFF00000000) >> 32;
+      return ((uint64_t)entityID & 0xFFFFFFFF00000000) >> 32;
     }
 
     /// Pack an entity ID from its index and version
     inline static constexpr EntityID toEntityID(uint32_t const & index, uint32_t const & version) {
-      return ((uint64_t)index | ((uint64_t)version << 32ll));
+      return EntityID{((uint64_t)index | ((uint64_t)version << 32ll))};
     }
 
     std::optional<bfc::URI> sourceUri; ///< Where was the level loaded from

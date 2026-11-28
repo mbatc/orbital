@@ -8,7 +8,7 @@
 
 namespace bfc {
   template<typename T>
-  struct Serializer;
+  struct Serialization;
   class SerializedObject;
 
   enum MeshDeformerMode {
@@ -20,7 +20,7 @@ namespace bfc {
   class BFC_API MeshData {
   public:
     class BFC_API Material {
-      friend Serializer<bfc::MeshData::Material>;
+      friend Serialization<bfc::MeshData::Material>;
     public:
       using PropertyID = Pair<String, int64_t>;
 
@@ -163,23 +163,23 @@ namespace bfc {
   BFC_API int64_t read(Stream * pStream, MeshData::Deformer * pValue, int64_t count);
 
   template<>
-  struct Serializer<bfc::MeshData::Material> {
-    template<typename Context>
-    static SerializedObject write(bfc::MeshData::Material const & o, Context const & ctx) {
+  struct Serialization<bfc::MeshData::Material> {
+    template<typename Serializer>
+    static SerializedObject write(Serializer & ar, bfc::MeshData::Material const & o) {
       return SerializedObject::MakeMap({
-        { "name", serialize(o.getName(), ctx) },
-        { "textures", serialize(o.m_textures, ctx) },
-        { "colours", serialize(o.m_colours, ctx) },
-        { "values", serialize(o.m_values, ctx) },
+        {"name", ar(o.getName())},
+        {"textures", ar(o.m_textures)},
+        {"colours", ar(o.m_colours)},
+        {"values", ar(o.m_values)},
       });
     }
 
-    template<typename Context>
-    static bool read(SerializedObject const & s, bfc::MeshData::Material & o, Context const & ctx) {
-      s.get("name").readOrConstruct(o.m_name);
-      s.get("textures").readOrConstruct(o.m_textures);
-      s.get("colours").readOrConstruct(o.m_colours);
-      s.get("values").readOrConstruct(o.m_values);
+    template<typename Serializer>
+    static bool read(Serializer & ar, SerializedObject const & s, bfc::MeshData::Material & o) {
+      ar(s.get("name"), ReadOrConstruct(o.m_name));
+      ar(s.get("textures"), ReadOrConstruct(o.m_textures));
+      ar(s.get("colours"), ReadOrConstruct(o.m_colours));
+      ar(s.get("values"), ReadOrConstruct(o.m_values));
       return true;
     }
   };

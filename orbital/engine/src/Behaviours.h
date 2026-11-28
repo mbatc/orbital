@@ -84,10 +84,8 @@ namespace components {
     };
 
     struct Serialization {
-      static bfc::SerializedObject write(components::Behaviours const & o, engine::ComponentSerializeContext const & ctx);
-
-      static bool read(bfc::SerializedObject const & s, components::Behaviours & o,
-                       engine::ComponentDeserializeContext const & ctx);
+      static bfc::SerializedObject write(engine::LevelSerializer::Writer & ar, components::Behaviours const & o);
+      static bool read(engine::LevelSerializer::Reader & ar, bfc::SerializedObject const & s, components::Behaviours & o);
     };
   private:
     bfc::Vector<bfc::Ref<engine::BehaviourInstance>> m_instances;

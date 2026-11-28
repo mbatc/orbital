@@ -55,7 +55,7 @@ namespace bfc {
   }
 
   template<>
-  struct Serializer<VersionNumber> {
+  struct Serialization<VersionNumber> {
     template<typename Context>
     static SerializedObject write(VersionNumber const & o, Context const &) {
       return SerializedObject::MakeText(toString(o));

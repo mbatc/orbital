@@ -82,7 +82,7 @@ namespace bfc {
   bool Settings::getBool(StringView const & path, bool defaultValue) {
     bool value = defaultValue;
     if (SerializedObject * pSetting = m_values.tryGet(path)) {
-      pSetting->read(value);
+      read(*pSetting, value);
     }
     return value;
   }
@@ -90,7 +90,7 @@ namespace bfc {
   int64_t Settings::getInt(StringView const & path, int64_t defaultValue) {
     int64_t value = defaultValue;
     if (SerializedObject * pSetting = m_values.tryGet(path)) {
-      pSetting->read(value);
+      read(*pSetting, value);
     }
     return value;
   }
@@ -98,7 +98,7 @@ namespace bfc {
   double Settings::getFloat(StringView const & path, double defaultValue) {
     double value = defaultValue;
     if (SerializedObject * pSetting = m_values.tryGet(path)) {
-      pSetting->read(value);
+      read(*pSetting, value);
     }
     return value;
   }
@@ -106,7 +106,7 @@ namespace bfc {
   String Settings::getString(StringView const & path, StringView const & defaultValue) {
     String value = defaultValue;
     if (SerializedObject * pSetting = m_values.tryGet(path)) {
-      pSetting->read(value);
+      read(*pSetting, value);
     }
     return value;
   }

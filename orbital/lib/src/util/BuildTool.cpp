@@ -314,140 +314,14 @@ namespace bfc {
   }
 
   SerializedObject BuildTool::exportConfig() const {
-    SerializedObject s;
-    write(s.get("project"), projectName);
-    write(s.get("projectDir"), projectDirectory);
-    write(s.get("configurations"), configurations);
-    return s;
+    return SerializedObject::MakeMap({{"project", serialize(projectName)},
+                               {"projectDir", serialize(configurations)},
+                               {"configurations", serialize(projectName)}});
   }
 
   void BuildTool::readConfig(SerializedObject const & s) {
     read(s.get("project"), projectName);
     read(s.get("projectDir"), projectDirectory);
     read(s.get("configurations"), configurations);
-  }
-
-  SerializedObject Serializer<BuildConfiguration>::write(BuildConfiguration const & o, ...) {
-    SerializedObject s;
-    if (o.staticRuntime != -1)
-      s.get("static-runtime").write(o.staticRuntime);
-    if (o.debugRuntime != -1)
-      s.get("debug-runtime").write(o.debugRuntime);
-    if (o.symbols != -1)
-      s.get("symbols").write(o.symbols);
-    if (o.optimize != -1)
-      s.get("optimize").write(o.optimize);
-    if (o.editAndContinue != -1)
-      s.get("edit-and-continue").write(o.editAndContinue);
-    if (o.floatModel != FloatingPointModel_Unspecified)
-      s.get("fp-model").write(o.floatModel);
-    if (o.warningLevel != WarningLevel_Unspecified)
-      s.get("warnings").write(o.warningLevel);
-    if (o.flags.size())
-      s.get("flags").write(o.flags);
-    if (o.buildoptions.size())
-      s.get("build-options").write(o.buildoptions);
-    if (o.defines.size())
-      s.get("defines").write(o.defines);
-    if (o.links.size())
-      s.get("links").write(o.links);
-    if (o.libraryDirectories.size())
-      s.get("library-dirs").write(o.libraryDirectories);
-    if (o.includeDirectories.size())
-      s.get("include-dirs").write(o.includeDirectories);
-    if (o.intermediateDirectory.length())
-      s.get("intermediate-dir").write(o.intermediateDirectory);
-    if (o.targetDirectory.length())
-      s.get("target-directory").write(o.targetDirectory);
-    if (o.debugDirectory.length())
-      s.get("debug-directory").write(o.debugDirectory);
-    return s;
-  }
-
-  bool Serializer<BuildConfiguration>::read(SerializedObject const & s, BuildConfiguration & o, ...) {
-    s.get("static-runtime").readOrConstruct(o.staticRuntime, -1);
-    s.get("debug-runtime").readOrConstruct(o.debugRuntime, -1);
-    s.get("symbols").readOrConstruct(o.symbols, -1);
-    s.get("optimize").readOrConstruct(o.optimize, -1);
-    s.get("edit-and-continue").readOrConstruct(o.editAndContinue, -1);
-    s.get("fp-model").readOrConstruct(o.floatModel, FloatingPointModel_Unspecified);
-    s.get("warnings").readOrConstruct(o.warningLevel, WarningLevel_Default);
-    s.get("flags").readOrConstruct(o.flags);
-    s.get("build-options").readOrConstruct(o.buildoptions);
-    s.get("defines").readOrConstruct(o.defines);
-    s.get("links").readOrConstruct(o.links);
-    s.get("library-dirs").readOrConstruct(o.libraryDirectories);
-    s.get("include-dirs").readOrConstruct(o.includeDirectories);
-    s.get("intermediate-dir").readOrConstruct(o.intermediateDirectory);
-    s.get("target-directory").readOrConstruct(o.targetDirectory);
-    s.get("debug-directory").readOrConstruct(o.debugDirectory);
-    return true;
-  }
-
-  SerializedObject Serializer<BuildTool::Module>::write(BuildTool::Module const & o, ...) {
-    SerializedObject s;
-    if (o.name.length())
-      s.get("name").write(o.name);
-    if (o.group.length())
-      s.get("group").write(o.group);
-    if (o.moduleDirectory.length())
-      s.get("directory").write(o.moduleDirectory);
-    if (o.targetName.length())
-      s.get("target-name").write(o.targetName);
-    if (o.targetType != BuildTargetType_Unknown)
-      s.get("target-type").write(o.targetType);
-    if (o.files.size())
-      s.get("files").write(o.files);
-    if (o.configurations.size())
-      s.get("configurations").write(o.configurations);
-    return s;
-  }
-
-  bool Serializer<BuildTool::Module>::read(SerializedObject const & s, BuildTool::Module & o, ...) {
-    s.get("name").readOrConstruct(o.name);
-    s.get("directory").readOrConstruct(o.moduleDirectory);
-    s.get("group").readOrConstruct(o.group);
-    s.get("target-name").readOrConstruct(o.targetName);
-    s.get("target-type").readOrConstruct(o.targetType, BuildTargetType_Unknown);
-    s.get("files").readOrConstruct(o.files);
-    s.get("configurations").readOrConstruct(o.configurations);
-    return true;
-  }
-
-  SerializedObject Serializer<BuildTool::ExternalModule>::write(BuildTool::ExternalModule const & o, ...) {
-    SerializedObject s;
-    s.add("group").write(o.group);
-    s.add("script").write(o.script);
-    return s;
-  }
-
-  bool Serializer<BuildTool::ExternalModule>::read(SerializedObject const & s, BuildTool::ExternalModule & o, ...) {
-    s.get("group").readOrConstruct(o.group);
-    s.get("script").readOrConstruct(o.script);
-    return true;
-  }
-
-  SerializedObject Serializer<BuildTool>::write(BuildTool const & o, ...) {
-    SerializedObject s;
-    s.get("variables").write(o.variables);
-    SerializedObject &project = s.get("project");
-    project.get("name").write(o.projectName);
-    project.get("directory").write(o.projectDirectory);
-    s.get("configurations").write(o.configurations);
-    s.get("external-modules").write(o.externalModules);
-    s.get("modules").write(o.modules);
-    return s;
-  }
-
-  bool Serializer<BuildTool>::read(SerializedObject const & s, BuildTool & o, ...) {
-    s.get("variables").readOrConstruct(o.variables);
-    s.get("configurations").readOrConstruct(o.configurations);
-    s.get("external-modules").readOrConstruct(o.externalModules);
-    s.get("modules").readOrConstruct(o.modules);
-
-    SerializedObject const & project = s.get("project");
-    project.get("name").readOrConstruct(o.projectName);
-    project.get("directory").readOrConstruct(o.projectDirectory);
-    return true;
   }
 } // namespace bfc

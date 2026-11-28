@@ -106,16 +106,16 @@ namespace bfc {
   }
   
   template<typename T>
-  struct Serializer<geometry::Rectangle<T>> {
-    template<typename Context>
-    static SerializedObject write(geometry::Rectangle<T> const & o, Context const &) {
-      return SerializedObject::MakeMap({{"min", serialize(o.min)}, {"max", serialize(o.max)}});
+  struct Serialization<geometry::Rectangle<T>> {
+    template<typename Serializer>
+    static SerializedObject write(Serializer & ar, geometry::Rectangle<T> const & o) {
+      return SerializedObject::MakeMap({{"min", ar(o.min)}, {"max", ar(o.max)}});
     }
 
-    template<typename Context>
-    static bool read(SerializedObject const & s, geometry::Rectangle<T> & o, Context const &) {
-      s.get("min").readOrConstruct(o.min);
-      s.get("max").readOrConstruct(o.max);
+    template<typename Serializer>
+    static bool read(Serializer & ar, SerializedObject const & s, geometry::Rectangle<T> & o) {
+      ar(s.get("min"), ReadOrConstruct(o.min));
+      ar(s.get("max"), ReadOrConstruct(o.max));
       return true;
     }
   };

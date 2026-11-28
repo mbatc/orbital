@@ -2,6 +2,7 @@
 #include "../../../vendor/bullet3/src/btBulletDynamicsCommon.h"
 #include "Levels/CoreComponents.h"
 #include "Assets/BuiltinAssets.h"
+#include "Rendering/Rendering.h"
 #include "Rendering/Renderer.h"
 #include "Rendering/RenderData.h"
 #include "Rendering/Renderables.h"
@@ -312,11 +313,11 @@ namespace components {
       return pShape->getMesh();
   }
 
-  void ColliderMesh::setMesh(bfc::GraphicsDevice *pGraphicsDevice, bfc::Ref<bfc::Mesh> const & pMesh) {
+  void ColliderMesh::setMesh(bfc::Ref<bfc::Mesh> const & pMesh) {
     if (getMesh() == pMesh)
       return;
 
-    m_pImpl = bfc::NewRef<CompoundMeshShape>(pGraphicsDevice, pMesh);
+    m_pImpl = bfc::NewRef<CompoundMeshShape>(engine::rendering::getDevice(), pMesh);
   }
 
   ColliderCapsule::ColliderCapsule(double height, double radius) {

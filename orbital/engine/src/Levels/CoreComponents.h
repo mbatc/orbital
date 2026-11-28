@@ -205,21 +205,16 @@ namespace engine {
 
 namespace bfc {
   template<>
-  struct Serializer<components::Transform> {
-    inline static SerializedObject write(components::Transform const & o, engine::ComponentSerializeContext const & ctx) {
-      auto ret = SerializedObject::MakeMap({{"translation", serialize(o.translation())},
-                                                 {"ypr", serialize(glm::degrees(o.ypr()))},
-                                                 {"scale", serialize(o.scale())},
-                                                 {"parent", ctx.pSerializer->writeEntityID(o.parent(), *ctx.pLevel)}});
-
-      if (ctx.pLevel->contains(o.parent())) {
-        ret.add("parent", serialize(ctx.pLevel->uuidOf(o.parent())));
-      }
-
+  struct Serialization<components::Transform> {
+    inline static SerializedObject write(engine::LevelSerializer::Writer & ar, components::Transform const & o) {
+      auto ret = SerializedObject::MakeMap({{"translation", ar(o.translation())},
+                                            {"ypr", ar(glm::degrees(o.ypr()))},
+                                            {"scale", ar(o.scale())},
+                                            {"parent", ar(o.parent())}});
       return ret;
     }
 
-    inline static bool read(SerializedObject const & s, components::Transform & o, engine::ComponentDeserializeContext const & ctx) {
+    inline static bool read(engine::LevelSerializer::Reader & ar, SerializedObject const & s, components::Transform & o) {
       Vec3d translation, ypr, scale;
       bfc::read(s.get("translation"), translation);
       bfc::read(s.get("ypr"), ypr);
@@ -230,9 +225,10 @@ namespace bfc {
       o.setYpr(glm::radians(ypr));
       o.setScale(scale);
 
-      engine::EntityID parentID = ctx.pSerializer->readEntityID(s.get("parent"), *ctx.pLevel);
+      engine::EntityID parentID;
+      ar(s.get("parent"), parentID);
       if (parentID != engine::InvalidEntity) {
-        ctx.pSerializer->deferRead([entity = ctx.entity, parentID](engine::Level & level) {
+        ar.deferRead([entity = ar.entity(), parentID](engine::Level & level) {
           components::Transform * pTransform = level.tryGet<components::Transform>(entity);
           if (pTransform != nullptr) {
             pTransform->setParent(&level, parentID);
@@ -246,23 +242,23 @@ namespace bfc {
 
   // A Specific serializer type that should be specialized for more control over entity component serialization.
   template<>
-  struct Serializer<components::ShadedMaterial> {
+  struct Serialization<components::ShadedMaterial> {
     // Default implementation delegates to a bfc serialize implementation for the component type.
-    inline static SerializedObject write(components::ShadedMaterial const & o, engine::ComponentSerializeContext const & ctx) {
+    inline static SerializedObject write(engine::LevelSerializer::Writer & ar, components::ShadedMaterial const & o) {
       return SerializedObject::MakeMap({
-        {"material", serialize(o.pMaterial, ctx)},
-        {"shader", serialize(o.pProgram, ctx)},
+        {"material", ar(o.pMaterial)},
+        {"shader", ar(o.pProgram)},
       });
     }
 
-    inline static bool read(SerializedObject const & s, components::ShadedMaterial & o, engine::ComponentDeserializeContext const & ctx) {
+    inline static bool read(engine::LevelSerializer::Reader & ar, SerializedObject const & s, components::ShadedMaterial & o) {
       if (s.get("uri") || s.get("uuid")) {
-        ctx.pSerializer->readAsync(ctx, &components::ShadedMaterial::pMaterial, s);
+        ar.readAsync(&components::ShadedMaterial::pMaterial, s);
       } else {
-        ctx.pSerializer->readAsync(ctx, &components::ShadedMaterial::pMaterial, s.get("material"));
-        ctx.pSerializer->readAsync(ctx, &components::ShadedMaterial::pProgram, s.get("shader"));
-        s.get("material").read(o.pMaterial, ctx);
-        s.get("shader").read(o.pProgram, ctx);
+        ar.readAsync(&components::ShadedMaterial::pMaterial, s.get("material"));
+        ar.readAsync(&components::ShadedMaterial::pProgram, s.get("shader"));
+        ar(s.get("material"), o.pMaterial);
+        ar(s.get("shader"), o.pProgram);
       }
       return true;
     }
@@ -270,99 +266,94 @@ namespace bfc {
 
   // A Specific serializer type that should be specialized for more control over entity component serialization.
   template<>
-  struct Serializer<components::StaticMesh> {
+  struct Serialization<components::StaticMesh> {
     // Default implementation delegates to a bfc serialize implementation for the component type.
-    inline static SerializedObject write(components::StaticMesh const & o, engine::ComponentSerializeContext const & ctx) {
+    inline static SerializedObject write(engine::LevelSerializer::Writer & ar, components::StaticMesh const & o) {
       return SerializedObject::MakeMap({
-        {"castShadows", serialize(o.castShadows, ctx)},
-        {"useTesselation", serialize(o.useTesselation, ctx)},
-        {"materials", serialize(o.materials, ctx)},
-        {"mesh", serialize(o.pMesh, ctx)},
+        {"castShadows", ar(o.castShadows)},
+        {"useTesselation", ar(o.useTesselation)},
+        {"materials", ar(o.materials)},
+        {"mesh", ar(o.pMesh)},
       });
     }
 
-    inline static bool read(SerializedObject const & s, components::StaticMesh & o,
-                            engine::ComponentDeserializeContext const & ctx) {
-      s.get("castShadows").readOrConstruct(o.castShadows, true);
-      s.get("useTesselation").readOrConstruct(o.useTesselation, false);
+    inline static bool read(engine::LevelSerializer::Reader & ar, SerializedObject const & s, components::StaticMesh & o) {
+      ar(s.get("castShadows"), bfc::ReadOrConstruct{o.castShadows, true});
+      ar(s.get("useTesselation"), bfc::ReadOrConstruct{o.useTesselation, false });
 
-      ctx.pSerializer->readAsync(ctx, &components::StaticMesh::pMesh, s.get("mesh"));
-      ctx.pSerializer->readAsync(ctx, &components::StaticMesh::materials, s.get("materials"));
-
-      return true;
-    }
-  };
-
-  template<>
-  struct Serializer<components::Skybox> {
-    inline static SerializedObject write(components::Skybox const & o, engine::ComponentSerializeContext const & ctx) {
-      return SerializedObject::MakeMap({{"texture", ctx.pSerializer->writeAsset(o.pTexture)}});
-    }
-
-    inline static bool read(SerializedObject const & s, components::Skybox & o, engine::ComponentDeserializeContext const & ctx) {
-      ctx.pSerializer->readAsync(ctx, &components::Skybox::pTexture, s.get("texture"));
-      return true;
-    }
-  };
-
-  template<>
-  struct Serializer<components::PostProcess_Bloom> {
-    inline static SerializedObject write(components::PostProcess_Bloom const & o, engine::ComponentSerializeContext const & ctx) {
-      return SerializedObject::MakeMap({{"filterRadius", serialize(o.filterRadius, ctx)},
-                                             {"strength", serialize(o.strength, ctx)},
-                                             {"threshold", serialize(o.threshold, ctx)},
-                                             {"dirtIntensity", serialize(o.dirtIntensity, ctx)},
-                                             {"dirt", ctx.pSerializer->writeAsset(o.dirt)}});
-    }
-
-    inline static bool read(SerializedObject const & s, components::PostProcess_Bloom & o, engine::ComponentDeserializeContext const & ctx) {
-      s.get("filterRadius").readOrConstruct(o.filterRadius, 0.005f);
-      s.get("strength").read(o.strength, 0.04f);
-      s.get("threshold").read(o.threshold, 0.25f);
-      s.get("dirtIntensity").read(o.dirtIntensity, 1.0f);
-
-      ctx.pSerializer->readAsync(ctx, &components::PostProcess_Bloom::dirt, s.get("dirt"));
+      ar.readAsync(&components::StaticMesh::pMesh, s.get("mesh"));
+      ar.readAsync(&components::StaticMesh::materials, s.get("materials"));
 
       return true;
     }
   };
 
   template<>
-  struct Serializer<components::Name> {
-    template<typename Context>
-    static SerializedObject write(components::Name const & o, Context const &) {
+  struct Serialization<components::Skybox> {
+    inline static SerializedObject write(engine::LevelSerializer::Writer & ar, components::Skybox const & o) {
+      return SerializedObject::MakeMap({{"texture", ar(o.pTexture)}});
+    }
+
+    inline static bool read(engine::LevelSerializer::Reader & ar, SerializedObject const & s, components::Skybox & o) {
+      ar.readAsync(&components::Skybox::pTexture, s.get("texture"));
+      return true;
+    }
+  };
+
+  template<>
+  struct Serialization<components::PostProcess_Bloom> {
+    inline static SerializedObject write(engine::LevelSerializer::Writer & ar, components::PostProcess_Bloom const & o) {
+      return SerializedObject::MakeMap({{"filterRadius", ar(o.filterRadius) },
+                                        {"strength", ar(o.strength)},
+                                        {"threshold", ar(o.threshold)},
+                                        {"dirtIntensity", ar(o.dirtIntensity)},
+                                        {"dirt", ar(o.dirt) }});
+    }
+
+    inline static bool read(engine::LevelSerializer::Reader & ar, SerializedObject const & s, components::PostProcess_Bloom & o) {
+      ar(s.get("filterRadius"), bfc::ReadOrConstruct{ o.filterRadius, 0.005f });
+      ar(s.get("strength"), bfc::ReadOrConstruct{ o.strength, 0.04f });
+      ar(s.get("threshold"), bfc::ReadOrConstruct{ o.threshold, 0.25f });
+      ar(s.get("dirtIntensity"), bfc::ReadOrConstruct{ o.dirtIntensity, 1.0f });
+
+      ar.readAsync(&components::PostProcess_Bloom::dirt, s.get("dirt"));
+
+      return true;
+    }
+  };
+
+  template<>
+  struct Serialization<components::Name> {
+    static SerializedObject write(engine::LevelSerializer::Writer & ar, components::Name const & o) {
       return serialize(o.name);
     }
 
-    template<typename Context>
-    static bool read(SerializedObject const & s, components::Name & o, Context const &) {
-      s.readOrConstruct(o.name);
+    static bool read(engine::LevelSerializer::Reader & ar, SerializedObject const & s, components::Name & o) {
+      ar(s, bfc::ReadOrConstruct{ o.name });
       return true;
     }
   };
 
   template<>
-  struct Serializer<components::Camera> {
-    template<typename Context>
-    static SerializedObject write(components::Camera const & o, Context const &) {
+  struct Serialization<components::Camera> {
+    static SerializedObject write(engine::LevelSerializer::Writer & ar, components::Camera const & o) {
       return SerializedObject::MakeMap({
-        {"farPlane", serialize(o.farPlane)},
-        {"nearPlane", serialize(o.nearPlane)},
-        {"viewportSize", serialize(o.viewportSize)},
-        {"viewportPosition", serialize(o.viewportPosition)},
-        {"fov", serialize(glm::degrees(o.fov))}
+        {"farPlane", ar(o.farPlane)},
+        {"nearPlane", ar(o.nearPlane)},
+        {"viewportSize", ar(o.viewportSize)},
+        {"viewportPosition", ar(o.viewportPosition)},
+        {"fov", ar(glm::degrees(o.fov))}
       });
     }
 
-    template<typename Context>
-    static bool read(SerializedObject const & s, components::Camera & o, Context const &) {
+    static bool read(engine::LevelSerializer::Reader & ar, SerializedObject const & s, components::Camera & o) {
       mem::construct(&o);
 
-      s.get("farPlane").read(o.farPlane);
-      s.get("nearPlane").read(o.nearPlane);
-      s.get("viewportSize").read(o.viewportSize);
-      s.get("viewportPosition").read(o.viewportPosition);
-      s.get("fov").read(o.fov);
+      ar(s.get("farPlane"), o.farPlane);
+      ar(s.get("nearPlane"), o.nearPlane);
+      ar(s.get("viewportSize"), o.viewportSize);
+      ar(s.get("viewportPosition"), o.viewportPosition);
+      ar(s.get("fov"), o.fov);
 
       o.fov = glm::radians(o.fov);
 
@@ -377,33 +368,31 @@ namespace bfc {
   };
 
   template<>
-  struct Serializer<components::Light> {
-    template<typename Context>
-    static SerializedObject write(components::Light const & o, Context const &) {
+  struct Serialization<components::Light> {
+    static SerializedObject write(engine::LevelSerializer::Writer & ar, components::Light const & o) {
       return SerializedObject::MakeMap({
-        {"type", serialize(o.type)},
-        {"colour", serialize(o.colour)},
-        {"ambient", serialize(o.ambient)},
-        {"attenuation", serialize(o.attenuation)},
-        {"strength", serialize(o.strength)},
-        {"innerConeAngle", serialize(glm::degrees(o.innerConeAngle))},
-        {"outerConeAngle", serialize(glm::degrees(o.outerConeAngle))},
-        {"castShadows", serialize(o.castShadows)},
+        {"type", ar(o.type)},
+        {"colour", ar(o.colour)},
+        {"ambient", ar(o.ambient)},
+        {"attenuation", ar(o.attenuation)},
+        {"strength", ar(o.strength)},
+        {"innerConeAngle", ar(glm::degrees(o.innerConeAngle))},
+        {"outerConeAngle", ar(glm::degrees(o.outerConeAngle))},
+        {"castShadows", ar(o.castShadows)},
       });
     }
 
-    template<typename Context>
-    static bool read(SerializedObject const & s, components::Light & o, Context const &) {
+    static bool read(engine::LevelSerializer::Reader & ar, SerializedObject const & s, components::Light & o) {
       mem::construct(&o);
 
-      s.get("type").read(o.type);
-      s.get("colour").read(o.colour);
-      s.get("ambient").read(o.ambient);
-      s.get("attenuation").read(o.attenuation);
-      s.get("strength").read(o.strength);
-      s.get("innerConeAngle").read(o.innerConeAngle);
-      s.get("outerConeAngle").read(o.outerConeAngle);
-      s.get("castShadows").read(o.castShadows);
+      ar(s.get("type"), o.type);
+      ar(s.get("colour"), o.colour);
+      ar(s.get("ambient"), o.ambient);
+      ar(s.get("attenuation"), o.attenuation);
+      ar(s.get("strength"), o.strength);
+      ar(s.get("innerConeAngle"), o.innerConeAngle);
+      ar(s.get("outerConeAngle"), o.outerConeAngle);
+      ar(s.get("castShadows"), o.castShadows);
 
       o.innerConeAngle = glm::radians(o.innerConeAngle);
       o.outerConeAngle = glm::radians(o.outerConeAngle);
@@ -413,92 +402,84 @@ namespace bfc {
   };
 
   template<>
-  struct Serializer<components::PostProcessVolume> {
-    template<typename Context>
-    static SerializedObject write(components::PostProcessVolume const & o, Context const &) {
+  struct Serialization<components::PostProcessVolume> {
+    static SerializedObject write(engine::LevelSerializer::Writer & ar, components::PostProcessVolume const & o) {
       return SerializedObject::MakeMap({
-        {"enabled", serialize(o.enabled)},
-        {"extents", serialize(o.extents)},
-        {"infinite", serialize(o.infinite)},
-        {"effects", serialize(o.effects)},
+        {"enabled", ar(o.enabled)},
+        {"extents", ar(o.extents)},
+        {"infinite", ar(o.infinite)},
+        {"effects", ar(o.effects)},
       });
     }
 
-    template<typename Context>
-    static bool read(SerializedObject const & s, components::PostProcessVolume & o, Context const &) {
+    static bool read(engine::LevelSerializer::Reader & ar, SerializedObject const & s, components::PostProcessVolume & o) {
       mem::construct(&o);
 
-      s.get("enabled").read(o.enabled);
-      s.get("extents").read(o.extents);
-      s.get("infinite").read(o.infinite);
-      s.get("effects").read(o.effects);
+      ar(s.get("enabled"), o.enabled);
+      ar(s.get("extents"), o.extents);
+      ar(s.get("infinite"), o.infinite);
+      ar(s.get("effects"), o.effects);
 
       return true;
     }
   };
 
   template<>
-  struct Serializer<components::PostProcess_Tonemap> {
-    template<typename Context>
-    static SerializedObject write(components::PostProcess_Tonemap const & o, Context const &) {
+  struct Serialization<components::PostProcess_Tonemap> {
+    static SerializedObject write(engine::LevelSerializer::Writer & ar, components::PostProcess_Tonemap const & o) {
       return SerializedObject::MakeMap({
         {"exposure", serialize(o.exposure)},
       });
     }
 
-    template<typename Context>
-    static bool read(SerializedObject const & s, components::PostProcess_Tonemap & o, Context const &) {
+    static bool read(engine::LevelSerializer::Reader & ar, SerializedObject const & s, components::PostProcess_Tonemap & o) {
       mem::construct(&o);
 
-      s.get("exposure").read(o.exposure);
+      ar(s.get("exposure"), o.exposure);
 
       return true;
     }
   };
 
   template<>
-  struct Serializer<components::PostProcess_SSAO> {
-    template<typename Context>
-    static SerializedObject write(components::PostProcess_SSAO const & o, Context const &) {
+  struct Serialization<components::PostProcess_SSAO> {
+    static SerializedObject write(engine::LevelSerializer::Writer & ar, components::PostProcess_SSAO const & o) {
       return SerializedObject::MakeMap({
-        {"bias", serialize(o.bias)},
-        {"radius", serialize(o.radius)},
-        {"strength", serialize(o.strength)},
+        {"bias", ar(o.bias)},
+        {"radius", ar(o.radius)},
+        {"strength", ar(o.strength)},
       });
     }
 
-    template<typename Context>
-    static bool read(SerializedObject const & s, components::PostProcess_SSAO & o, Context const &) {
+    static bool read(engine::LevelSerializer::Reader & ar, SerializedObject const & s, components::PostProcess_SSAO & o) {
       mem::construct(&o);
 
-      s.get("bias").read(o.bias);
-      s.get("radius").read(o.radius);
-      s.get("strength").read(o.strength);
+      ar(s.get("bias"), o.bias);
+      ar(s.get("radius"), o.radius);
+      ar(s.get("strength"), o.strength);
 
       return true;
     }
   };
 
   template<>
-  struct Serializer<components::PostProcess_SSR> {
-    template<typename Context>
-    static SerializedObject write(components::PostProcess_SSR const & o, Context const &) {
+  struct Serialization<components::PostProcess_SSR> {
+    static SerializedObject write(engine::LevelSerializer::Writer & ar, components::PostProcess_SSR const & o) {
       return SerializedObject::MakeMap({
-        {"maxDistance", serialize(o.maxDistance)},
-        {"resolution", serialize(o.resolution)},
-        {"steps", serialize(o.steps)},
-        {"thickness", serialize(o.thickness)},
+        {"maxDistance", ar(o.maxDistance)},
+        {"resolution", ar(o.resolution)},
+        {"steps", ar(o.steps)},
+        {"thickness", ar(o.thickness)},
       });
     }
 
-    template<typename Context>
-    static bool read(SerializedObject const & s, components::PostProcess_SSR & o, Context const &) {
+    static bool read(engine::LevelSerializer::Reader & ar, SerializedObject const & s, components::PostProcess_SSR & o) {
       mem::construct(&o);
 
-      s.get("maxDistance").read(o.maxDistance);
-      s.get("resolution").read(o.resolution);
-      s.get("steps").read(o.steps);
-      s.get("thickness").read(o.thickness);
+      ar(s.get("maxDistance"), o.maxDistance);
+      ar(s.get("resolution"), o.resolution);
+      ar(s.get("steps"), o.steps);
+      ar(s.get("thickness"), o.thickness);
 
       return true;
     }

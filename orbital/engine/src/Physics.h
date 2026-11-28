@@ -3,6 +3,7 @@
 #include "Levels/Level.h"
 #include "Levels/LevelSystem.h"
 #include "Assets/AssetManager.h"
+#include "Levels/LevelSerializer.h"
 
 #include "geometry/Ray.h"
 
@@ -64,7 +65,7 @@ namespace components {
     bfc::Ref<void> getImpl() const;
 
     bfc::Ref<bfc::Mesh> getMesh() const;
-    void                setMesh(bfc::GraphicsDevice * pGraphicsDevice, bfc::Ref<bfc::Mesh> const & pMesh);
+    void                setMesh(bfc::Ref<bfc::Mesh> const & pMesh);
 
   private:
     bfc::Ref<void>  m_pImpl;
@@ -99,7 +100,7 @@ namespace engine {
     virtual void collectRenderData(RenderView * pRenderView, Level const * pLevel) override;
 
     struct RayCastHit {
-      EntityID entity = 0;
+      EntityID entity = EntityID::Invalid;
 
       bfc::Vec3d position = bfc::Vec3d(0);
       bfc::Vec3d normal   = bfc::Vec3d(0);
@@ -120,20 +121,20 @@ namespace engine {
 
 namespace bfc {
   template<>
-  struct Serializer<components::ColliderCapsule> {
-    template<typename Context>
-    static SerializedObject write(components::ColliderCapsule const & o, Context const &) {
+  struct Serialization<components::ColliderCapsule> {
+    template<typename Serializer>
+    static SerializedObject write(Serializer & ar, components::ColliderCapsule const & o) {
       return SerializedObject::MakeMap({
-        {"height", serialize(o.getHeight())},
-        {"radius", serialize(o.getRadius())},
+        {"height", ar(o.getHeight())},
+        {"radius", ar(o.getRadius())},
       });
     }
 
-    template<typename Context>
-    static bool read(SerializedObject const & s, components::ColliderCapsule & o, Context const &) {
+    template<typename Serializer>
+    static bool read(Serializer & ar, SerializedObject const & s, components::ColliderCapsule & o) {
       double height, radius;
-      s.get("height").read(height);
-      s.get("radius").read(radius);
+      ar(s.get("height"), height);
+      ar(s.get("radius"), radius);
 
       mem::construct(&o, height, radius);
 
@@ -142,19 +143,19 @@ namespace bfc {
   };
 
   template<>
-  struct Serializer<components::ColliderCube> {
-    template<typename Context>
-    static SerializedObject write(components::ColliderCube const & o, Context const &) {
+  struct Serialization<components::ColliderCube> {
+    template<typename Serializer>
+    static SerializedObject write(Serializer & ar, components::ColliderCube const & o) {
       return SerializedObject::MakeMap({
-        {"size", serialize(o.getSize())},
+        {"size", ar(o.getSize())},
       });
     }
 
-    template<typename Context>
-    static bool read(SerializedObject const & s, components::ColliderCube & o, Context const &) {
+    template<typename Serializer>
+    static bool read(Serializer & ar, SerializedObject const & s, components::ColliderCube & o) {
 
       bfc::Vec3d size = { 1, 1, 1 };
-      s.get("size").read(size);
+      ar(s.get("size"), size);
 
       mem::construct(&o, size);
 
@@ -163,19 +164,19 @@ namespace bfc {
   };
 
   template<>
-  struct Serializer<components::ColliderSphere> {
-    template<typename Context>
-    static SerializedObject write(components::ColliderSphere const & o, Context const &) {
+  struct Serialization<components::ColliderSphere> {
+    template<typename Serializer>
+    static SerializedObject write(Serializer & ar, components::ColliderSphere const & o) {
       return SerializedObject::MakeMap({
-        {"radius", serialize(o.getRadius())},
+        {"radius", ar(o.getRadius())},
       });
     }
 
-    template<typename Context>
-    static bool read(SerializedObject const & s, components::ColliderSphere & o, Context const &) {
+    template<typename Serializer>
+    static bool read(Serializer & ar, SerializedObject const & s, components::ColliderSphere & o) {
 
       double radius = 0.5;
-      s.get("radius").read(radius);
+      ar(s.get("radius"), radius);
       mem::construct(&o, radius);
 
       return true;
@@ -183,36 +184,40 @@ namespace bfc {
   };
 
   template<>
-  struct Serializer<components::ColliderMesh> {
-    template<typename Context>
-    static SerializedObject write(components::ColliderMesh const & o, Context const &) {
-      return SerializedObject::MakeMap({
-      });
+  struct Serialization<components::ColliderMesh> {
+    template<typename Serializer>
+    static SerializedObject write(Serializer & ar, components::ColliderMesh const & o) {
+      return SerializedObject::MakeMap({{"mesh", ar(o.getMesh()) }});
     }
 
-    template<typename Context>
-    static bool read(SerializedObject const & s, components::ColliderMesh & o, Context const &) {
+    template<typename Serializer>
+    static bool read(Serializer & ar, SerializedObject const & s, components::ColliderMesh & o) {
       mem::construct(&o);
-
+      bfc::Uninitialized<bfc::Ref<bfc::Mesh>> pMesh;
+      if (!ar(s.get("mesh"), pMesh)) {
+        mem::destruct(&o);
+        return false;
+      }
+      o.setMesh(std::move(pMesh.take()));
       return true;
     }
   };
 
   template<>
-  struct Serializer<components::RigidBody> {
-    template<typename Context>
-    static SerializedObject write(components::RigidBody const & o, Context const &) {
+  struct Serialization<components::RigidBody> {
+    template<typename Serializer>
+    static SerializedObject write(Serializer & ar, components::RigidBody const & o) {
       return SerializedObject::MakeMap({
-        {"mass", serialize(o.getMass())},
+        {"mass", ar(o.getMass())},
       });
     }
 
-    template<typename Context>
-    static bool read(SerializedObject const & s, components::RigidBody & o, Context const &) {
+    template<typename Serializer>
+    static bool read(Serializer & ar, SerializedObject const & s, components::RigidBody & o) {
       mem::construct(&o);
 
       double mass = 1;
-      s.get("mass").read(mass);
+      ar(s.get("mass"), mass);
 
       o.setMass(mass);
 

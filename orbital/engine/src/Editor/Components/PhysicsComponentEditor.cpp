@@ -44,7 +44,7 @@ namespace engine {
 
     LevelEditor::drawAssetSelector("Mesh", &pMesh);
 
-    pCollider->setMesh(rendering::getDevice(), pMesh);
+    pCollider->setMesh(pMesh);
   }
 
   void RigidBodyEditor::draw(LevelEditor * pEditor, bfc::Ref<Level> const & pLevel, EntityID entityID,

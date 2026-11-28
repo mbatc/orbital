@@ -5,7 +5,7 @@
 
 namespace bfc {
   template<typename T>
-  struct Serializer;
+  struct Serialization;
   struct DefaultSerializerContext {};
 
   class URI;
@@ -46,27 +46,6 @@ namespace bfc {
 
     SerializedObject & operator=(SerializedObject && rhs);
     SerializedObject & operator=(SerializedObject const & rhs);
-
-    template<typename T, typename Context = DefaultSerializerContext>
-    void write(T const & o, Context const & ctx = {}) {
-      *this = Serializer<T>::write(o, ctx);
-    }
-
-    template<typename T, typename Context = DefaultSerializerContext>
-    bool read(T & o, Context const & ctx = {}) const {
-      return Serializer<T>::read(*this, o, ctx);
-    }
-
-    /// Read this SerializedObject as a `T`.
-    /// If read fails, `o` is constructed using `constructorArgs`.
-    /// @param o The uninitialized object to read or construct into.
-    /// @param constructorArgs The arguments to be forwarded to T's constructor if reading the data fails.
-    template<typename T, typename... Args>
-    void readOrConstruct(T & o, Args&&... constructorArgs) const {
-      if (!read(o)) {
-        mem::construct(&o, std::forward<Args>(constructorArgs)...);
-      }
-    }
 
     operator bool() const;
     operator SerializedObject();
@@ -162,10 +141,6 @@ namespace bfc {
     SerializedObject(char const * value);
     SerializedObject(Vector<SerializedObject> arr);
     SerializedObject(Map<String, SerializedObject> map);
-
-    template<typename T, typename Context = DefaultSerializerContext>
-    explicit SerializedObject(T const & o, Context const & ctx = {})
-      : SerializedObject(Serializer<T>::write(o, ctx)) {}
 
     SerializedObject(SerializedObject && rhs) noexcept;
     SerializedObject(SerializedObject const & rhs);

@@ -25,12 +25,11 @@ namespace engine {
   }
 
   SerializedObject LevelSerializer::serialize(Level const & level) {
-    ComponentSerializeContext context;
-    context.pLevel        = &level;
-    context.pSerializer   = this;
-
+    Writer           writer(this, &level);
     SerializedObject entityList = SerializedObject::MakeArray();
     for (EntityID entity : level.entities()) {
+      writer.beginEntity(entity);
+
       SerializedObject serializedEntity = SerializedObject::MakeMap();
       serializedEntity.add("uuid", bfc::serialize(level.uuidOf(entity)));
 
@@ -48,8 +47,7 @@ namespace engine {
           continue;
         }
 
-        context.entity = entity;
-        components.add(componentName, pInterface->write(entity, context));
+        components.add(componentName, pInterface->write(writer, level, entity));
       }
 
       serializedEntity.add("components") = std::move(components);
@@ -62,12 +60,9 @@ namespace engine {
   }
 
   bool LevelSerializer::deserialize(SerializedObject const & serialized, Level & level) {
+    Reader                   writer(this, &level);
     SerializedObject const & entities = serialized.get("entities");
     bfc::Vector<EntityID>    ids;
-
-    ComponentDeserializeContext context;
-    context.pLevel        = &level;
-    context.pSerializer   = this;
 
     if (entities.isArray()) {
       for (int64_t i = 0; i < entities.size(); ++i) {
@@ -97,6 +92,8 @@ namespace engine {
           continue;
         }
 
+        writer.beginEntity(entityID);
+
         SerializedObject const & components = entity.get("components");
         if (!components.isMap()) {
           continue;
@@ -109,8 +106,7 @@ namespace engine {
             continue;
           }
 
-          context.entity = entityID;
-          if (!pInterface->read(data, entityID, context)) {
+          if (!pInterface->read(writer, data, &level, entityID)) {
             BFC_LOG_WARNING("LevelSerializer", "Failed to read component data (type=%s)", name);
             continue;
           }
@@ -128,10 +124,12 @@ namespace engine {
 
     auto deferredJobs = std::move(m_deferred);
     guard.unlock();
+
     // Run deferred reads
     for (auto & cb : deferredJobs) {
       cb(level);
     }
+
     return true;
   }
 

@@ -38,9 +38,7 @@ namespace bfc {
         return false;
       }
 
-      bfc::SerializedObject serialized;
-      serialized.write(val);
-      m_pSettings->setObject(path(), serialized);
+      m_pSettings->setObject(path(), serialize(val));
       return true;
     }
 
@@ -75,12 +73,12 @@ namespace bfc {
 
     template<typename T>
     T get(bfc::StringView const & path, T const & defaultValue = {}) {
-      bfc::SerializedObject s = getObject(path, ::bfc::serialize(defaultValue));
+      bfc::SerializedObject s = getObject(path, bfc::serialize(defaultValue));
       bfc::Uninitialized<T> ret;
-      if (!s.read(ret.get())) {
+      if (!bfc::read(s, ret)) {
         return defaultValue;
       } else {
-        return ret.get();
+        return ret.take();
       }
     }
 

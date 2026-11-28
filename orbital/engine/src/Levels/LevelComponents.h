@@ -7,6 +7,7 @@
 #include "core/RuntimeType.h"
 #include "core/RuntimeObject.h"
 #include "LevelSerializer.h"
+#include "EntityID.h"
 
 // Level components can be any type.
 // There are some traits that a component can implement either specializing on or more super classes of LevelComponentHooks.
@@ -34,10 +35,6 @@
 // The default "hooks" will call these methods if they exist
 
 namespace engine {
-  using EntityID = uint64_t;
-
-  constexpr EntityID InvalidEntity = 0;
-
   class Level;
   class LevelSerializer;
   class LevelCopyContext {
@@ -83,9 +80,10 @@ namespace engine {
 
     virtual bfc::type_index type() const = 0;
 
-    virtual bfc::SerializedObject write(EntityID entity, ComponentSerializeContext const & context) const = 0;
+    virtual bfc::SerializedObject write(LevelSerializer::Writer & seralizer, Level const & level, EntityID entity) const = 0;
 
-    virtual bool read(bfc::SerializedObject const & serialized, EntityID entity, ComponentDeserializeContext const & context) const = 0;
+    virtual bool read(LevelSerializer::Reader & seralizer, bfc::SerializedObject const & serialized, Level * pLevel,
+                      EntityID entity) const = 0;
 
     virtual bool copy(LevelCopyContext * pContext, Level * pDstLevel, EntityID dstEntity, Level const & srcLevel, EntityID srcEntity) const = 0;
 
@@ -159,17 +157,18 @@ namespace engine {
       return bfc::TypeID<T>();
     }
 
-    virtual bfc::SerializedObject write(EntityID entity, ComponentSerializeContext const & context) const override {
-      return bfc::serialize(context.pLevel->get<T>(entity), context);
+    virtual bfc::SerializedObject write(LevelSerializer::Writer & ar, Level const & level, EntityID entity) const override {
+      return bfc::serialize(ar, level.get<T>(entity));
     }
 
-    virtual bool read(bfc::SerializedObject const & serialized, EntityID entity, ComponentDeserializeContext const & context) const override {
-      std::optional<T> result = bfc::deserialize<T>(serialized, context);
+    virtual bool read(LevelSerializer::Reader & ar, bfc::SerializedObject const & serialized, Level * pLevel,
+                      EntityID entity) const override {
+      std::optional<T> result = bfc::deserialize<T>(ar, serialized);
       if (!result.has_value()) {
         return false;
       }
 
-      context.pLevel->replace<T>(entity, std::move(result.value()));
+      pLevel->replace<T>(entity, std::move(result.value()));
       return true;
     }
 

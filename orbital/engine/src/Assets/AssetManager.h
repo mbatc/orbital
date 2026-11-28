@@ -285,9 +285,9 @@ namespace engine {
 
 namespace bfc {
   template<typename T>
-  struct Serializer<engine::Asset<T>> {
-    template<typename Ctx>
-    static bfc::SerializedObject write(engine::Asset<T> const & o, Ctx const & ctx) {
+  struct Serialization<engine::Asset<T>> {
+    template<typename Serializer>
+    static bfc::SerializedObject write(Serializer &, engine::Asset<T> const & o) {
       engine::AssetHandle    handle  = o.handle();
       if (handle == engine::InvalidAssetHandle) {
         return SerializedObject::Empty();
@@ -296,8 +296,8 @@ namespace bfc {
       return SerializedObject::MakeMap({{"uri", engine::asset_manager::uriOf(handle).str()}});
     }
 
-    template<typename Ctx>
-    static bool read(bfc::SerializedObject const & s, engine::Asset<T> & o, Ctx const & ctx) {
+    template<typename Serializer>
+    static bool read(Serializer & , bfc::SerializedObject const & s, engine::Asset<T> & o) {
       SerializedObject const & uriItem = s.get("uri");
       if (uriItem.isText()) {
         bfc::URI uri = uriItem.asText();

@@ -294,8 +294,8 @@ namespace engine {
 
     if (ImGui::BeginPopup("Select Entity")) {
       for (EntityID entity : pLevel->entities()) {
-        ImGui::PushID((int)(entity & 0x00000000FFFFFFFF));
-        ImGui::PushID((int)((entity >> 32) & 0x00000000FFFFFFFF));
+        ImGui::PushID((int)((uint64_t)entity & 0x00000000FFFFFFFF));
+        ImGui::PushID((int)(((uint64_t)entity >> 32) & 0x00000000FFFFFFFF));
 
         bfc::String optionName = "[ unnamed ]";
         if (components::Name * pName = pLevel->tryGet<components::Name>(entity))
@@ -690,8 +690,9 @@ namespace engine {
       }
 
       auto * pName = pLevel->tryGet<components::Name>(entityID);
-      ImGui::PushID((int)(entityID & 0x00000000FFFFFFFF));
-      ImGui::PushID((int)((entityID >> 32) & 0x00000000FFFFFFFF));
+
+      ImGui::PushID((int)((uint64_t)entityID & 0x00000000FFFFFFFF));
+      ImGui::PushID((int)(((uint64_t)entityID >> 32) & 0x00000000FFFFFFFF));
 
       if (ImGui::Selectable(pName ? pName->name.c_str() : "[ Unnamed ]", m_selected == entityID, ImGuiSelectableFlags_SpanAvailWidth)) {
         if (m_selected == entityID)
@@ -782,8 +783,8 @@ namespace engine {
     auto & transform = pLevel->get<components::Transform>(entityID);
     auto * pName     = pLevel->tryGet<components::Name>(entityID);
 
-    ImGui::PushID((int)(entityID & 0x00000000FFFFFFFF));
-    ImGui::PushID((int)((entityID >> 32) & 0x00000000FFFFFFFF));
+    ImGui::PushID((int)((uint64_t)entityID & 0x00000000FFFFFFFF));
+    ImGui::PushID((int)(((uint64_t)entityID >> 32) & 0x00000000FFFFFFFF));
 
     int flags = ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
     if (m_selected == entityID)
